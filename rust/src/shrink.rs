@@ -56,8 +56,16 @@ pub fn shrink(dir: &Path, mut sc: Scenario) -> (Scenario, Vec<String>) {
         if cands.is_empty() {
             break;
         }
-        let results = diffs(dir, &cands);
-        match cands.into_iter().zip(results).find(|(_, d)| !d.is_empty()) {
+        // The Java side runs at most 128 cases at once: try them in chunks, first hit wins.
+        let mut hit = None;
+        for chunk in cands.chunks(128) {
+            let results = diffs(dir, chunk);
+            if let Some((c, d)) = chunk.iter().zip(results).find(|(_, d)| !d.is_empty()) {
+                hit = Some((c.clone(), d));
+                break;
+            }
+        }
+        match hit {
             Some((c, d)) => {
                 eprintln!("  {} blocks, {} events: {} differences", c.blocks.len(), c.events.len(), d.len());
                 sc = c;
