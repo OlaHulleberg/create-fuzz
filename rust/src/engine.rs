@@ -242,11 +242,30 @@ impl Run {
 
     fn kinetic(&self, p: Pos, id: u32) -> Option<Kinetic> {
         let k = &self.w.dims[0].kinetics;
-        let (theoretical, stress, capacity, overstressed) = k.network(p, 0)?;
-        let speed = k.speed(p, 0)?;
-        let generated = k.generated(p, 0)?;
         let (block, info): (create_engine::Block, &StateInfo) = self.w.table.get(id)?;
-        let part = parts(block, info, &Settings::default())[0]?;
+        let both = parts(block, info, &Settings::default());
+        // A split shaft is one block entity in Create, holding the figures of the half its
+        // source drives: here, the half whose network has a generator.
+        let sub = if both[1].is_some() && k.network(p, 0).is_some_and(|n| n.2 == 0.0) && k.network(p, 1).is_some_and(|n| n.2 > 0.0) {
+            1
+        } else {
+            0
+        };
+        let (theoretical, stress, capacity, overstressed) = k.network(p, sub)?;
+        let speed = k.speed(p, sub)?;
+        let generated = k.generated(p, sub)?;
+        let part = both[sub as usize]?;
+        let faces = both[1].is_some().then(|| {
+            let mut m = BTreeMap::new();
+            for d in create_engine::kinetics::Dir::ALL {
+                for (s, half) in both.iter().enumerate() {
+                    if half.is_some_and(|h| h.shafts & d.bit() != 0) {
+                        m.insert(format!("{d:?}").to_lowercase(), k.speed(p, s as u8).unwrap_or(0.0));
+                    }
+                }
+            }
+            m
+        });
         Some(Kinetic {
             speed,
             theoretical,
@@ -256,6 +275,7 @@ impl Run {
             impact: part.impact,
             added_capacity: part.capacity,
             generated,
+            faces,
         })
     }
 }

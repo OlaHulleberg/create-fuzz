@@ -22,8 +22,8 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
                 }
                 match (&j.kinetic, &r.kinetic) {
                     (Some(a), Some(b)) => {
-                        let mut b = *b;
-                        if crate::allow::gearbox_frame(&j.state, a, &b) {
+                        let mut b = b.clone();
+                        if crate::allow::gearbox_frame(&j.state, a, &b) || crate::allow::split_shaft_frame(a, &b) {
                             (b.speed, b.theoretical) = (a.speed, a.theoretical);
                         }
                         out.extend(kinetic_diff(a, &b).into_iter().map(|d| format!("{k}: {d}")))
@@ -73,6 +73,14 @@ fn kinetic_diff(j: &Kinetic, r: &Kinetic) -> Vec<String> {
     f("impact", j.impact, r.impact);
     f("added_capacity", j.added_capacity, r.added_capacity);
     f("generated", j.generated, r.generated);
+    if let (Some(jf), Some(rf)) = (&j.faces, &r.faces) {
+        for (face, a) in jf {
+            let b = rf.get(face).copied().unwrap_or(f32::NAN);
+            if !close(*a, b) {
+                out.push(format!("{face} face: java {a} rust {b}"));
+            }
+        }
+    }
     if j.overstressed != r.overstressed {
         out.push(format!("overstressed: java {} rust {}", j.overstressed, r.overstressed));
     }

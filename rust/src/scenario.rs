@@ -76,7 +76,7 @@ pub struct BlockSnap {
     pub debug: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Kinetic {
     /// `getSpeed()`: 0 when overstressed.
     pub speed: f32,
@@ -92,6 +92,9 @@ pub struct Kinetic {
     pub added_capacity: f32,
     /// `getGeneratedSpeed()`.
     pub generated: f32,
+    /// A clutch's or gearshift's halves: the speed each shaft face turns at.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub faces: Option<BTreeMap<String, f32>>,
 }
 
 pub fn key(p: Pos) -> String {

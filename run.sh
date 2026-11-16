@@ -35,7 +35,9 @@ P
     (cd "$here/java" && nohup "$gradlew" --no-daemon -q runServer > "$FUZZ_DIR/server.log" 2>&1 & echo $! > "$FUZZ_DIR/server.pid")
     for _ in $(seq 600); do
         [ -f "$FUZZ_DIR/ready" ] && { echo "server ready"; exit 0; }
-        kill -0 "$(cat "$FUZZ_DIR/server.pid")" 2>/dev/null || { echo "server exited; see $FUZZ_DIR/server.log"; exit 1; }
+        # Exited (a zombie counts: nothing here may reap it).
+        st="$(awk '{print $3}' "/proc/$(cat "$FUZZ_DIR/server.pid")/stat" 2>/dev/null || echo Z)"
+        [ "$st" != Z ] || { echo "server exited; see $FUZZ_DIR/server.log"; exit 1; }
         sleep 1
     done
     echo "server not ready after 10 min"; exit 1 ;;

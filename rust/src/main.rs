@@ -32,7 +32,7 @@ fn main() {
         "fuzz" => {
             let first: u64 = args[1].parse().unwrap();
             let count: u64 = args[2].parse().unwrap();
-            let batch: usize = args.get(3).map_or(64, |b| b.parse().unwrap());
+            let batch: usize = args.get(3).map_or(128, |b| b.parse().unwrap());
             fuzz(first, count, batch);
         }
         "shrink" => {
@@ -68,6 +68,11 @@ fn check(cases: &[Scenario], names: &[String]) -> usize {
             for d in &diffs {
                 println!("  {d}");
             }
+            for (k, b) in &j.blocks {
+                if diffs.iter().any(|d| d.starts_with(&format!("{k}:"))) {
+                    println!("  java {k} debug: {}", b.debug.as_deref().unwrap_or("-"));
+                }
+            }
         }
     }
     failed
@@ -79,7 +84,7 @@ fn fuzz(first: u64, count: u64, batch: usize) {
     let found = Path::new(env!("CARGO_MANIFEST_DIR")).join("../found");
     std::fs::create_dir_all(&found).unwrap();
     let seeds: Vec<u64> = (first..first + count).collect();
-    let (mut matched, mut differed) = (0, 0);
+    let (mut matched, mut differed, mut unstable) = (0, 0, 0);
     for chunk in seeds.chunks(batch) {
         let cases: Vec<Scenario> = chunk.iter().map(|&s| generate::generate(s)).collect();
         let java = java::run(&fuzz_dir(), &cases);
@@ -90,13 +95,23 @@ fn fuzz(first: u64, count: u64, batch: usize) {
                 matched += 1;
                 continue;
             }
+            // Java can settle differently run to run (its networks iterate identity-hashed maps):
+            // three more runs; a case Java disagrees with itself on is unstable, not a mismatch.
+            let again = java::run(&fuzz_dir(), &[sc.clone(), sc.clone(), sc.clone()]);
+            if again.iter().any(|a| !compare::diff(j, a).is_empty()) {
+                unstable += 1;
+                let record = serde_json::json!({"scenario": sc, "java": j, "java_again": again});
+                std::fs::write(found.join(format!("unstable-{}.json", sc.seed)), serde_json::to_string_pretty(&record).unwrap()).unwrap();
+                println!("seed {}: java unstable", sc.seed);
+                continue;
+            }
             differed += 1;
             let record = serde_json::json!({"scenario": sc, "java": j, "rust": r, "diffs": diffs});
             std::fs::write(found.join(format!("{}.json", sc.seed)), serde_json::to_string_pretty(&record).unwrap()).unwrap();
             println!("seed {}: {} differences, first: {}", sc.seed, diffs.len(), diffs[0]);
         }
     }
-    println!("{matched} matched, {differed} differed");
+    println!("{matched} matched, {differed} differed, {unstable} java-unstable");
 }
 
 pub fn fuzz_dir() -> PathBuf {

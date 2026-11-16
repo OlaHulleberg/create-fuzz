@@ -16,12 +16,15 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.simibubi.create.content.kinetics.base.IRotate;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
+import com.simibubi.create.content.kinetics.transmission.SplitShaftBlockEntity;
 import com.simibubi.create.content.kinetics.crank.HandCrankBlockEntity;
 import com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity;
 
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -49,6 +52,13 @@ public class CreateFuzz {
 
 	final Path dir;
 	Batch batch;
+	/**
+	 * The areas cases run in: force-loaded once at start, so no chunk loads while cases run (at a
+	 * sprint tick rate chunk loading lags, and block entities placed in a chunk not yet in the level
+	 * wait to tick). A batch holds at most this many cases.
+	 */
+	static final int SLOTS = 128;
+	int startup = -1;
 	int poll;
 
 	public CreateFuzz(IEventBus modBus) {
@@ -62,17 +72,43 @@ public class CreateFuzz {
 		try {
 			Files.createDirectories(dir.resolve("inbox"));
 			Files.createDirectories(dir.resolve("outbox"));
+			ServerLevel level = e.getServer().overworld();
+			for (int i = 0; i < SLOTS; i++) {
+				BlockPos o = slot(i);
+				for (int cx = (o.getX() - CLEAR_RADIUS) >> 4; cx <= (o.getX() + CLEAR_RADIUS) >> 4; cx++)
+					for (int cz = (o.getZ() - CLEAR_RADIUS) >> 4; cz <= (o.getZ() + CLEAR_RADIUS) >> 4; cz++)
+						level.setChunkForced(cx, cz, true);
+			}
 			// Run ticks as fast as the server can.
 			e.getServer().tickRateManager().setTickRate(10000f);
-			Files.writeString(dir.resolve("ready"), "ready\n");
+			startup = 0;
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);
 		}
 	}
 
+	static BlockPos slot(int i) {
+		return new BlockPos((i % 16) * SPACING, Y, (i / 16) * SPACING);
+	}
+
 	void tick(ServerTickEvent.Post e) {
 		MinecraftServer server = e.getServer();
 		ServerLevel level = server.overworld();
+		// Ready once every slot's blocks tick, and 100 ticks more for their chunks to settle.
+		if (startup >= 0) {
+			boolean all = true;
+			for (int i = 0; i < SLOTS && all; i++)
+				all = level.isPositionEntityTicking(slot(i));
+			if (all && ++startup > 100) {
+				startup = -1;
+				try {
+					Files.writeString(dir.resolve("ready"), "ready\n");
+				} catch (IOException ex) {
+					throw new RuntimeException(ex);
+				}
+			}
+			return;
+		}
 		if (batch == null) {
 			if (poll++ % 5 != 0)
 				return;
@@ -141,21 +177,17 @@ public class CreateFuzz {
 
 		Batch(String name, JsonArray in, ServerLevel level) {
 			this.name = name;
-			int side = (int) Math.ceil(Math.sqrt(in.size()));
 			for (int i = 0; i < in.size(); i++) {
 				cases.add(in.get(i).getAsJsonObject());
-				origins.add(new BlockPos((i % side) * SPACING, Y, (i / side) * SPACING));
+				if (i >= SLOTS)
+					throw new IllegalArgumentException("a batch holds at most " + SLOTS + " cases");
+				origins.add(slot(i));
 				maxTicks = Math.max(maxTicks, in.get(i).getAsJsonObject().get("ticks").getAsInt());
 				results.add(new JsonObject());
 			}
 		}
 
 		void start(ServerLevel level) {
-			for (BlockPos o : origins) {
-				for (int cx = (o.getX() - CLEAR_RADIUS) >> 4; cx <= (o.getX() + CLEAR_RADIUS) >> 4; cx++)
-					for (int cz = (o.getZ() - CLEAR_RADIUS) >> 4; cz <= (o.getZ() + CLEAR_RADIUS) >> 4; cz++)
-						level.setChunkForced(cx, cz, true);
-			}
 			clear(level);
 		}
 
@@ -194,7 +226,7 @@ public class CreateFuzz {
 				for (BlockPos p : BlockPos.betweenClosed(o.offset(-CLEAR_RADIUS, 0, -CLEAR_RADIUS),
 					o.offset(CLEAR_RADIUS, CLEAR_HEIGHT, CLEAR_RADIUS)))
 					if (!level.getBlockState(p).isAir())
-						level.setBlock(p, air, 2 | 16);
+						level.setBlock(p, air, 3);
 		}
 
 		static BlockPos at(BlockPos origin, JsonObject b) {
@@ -259,6 +291,15 @@ public class CreateFuzz {
 			o.addProperty("impact", k.calculateStressApplied());
 			o.addProperty("added_capacity", k.calculateAddedStressCapacity());
 			o.addProperty("generated", k.getGeneratedSpeed());
+			// A clutch's or gearshift's halves: the speed each shaft face turns at.
+			if (k instanceof SplitShaftBlockEntity s && k.getBlockState().getBlock() instanceof IRotate r) {
+				JsonObject faces = new JsonObject();
+				Direction.Axis axis = r.getRotationAxis(k.getBlockState());
+				for (Direction d : Direction.values())
+					if (d.getAxis() == axis)
+						faces.addProperty(d.getSerializedName(), s.getSpeed() == 0 ? 0f : s.getSpeed() * s.getRotationSpeedModifier(d));
+				o.add("faces", faces);
+			}
 			return o;
 		}
 

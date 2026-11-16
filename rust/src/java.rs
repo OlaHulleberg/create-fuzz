@@ -30,7 +30,8 @@ pub fn run(dir: &Path, cases: &[Scenario]) -> Vec<Snapshot> {
             return serde_json::from_value(value).expect("snapshots");
         }
         if let Ok(pid) = std::fs::read_to_string(dir.join("server.pid"))
-            && !Path::new(&format!("/proc/{}", pid.trim())).exists()
+            && std::fs::read_to_string(format!("/proc/{}/stat", pid.trim()))
+                .map_or(true, |st| st.split_whitespace().nth(2) == Some("Z"))
         {
             panic!("the Java server exited: see {}", dir.join("server.log").display());
         }
