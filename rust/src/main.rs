@@ -15,7 +15,7 @@ create-fuzz <command>
   java <case.json>               run one case on the Java server, print its snapshot
   check <case.json>...           run cases on both sides and compare them
   gen <seed>                     print the generated case for a seed
-  fuzz <first-seed> <count> [batch]  generate, run and compare; mismatches go to found/
+  fuzz <first-seed> <count> [batch]  generate, run and compare; mismatches go to $FUZZ_FOUND (found/)
   shrink <case.json>             shrink a mismatch; writes <case>.min.json
 ";
 
@@ -81,7 +81,9 @@ fn check(cases: &[Scenario], names: &[String]) -> usize {
 /// Seeds `first..first + count`, in batches the Java side runs side by side. Each mismatch is
 /// saved as `found/<seed>.json`: the case, both snapshots and the differences.
 fn fuzz(first: u64, count: u64, batch: usize) {
-    let found = Path::new(env!("CARGO_MANIFEST_DIR")).join("../found");
+    let found = std::env::var_os("FUZZ_FOUND")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../found"));
     std::fs::create_dir_all(&found).unwrap();
     let seeds: Vec<u64> = (first..first + count).collect();
     let (mut matched, mut differed, mut unstable) = (0, 0, 0);

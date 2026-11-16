@@ -52,7 +52,19 @@ stop)
     fi ;;
 fuzz)
     shift
-    cargo +1.99.1 run -q --release --manifest-path "$here/rust/Cargo.toml" -- "$@" ;;
+    manifest="$here/rust/Cargo.toml"
+    # CREATE_HORIZON=<checkout>: drive that checkout's engine instead of ../create-horizon. The driver is
+    # copied beside it into its own folder (Cargo path dependencies are fixed in Cargo.toml).
+    if [ -n "${CREATE_HORIZON:-}" ]; then
+        engine="$(cd "$CREATE_HORIZON/create/src/engine" && pwd)"
+        copy="${FUZZ_BUILD:-/mnt/lanes/fuzz-build}/$(echo "$engine" | md5sum | cut -c1-12)"
+        mkdir -p "$copy"
+        rm -rf "$copy/src"; cp -r "$here/rust/src" "$copy/src"; cp "$here/rust/Cargo.lock" "$copy/"
+        sed "s#path = \"../../create-horizon/create/src/engine\"#path = \"$engine\"#" "$here/rust/Cargo.toml" > "$copy/Cargo.toml"
+        manifest="$copy/Cargo.toml"
+        export CARGO_TARGET_DIR="$copy/target"
+    fi
+    cargo +1.99.1 run -q --release --manifest-path "$manifest" -- "$@" ;;
 *)
     sed -n 2,8p "$0"; exit 1 ;;
 esac

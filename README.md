@@ -31,6 +31,10 @@ You also need JDK 21 and Rust 1.99.1.
 ./run.sh stop
 ```
 
+To drive another checkout's engine (a worktree), set `CREATE_HORIZON=/path/to/checkout`: the driver is built
+against it in its own folder (`FUZZ_BUILD`, default `/mnt/lanes/fuzz-build`), and several drivers can share one
+server. `FUZZ_FOUND` sets where `fuzz` saves differences.
+
 `./run.sh server` accepts Minecraft's EULA for its local test server (`java/run/eula.txt`).
 
 Differences are filed as issues on [create-horizon](https://github.com/OlaHulleberg/create-horizon/issues) with
