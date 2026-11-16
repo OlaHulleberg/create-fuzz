@@ -171,14 +171,20 @@ impl Run {
             self.notes.push(format!("unknown state {}", b.state));
         }
         self.set(b.pos, id);
-        // A player setting the motor's value board (`set_motor`).
-        if let Some(rpm) = b.motor {
-            let settings = Settings {
-                motor_rpm: rpm as f32,
-                ..Settings::default()
-            };
-            self.w.set_settings(0, b.pos, id, settings);
+    }
+
+    /// A player setting the motor's value board (`set_motor`), the tick after placing it.
+    fn set_motor(&mut self, b: &Placed) {
+        let Some(rpm) = b.motor else { return };
+        let id = self.at(b.pos);
+        if id != self.id(&b.state) {
+            return;
         }
+        let settings = Settings {
+            motor_rpm: rpm as f32,
+            ..Settings::default()
+        };
+        self.w.set_settings(0, b.pos, id, settings);
     }
 
     fn powered_by_neighbour(&self, p: Pos) -> bool {
@@ -286,6 +292,14 @@ pub fn run(sc: &Scenario) -> Snapshot {
         // A player places the blocks, one each tick.
         if let Some(b) = sc.blocks.get(t as usize) {
             r.place(b);
+        }
+        if let Some(b) = t.checked_sub(1).and_then(|p| sc.blocks.get(p as usize)) {
+            r.set_motor(b);
+        }
+        for e in sc.events.iter().filter(|e| e.tick + 1 == t) {
+            if let Some(b) = e.placed() {
+                r.set_motor(&b);
+            }
         }
         for e in sc.events.iter().filter(|e| e.tick == t) {
             match (e.placed(), e.turn) {

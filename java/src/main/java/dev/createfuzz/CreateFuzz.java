@@ -199,10 +199,16 @@ public class CreateFuzz {
 				JsonArray blocks = c.getAsJsonArray("blocks");
 				if (tick < blocks.size())
 					place(level, origins.get(i), blocks.get(tick).getAsJsonObject());
+				// A player sets a motor's speed after placing it, on the next tick.
+				if (tick >= 1 && tick - 1 < blocks.size())
+					setMotor(level, origins.get(i), blocks.get(tick - 1).getAsJsonObject());
 				if (!c.has("events"))
 					continue;
 				for (JsonElement ev : c.getAsJsonArray("events")) {
 					JsonObject o = ev.getAsJsonObject();
+					// A motor placed the tick before gets its speed now.
+					if (o.get("tick").getAsInt() + 1 == tick && o.has("state"))
+						setMotor(level, origins.get(i), o);
 					if (o.get("tick").getAsInt() != tick)
 						continue;
 					if (o.has("state"))
@@ -212,12 +218,13 @@ public class CreateFuzz {
 						h.turn(o.get("turn").getAsBoolean());
 				}
 			}
-			tick++;
-			// Each case is read after its own last tick.
+			// What is placed here acts from the next level tick: a case's tick t is level tick start + t + 1,
+			// so it is read here once its last tick, `ticks`, has run.
 			for (int i = 0; i < cases.size(); i++)
 				if (cases.get(i).get("ticks").getAsInt() == tick)
 					results.set(i, snapshot(level, origins.get(i), cases.get(i)));
-			return tick >= maxTicks;
+			tick++;
+			return tick > maxTicks;
 		}
 
 		void clear(ServerLevel level) {
@@ -244,7 +251,10 @@ public class CreateFuzz {
 				throw new RuntimeException("bad state " + b.get("state"), ex);
 			}
 			level.setBlock(pos, state, 3);
-			if (b.has("motor") && level.getBlockEntity(pos) instanceof CreativeMotorBlockEntity m)
+		}
+
+		static void setMotor(ServerLevel level, BlockPos origin, JsonObject b) {
+			if (b.has("motor") && level.getBlockEntity(at(origin, b)) instanceof CreativeMotorBlockEntity m)
 				m.generatedSpeed.setValue(b.get("motor").getAsInt());
 		}
 
