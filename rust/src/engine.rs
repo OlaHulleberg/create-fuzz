@@ -32,8 +32,8 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             out.push(s);
         }
     };
-    let all = sc.blocks.iter().chain(sc.events.iter().map(|e| &e.block));
-    for b in all {
+    let all: Vec<Placed> = sc.blocks.iter().cloned().chain(sc.events.iter().filter_map(|e| e.placed())).collect();
+    for b in &all {
         if !b.state.starts_with("create:") {
             continue;
         }
@@ -127,13 +127,42 @@ impl Run {
             self.world.insert(p, new);
         }
         self.w.block_changed(0, p, old, new);
+        let mut fallen = Vec::new();
         for d in DIRS {
             let q = add(p, d);
             let s = self.at(q);
             if s != AIR {
                 self.w.neighbor_changed(0, q, s);
+                if new == AIR && self.hangs_on(q, s, p) {
+                    fallen.push(q);
+                }
             }
         }
+        for q in fallen {
+            self.set(q, AIR);
+        }
+    }
+
+    /// The glue's `HandCrankBlock.neighborChanged` (`glue/sources/handles.rs`): a crank whose
+    /// block behind it is gone breaks. Not the engine's rule, so mirrored here.
+    fn hangs_on(&self, q: Pos, state: u32, behind: Pos) -> bool {
+        let name = self.name(state);
+        let (block, props) = parse_state(&name);
+        if block != "create:hand_crank" && !block.ends_with("_valve_handle") {
+            return false;
+        }
+        let Some((_, facing)) = props.iter().find(|(k, _)| k == "facing") else {
+            return false;
+        };
+        let back = match facing.as_str() {
+            "up" => [0, -1, 0],
+            "down" => [0, 1, 0],
+            "north" => [0, 0, 1],
+            "south" => [0, 0, -1],
+            "east" => [-1, 0, 0],
+            _ => [1, 0, 0],
+        };
+        add(q, back) == behind
     }
 
     fn place(&mut self, b: &Placed) {
@@ -191,15 +220,18 @@ impl Run {
 
     pub fn snapshot(&self, sc: &Scenario) -> Snapshot {
         let mut blocks = BTreeMap::new();
-        let positions = sc.blocks.iter().chain(sc.events.iter().map(|e| &e.block)).map(|b| b.pos);
+        let positions = sc.blocks.iter().map(|b| b.pos).chain(sc.events.iter().map(|e| e.pos));
         for p in positions {
+            if blocks.contains_key(&key(p)) {
+                continue;
+            }
             let id = self.at(p);
             if id == AIR {
                 continue;
             }
             let state = self.name(id);
             let kinetic = self.kinetic(p, id);
-            blocks.insert(key(p), BlockSnap { state, kinetic });
+            blocks.insert(key(p), BlockSnap { state, kinetic, debug: None });
         }
         Snapshot {
             side: "rust".into(),
@@ -230,13 +262,20 @@ impl Run {
 
 pub fn run(sc: &Scenario) -> Snapshot {
     let mut r = Run::new(sc);
-    for b in &sc.blocks {
-        r.place(b);
-    }
     for t in 0..sc.ticks {
-        let due: Vec<Placed> = sc.events.iter().filter(|e| e.tick == t).map(|e| e.block.clone()).collect();
-        for b in &due {
+        // A player places the blocks, one each tick.
+        if let Some(b) = sc.blocks.get(t as usize) {
             r.place(b);
+        }
+        for e in sc.events.iter().filter(|e| e.tick == t) {
+            match (e.placed(), e.turn) {
+                (Some(b), _) => r.place(&b),
+                // `HandCrankBlock.useWithoutItem`: `turn(sneaking)`.
+                (None, Some(back)) => {
+                    r.w.turn_crank(0, e.pos, back);
+                }
+                (None, None) => {}
+            }
         }
         r.tick();
     }

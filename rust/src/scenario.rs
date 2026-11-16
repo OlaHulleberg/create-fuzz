@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 
 pub type Pos = [i32; 3];
 
-/// One case: blocks placed in order at tick 0, changes at later ticks, then `ticks` ticks run.
+/// One case: blocks placed one per tick in order (block i before tick i), changes at given
+/// ticks, `ticks` ticks in all.
 /// Positions are relative to the case's origin; the Java side places them on a stone floor.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Scenario {
@@ -27,12 +28,30 @@ pub struct Placed {
     pub motor: Option<i32>,
 }
 
-/// At `tick` (before that tick runs): place a block (`set`) or remove one (`state` = air).
+/// At `tick` (before that tick runs): place a block (`state`; air removes it), or a player
+/// turns the hand crank at `pos` (`turn`: true backwards, as when sneaking).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Change {
     pub tick: u32,
-    #[serde(flatten)]
-    pub block: Placed,
+    pub pos: Pos,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motor: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn: Option<bool>,
+}
+
+impl Change {
+    pub fn set(tick: u32, pos: Pos, state: &str) -> Change {
+        Change { tick, pos, state: Some(state.into()), motor: None, turn: None }
+    }
+    pub fn turn(tick: u32, pos: Pos, back: bool) -> Change {
+        Change { tick, pos, state: None, motor: None, turn: Some(back) }
+    }
+    pub fn placed(&self) -> Option<Placed> {
+        Some(Placed { pos: self.pos, state: self.state.clone()?, motor: self.motor })
+    }
 }
 
 /// What both sides write after the last tick.
@@ -52,6 +71,9 @@ pub struct BlockSnap {
     /// Present for kinetic blocks only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kinetic: Option<Kinetic>,
+    /// The Java block entity's saved data, to read mismatches by; not compared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub debug: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]

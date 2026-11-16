@@ -17,6 +17,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
+import com.simibubi.create.content.kinetics.crank.HandCrankBlockEntity;
 import com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity;
 
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
@@ -35,7 +36,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
  * Runs fuzzing scenarios on a dedicated server without restarting it. A batch is a JSON array of
- * scenarios dropped into {@code <dir>/inbox/<name>.json}; each case gets its own area, all cases of
+ * scenarios dropped into {@code <dir>/inbox/<name>.json}; each case gets its own area, its blocks are
+ * placed one per tick (block i before tick i), all cases of
  * a batch run at once, and the snapshots are written to {@code <dir>/outbox/<name>.json} in the
  * batch's order. The directory is {@code $FUZZ_DIR}, or {@code fuzz} in the server's directory.
  */
@@ -144,6 +146,7 @@ public class CreateFuzz {
 				cases.add(in.get(i).getAsJsonObject());
 				origins.add(new BlockPos((i % side) * SPACING, Y, (i / side) * SPACING));
 				maxTicks = Math.max(maxTicks, in.get(i).getAsJsonObject().get("ticks").getAsInt());
+				results.add(new JsonObject());
 			}
 		}
 
@@ -154,29 +157,35 @@ public class CreateFuzz {
 						level.setChunkForced(cx, cz, true);
 			}
 			clear(level);
-			for (int i = 0; i < cases.size(); i++)
-				for (JsonElement b : cases.get(i).getAsJsonArray("blocks"))
-					place(level, origins.get(i), b.getAsJsonObject());
 		}
 
 		/** One tick of every case; true when all are done. */
 		boolean step(ServerLevel level) {
 			for (int i = 0; i < cases.size(); i++) {
 				JsonObject c = cases.get(i);
+				// A player places the blocks, one each tick.
+				JsonArray blocks = c.getAsJsonArray("blocks");
+				if (tick < blocks.size())
+					place(level, origins.get(i), blocks.get(tick).getAsJsonObject());
 				if (!c.has("events"))
 					continue;
 				for (JsonElement ev : c.getAsJsonArray("events")) {
 					JsonObject o = ev.getAsJsonObject();
-					if (o.get("tick").getAsInt() == tick)
+					if (o.get("tick").getAsInt() != tick)
+						continue;
+					if (o.has("state"))
 						place(level, origins.get(i), o);
+					// HandCrankBlock.useWithoutItem: turn(sneaking).
+					else if (o.has("turn") && level.getBlockEntity(at(origins.get(i), o)) instanceof HandCrankBlockEntity h)
+						h.turn(o.get("turn").getAsBoolean());
 				}
 			}
 			tick++;
-			if (tick < maxTicks)
-				return false;
+			// Each case is read after its own last tick.
 			for (int i = 0; i < cases.size(); i++)
-				results.add(snapshot(level, origins.get(i), cases.get(i)));
-			return true;
+				if (cases.get(i).get("ticks").getAsInt() == tick)
+					results.set(i, snapshot(level, origins.get(i), cases.get(i)));
+			return tick >= maxTicks;
 		}
 
 		void clear(ServerLevel level) {
@@ -218,6 +227,8 @@ public class CreateFuzz {
 			for (JsonObject b : all) {
 				JsonArray rel = b.getAsJsonArray("pos");
 				String key = rel.get(0).getAsInt() + "," + rel.get(1).getAsInt() + "," + rel.get(2).getAsInt();
+				if (blocks.has(key))
+					continue;
 				BlockPos pos = at(origin, b);
 				BlockState state = level.getBlockState(pos);
 				if (state.isAir())
@@ -227,6 +238,9 @@ public class CreateFuzz {
 				BlockEntity be = level.getBlockEntity(pos);
 				if (be instanceof KineticBlockEntity k)
 					snap.add("kinetic", kinetic(k));
+				// For reading mismatches only; never compared.
+				if (be != null)
+					snap.addProperty("debug", be.saveWithoutMetadata(level.registryAccess()).toString());
 				blocks.add(key, snap);
 			}
 			JsonObject out = new JsonObject();

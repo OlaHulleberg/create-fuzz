@@ -1,7 +1,10 @@
+mod allow;
 mod compare;
 mod engine;
+mod generate;
 mod java;
 mod scenario;
+mod shrink;
 
 use scenario::{Scenario, Snapshot};
 use std::path::{Path, PathBuf};
@@ -11,6 +14,9 @@ create-fuzz <command>
   rust <case.json>               run one case through the port's engine, print its snapshot
   java <case.json>               run one case on the Java server, print its snapshot
   check <case.json>...           run cases on both sides and compare them
+  gen <seed>                     print the generated case for a seed
+  fuzz <first-seed> <count> [batch]  generate, run and compare; mismatches go to found/
+  shrink <case.json>             shrink a mismatch; writes <case>.min.json
 ";
 
 fn main() {
@@ -22,6 +28,20 @@ fn main() {
     match cmd.as_str() {
         "rust" => print(&engine::run(&load(&args[1]))),
         "java" => print(&java::run(&fuzz_dir(), &[load(&args[1])]).remove(0)),
+        "gen" => println!("{}", serde_json::to_string_pretty(&generate::generate(args[1].parse().unwrap())).unwrap()),
+        "fuzz" => {
+            let first: u64 = args[1].parse().unwrap();
+            let count: u64 = args[2].parse().unwrap();
+            let batch: usize = args.get(3).map_or(64, |b| b.parse().unwrap());
+            fuzz(first, count, batch);
+        }
+        "shrink" => {
+            let (sc, d) = shrink::shrink(&fuzz_dir(), load(&args[1]));
+            let out = args[1].trim_end_matches(".json").to_string() + ".min.json";
+            let record = serde_json::json!({"scenario": sc, "diffs": d});
+            std::fs::write(&out, serde_json::to_string_pretty(&record).unwrap()).unwrap();
+            println!("{}", serde_json::to_string_pretty(&record).unwrap());
+        }
         "check" => {
             let cases: Vec<Scenario> = args[1..].iter().map(|p| load(p)).collect();
             let failed = check(&cases, &args[1..]);
@@ -53,6 +73,32 @@ fn check(cases: &[Scenario], names: &[String]) -> usize {
     failed
 }
 
+/// Seeds `first..first + count`, in batches the Java side runs side by side. Each mismatch is
+/// saved as `found/<seed>.json`: the case, both snapshots and the differences.
+fn fuzz(first: u64, count: u64, batch: usize) {
+    let found = Path::new(env!("CARGO_MANIFEST_DIR")).join("../found");
+    std::fs::create_dir_all(&found).unwrap();
+    let seeds: Vec<u64> = (first..first + count).collect();
+    let (mut matched, mut differed) = (0, 0);
+    for chunk in seeds.chunks(batch) {
+        let cases: Vec<Scenario> = chunk.iter().map(|&s| generate::generate(s)).collect();
+        let java = java::run(&fuzz_dir(), &cases);
+        for (sc, j) in cases.iter().zip(&java) {
+            let r = engine::run(sc);
+            let diffs = compare::diff(j, &r);
+            if diffs.is_empty() {
+                matched += 1;
+                continue;
+            }
+            differed += 1;
+            let record = serde_json::json!({"scenario": sc, "java": j, "rust": r, "diffs": diffs});
+            std::fs::write(found.join(format!("{}.json", sc.seed)), serde_json::to_string_pretty(&record).unwrap()).unwrap();
+            println!("seed {}: {} differences, first: {}", sc.seed, diffs.len(), diffs[0]);
+        }
+    }
+    println!("{matched} matched, {differed} differed");
+}
+
 pub fn fuzz_dir() -> PathBuf {
     std::env::var_os("FUZZ_DIR")
         .map(PathBuf::from)
@@ -61,7 +107,12 @@ pub fn fuzz_dir() -> PathBuf {
 
 fn load(path: &str) -> Scenario {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
-    serde_json::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"))
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
+    // A saved mismatch (`found/<seed>.json`) holds its case under `scenario`.
+    if let Some(sc) = value.get_mut("scenario") {
+        value = sc.take();
+    }
+    serde_json::from_value(value).unwrap_or_else(|e| panic!("{path}: {e}"))
 }
 
 fn print(s: &Snapshot) {

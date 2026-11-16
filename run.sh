@@ -40,7 +40,14 @@ P
     done
     echo "server not ready after 10 min"; exit 1 ;;
 stop)
-    pkill -f 'createfuzz|runServer' || true ;;
+    # The Gradle process and the server JVM under it.
+    if [ -f "$FUZZ_DIR/server.pid" ]; then
+        pid="$(cat "$FUZZ_DIR/server.pid")"
+        kids="$(pgrep -P "$pid" || true)"
+        kill $pid $kids 2>/dev/null || true
+        for _ in $(seq 30); do kill -0 $pid $kids 2>/dev/null || break; sleep 1; done
+        rm -f "$FUZZ_DIR/server.pid"
+    fi ;;
 fuzz)
     shift
     cargo +1.99.1 run -q --release --manifest-path "$here/rust/Cargo.toml" -- "$@" ;;
