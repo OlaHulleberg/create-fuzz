@@ -191,6 +191,9 @@ const CONSUMERS: [&str; 6] = [
 /// Speeds a motor is set to: the edges more often than the middle.
 const SPEEDS: [i32; 16] = [256, -256, 255, -255, 1, -1, 16, -16, 32, 64, -64, 128, 200, 2, 3, -100];
 
+/// Ticks a case runs after its last change: past Create's kinetic validation (60 ticks).
+pub const SETTLE: u32 = 70;
+
 /// Positions stay within this box around the origin, above the floor.
 const RX: i32 = 10;
 const RY: (i32, i32) = (1, 16);
@@ -412,6 +415,10 @@ pub fn generate(seed: u64) -> Scenario {
         }
     }
     events.sort_by_key(|e| e.tick);
+    // Settled means past Create's kinetic validation (`kineticValidationFrequency`, 60 ticks), which
+    // stops what kept a speed without a source: every case runs that long after its last change.
+    let last = events.iter().map(|e| e.tick).max().unwrap_or(0).max(placed);
+    let ticks = ticks.max(last + SETTLE);
     Scenario {
         seed,
         ticks,

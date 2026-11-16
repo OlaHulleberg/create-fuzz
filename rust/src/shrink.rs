@@ -28,11 +28,12 @@ fn candidates(sc: &Scenario) -> Vec<Scenario> {
         c.events.remove(i);
         out.push(c);
     }
-    // Fewer ticks: just past the last event.
-    let last = sc.events.iter().map(|e| e.tick).max().unwrap_or(0);
-    if sc.ticks > last + 20 {
+    // Fewer ticks: settled past the last change (blocks are placed one per tick).
+    let last = sc.events.iter().map(|e| e.tick).max().unwrap_or(0).max(sc.blocks.len() as u32);
+    let settled = last + crate::generate::SETTLE;
+    if sc.ticks > settled {
         let mut c = sc.clone();
-        c.ticks = last + 20;
+        c.ticks = settled;
         out.push(c);
     }
     out.retain(|c| !c.blocks.is_empty());
