@@ -147,3 +147,45 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod fidelity {
+    /// Bypass scenario placement and state propagation. The independent engine tank API must
+    /// retain exactly the same partition and windows as the glue-driven scenario adapter.
+    #[test]
+    fn controller_removal_matches_engine_without_driver() {
+        for seed in [40, 232] {
+            let sc = super::generate(seed);
+            let observed = crate::engine::run(&sc);
+            let mut tanks = create_engine::tank::Tanks::default();
+            let mut positions = Vec::new();
+            for event in &sc.events {
+                if let Some(crate::actions::Action::Use { item, .. }) = &event.action {
+                    if item == "create:fluid_tank" {
+                        let mut p = event.pos;
+                        p[1] += 1;
+                        tanks.place(p);
+                        positions.push(p);
+                    } else if item == "create:wrench" {
+                        let (_, m) = tanks.get_mut(event.pos).unwrap();
+                        m.window = !m.window;
+                    }
+                } else if event.action == Some(crate::actions::Action::Remove) {
+                    tanks.remove(event.pos);
+                    positions.retain(|p| *p != event.pos);
+                }
+            }
+            for p in positions {
+                let (controller, raw) = tanks.get(p).unwrap();
+                let snap = &observed.blocks[&crate::scenario::key(p)];
+                let tank = snap.fluid_tank.as_ref().unwrap();
+                assert_eq!(tank.controller, controller);
+                assert_eq!((tank.width, tank.height), (raw.width, raw.height));
+                assert!(snap.state.contains(&format!(
+                    "shape={}",
+                    tanks.block_shape(p).unwrap().shape.name()
+                )));
+            }
+        }
+    }
+}
