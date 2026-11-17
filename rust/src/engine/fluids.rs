@@ -93,6 +93,38 @@ mod tests {
     }
 
     #[test]
+    fn accepted_tank_placement_survives_an_immediate_reload() {
+        let sc: Scenario =
+            serde_json::from_value(serde_json::json!({"version":3,"ticks":20,"blocks":[
+                {"pos":[0,3,0],"state":"minecraft:stone"}
+            ]}))
+            .unwrap();
+        let mut r = Run::new(&sc);
+        r.place_player(
+            [0, 4, 0],
+            "create:fluid_tank",
+            0.0,
+            0.0,
+            create_engine::kinetics::Dir::Up,
+            true,
+        );
+        r.tick();
+        r.place_player(
+            [0, 5, 0],
+            "create:fluid_tank",
+            0.0,
+            0.0,
+            create_engine::kinetics::Dir::Up,
+            true,
+        );
+        r.reload();
+        r.tick();
+        let (c, m) = r.w.tank(0, [0, 5, 0]).unwrap();
+        assert_eq!(c, [0, 4, 0]);
+        assert_eq!((m.height, m.capacity()), (2, 16000));
+    }
+
+    #[test]
     fn filled_multiblock_survives_repeated_cross_column_reloads() {
         let sc = tank_case();
         let mut r = Run::new(&sc);

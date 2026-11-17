@@ -292,6 +292,8 @@ impl Run {
                 p,
                 self.id("create:fluid_tank[bottom=true,shape=window,top=true]"),
             );
+            // TankItem.on_block_placed_by publishes the accepted placement.
+            self.publish_interaction();
             return;
         }
         if block == "create:brass_casing" || block == "create:andesite_casing" {
