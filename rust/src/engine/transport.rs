@@ -106,20 +106,22 @@ impl Run {
                         });
                         return;
                     }
-                    if let Some(s) = self.depot_stacks.remove(&p) {
-                        taken.push(s);
-                    }
-                    if let Some(s) = stack {
-                        self.depot_stacks.insert(p, s.clone());
-                    }
-                    self.w.depot_put(
-                        0,
-                        p,
-                        stack.as_ref().map(|_| {
-                            depot::Held::put_by_player(180, false, depot::Side::of_yaw(*yaw))
-                        }),
+                    let mut inventory = DepotUse {
+                        run: self,
+                        pos: p,
+                        hand: stack.clone(),
+                        taken: Vec::new(),
+                        facing: depot::Side::of_yaw(*yaw),
+                    };
+                    depot::use_top(
+                        &mut inventory,
+                        stack.is_none(),
+                        stack
+                            .as_ref()
+                            .is_some_and(|s| s.item == "create:mechanical_arm"),
                     );
-                    remainder = None;
+                    remainder = inventory.hand;
+                    taken = inventory.taken;
                 }
                 // The remaining blocks in the bounded contract have no stack-transfer
                 // handler for these plain items. A refused use leaves the offered stack.
@@ -301,6 +303,57 @@ impl Run {
         })
     }
 }
+/// `depot::use_depot`'s inventory boundary. Transport inputs are explicitly
+/// component-free (`Stack` rejects component fields), so equal item ids here
+/// also have equal components. Stack limits come from the audited contract.
+struct DepotUse<'a> {
+    run: &'a mut Run,
+    pos: Pos,
+    hand: Option<Stack>,
+    taken: Vec<Stack>,
+    facing: depot::Side,
+}
+impl depot::PlayerUse for DepotUse<'_> {
+    type Stack = Stack;
+
+    fn take_contents(&mut self) -> Option<Vec<Stack>> {
+        let contents = self
+            .run
+            .depot_stacks
+            .remove(&self.pos)
+            .into_iter()
+            .collect();
+        self.run.w.depot_put(0, self.pos, None);
+        Some(contents)
+    }
+
+    fn give_back(&mut self, mut stack: Stack) {
+        if let Some(hand) = &mut self.hand
+            && hand.item == stack.item
+        {
+            let count = stack.count.min(hand.limit() - hand.count);
+            hand.count += count;
+            stack.count -= count;
+        }
+        // An initially empty hand only collects. Its refunds are reported as
+        // taken rather than as a remainder, as ItemInputs measures on Java.
+        if stack.count > 0 {
+            self.taken.push(stack);
+        }
+    }
+
+    fn place_hand(&mut self) {
+        if let Some(stack) = self.hand.take() {
+            self.run.depot_stacks.insert(self.pos, stack);
+            self.run.w.depot_put(
+                0,
+                self.pos,
+                Some(depot::Held::put_by_player(180, false, self.facing)),
+            );
+        }
+    }
+}
+
 struct Side<'a> {
     run: &'a mut Run,
     past: Pos,

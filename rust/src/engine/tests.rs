@@ -310,33 +310,6 @@ fn an_empty_belt_receives_and_moves_within_the_tick() {
 }
 
 #[test]
-fn same_item_depot_swap_follows_glue_slot_snapshot_before_give_back() {
-    use crate::{
-        actions::Face,
-        transport::{Input, Stack},
-    };
-    let sc:crate::scenario::Scenario=serde_json::from_value(serde_json::json!({"ticks":80,"blocks":[{"pos":[0,8,0],"state":"create:depot[waterlogged=false]"}]})).unwrap();
-    let mut r = super::Run::new(&sc);
-    r.place(&sc.blocks[0]);
-    for count in [16, 1] {
-        r.item_input(
-            [0, 8, 0],
-            &Input::Use {
-                stack: Some(Stack {
-                    item: "minecraft:iron_ingot".into(),
-                    count,
-                }),
-                face: Face::Up,
-                yaw: 0.,
-                sneaking: false,
-            },
-        );
-    }
-    assert_eq!(r.depot_stacks[&[0, 8, 0]].count, 1);
-    assert_eq!(r.item_outcomes[1].taken[0].count, 16);
-}
-
-#[test]
 fn observing_pending_items_does_not_flush_the_transport_queue() {
     use crate::transport::{Input, Stack};
     let mut sc = crate::transport::generate(31);
@@ -509,4 +482,82 @@ fn empty_hand_on_an_unformed_shaft_has_no_transfer_or_adapter_gap() {
     assert!(r.item_outcomes[0].taken.is_empty());
     assert!(r.item_outcomes[0].remainder.is_none());
     assert!(r.notes.is_empty());
+}
+
+#[test]
+fn depot_refunds_merge_into_the_selected_stack_before_placement() {
+    use crate::{
+        actions::Face,
+        transport::{Input, Stack},
+    };
+    let sc = serde_json::from_value(serde_json::json!({"ticks":1,
+        "blocks":[{"pos":[0,8,0],"state":"create:depot[waterlogged=false]"}]}))
+    .unwrap();
+    let mut r = super::Run::new(&sc);
+    let pos = [0, 8, 0];
+    r.place(&sc.blocks[0]);
+    let stack = |item: &str, count| Stack {
+        item: item.into(),
+        count,
+    };
+    let use_hand = |r: &mut super::Run, hand| {
+        r.item_input(
+            pos,
+            &Input::Use {
+                stack: hand,
+                face: Face::Up,
+                yaw: 0.,
+                sneaking: false,
+            },
+        )
+    };
+    use_hand(&mut r, Some(stack("minecraft:iron_ingot", 16)));
+    use_hand(&mut r, Some(stack("minecraft:iron_ingot", 1)));
+    assert_eq!(r.depot_stacks[&pos].count, 17);
+    assert!(r.item_outcomes[1].taken.is_empty());
+    assert!(r.item_outcomes[1].remainder.is_none());
+    assert_eq!(r.w.dims[0].depots[&pos].unwrap().position, 0.25);
+    use_hand(&mut r, None);
+    assert_eq!(
+        r.item_outcomes[2].taken,
+        vec![stack("minecraft:iron_ingot", 17)]
+    );
+    assert!(r.item_outcomes[2].remainder.is_none());
+    assert!(!r.depot_stacks.contains_key(&pos));
+
+    // A full selected stack returns overflow to other inventory slots.
+    use_hand(&mut r, Some(stack("minecraft:ender_pearl", 12)));
+    use_hand(&mut r, Some(stack("minecraft:ender_pearl", 10)));
+    assert_eq!(r.depot_stacks[&pos].count, 16);
+    assert_eq!(
+        r.item_outcomes.last().unwrap().taken,
+        vec![stack("minecraft:ender_pearl", 6)]
+    );
+    use_hand(&mut r, Some(stack("minecraft:diamond", 2)));
+    assert_eq!(r.depot_stacks[&pos], stack("minecraft:diamond", 2));
+    assert_eq!(
+        r.item_outcomes.last().unwrap().taken,
+        vec![stack("minecraft:ender_pearl", 16)]
+    );
+
+    // Arms are collection-only even when a caller reaches this boundary directly
+    // (they remain outside the current public transport item contract).
+    use_hand(&mut r, Some(stack("create:mechanical_arm", 1)));
+    assert!(!r.depot_stacks.contains_key(&pos));
+    assert_eq!(
+        r.item_outcomes.last().unwrap().remainder,
+        Some(stack("create:mechanical_arm", 1))
+    );
+    assert_eq!(
+        r.item_outcomes.last().unwrap().taken,
+        vec![stack("minecraft:diamond", 2)]
+    );
+
+    // Component-bearing stacks cannot silently lose identity and merge by id.
+    assert!(
+        serde_json::from_value::<Stack>(serde_json::json!({
+            "item":"minecraft:iron_ingot", "count":1, "components":{"minecraft:custom_name":"named"}
+        }))
+        .is_err()
+    );
 }
