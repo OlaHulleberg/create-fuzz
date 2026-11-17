@@ -627,6 +627,10 @@ impl Run {
                 let id = self.id(&next);
                 // The glue's `tick_inputs`: GearshiftBlock.neighborChanged detaches first.
                 self.w.transmission_power_changing(0, p);
+                // ChainGearshiftBlock.neighborChanged sets with UPDATE_KNOWN_SHAPE.
+                if self.w.reads_signal(state) {
+                    self.w.setting_known_shape(0, p, id);
+                }
                 self.commit(p, id, false);
             }
             if self.w.reads_signal(state) {
