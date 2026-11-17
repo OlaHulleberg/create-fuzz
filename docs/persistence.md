@@ -108,6 +108,7 @@ must not refresh an earlier entity record or serialize an unmarked column.
 | BeltState | Belt-phase changed-controller notifications, all chain members; inventory column data stays at its marked end-of-level flush |
 | HandleState | After solve, sequencer steps and world effects; only take_handle_changes |
 | Kinetic ports | Same solve phase, after handles; only take_saved_changes, excluding pending legacy migration |
+| Adjustable chain Signal | Same saved-change journal, after kinetic ports; saved_chain_signal reads the entity value, including analog changes without a speed change |
 | Sequencer run | Actual instruction transitions plus post-subsystem write_entities; save_run writes only its five run fields |
 | Sequencer instructions | Immediately in an accepted program message, independently of run saves |
 | Motor settings and belt inventories | End-of-level persist::flush, only marked columns; collect engine unsaved columns at the solve's actual drain point |
@@ -140,6 +141,17 @@ that entity's sequencer instructions/run. It does not restore all entities'
 kinetic ports first and defer all sequencer callbacks to a later pass. The
 sequencer reload fixture compares this path with an independent per-entity
 reference using the same public engine entries. Publication remains unchanged.
+
+With the chain signal load API, every entity callback first calls
+restore_chain_signal after block_loaded and before the belt/depot/handle/kinetic
+restores. Missing or mistyped Signal defaults to zero, as ChainGearshiftBlockEntity.read
+does. The input signal is not polled to rebuild the save.
+Freshly constructed chain entities receive the same missing-Signal zero read
+before their first attachment; in-place state changes retain their entity value.
+The chain modifier
+observation reads the engine's entity value rather than a separate input cache.
+Pending chain shapes use the same property commits during Inputs and immediately
+after each kinetic break, matching the glue's synchronous neighbour updates.
 
 Fluid columns stage `tank_multis` (and legacy `tanks`) through `load_tanks`
 before any block is scanned. The controller's saved fluid, amount, width, height

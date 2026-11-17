@@ -135,7 +135,6 @@ pub struct Run {
     connector: Option<Pos>,
     belt_casing: HashMap<Pos, String>,
     handles: HashMap<Pos, crate::handles::Handle>,
-    chain_signals: HashMap<Pos, i32>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
     java_ties: bool,
@@ -177,7 +176,6 @@ impl Run {
             connector: None,
             belt_casing: HashMap::new(),
             handles: HashMap::new(),
-            chain_signals: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
             java_ties: false,
@@ -231,6 +229,7 @@ impl Run {
             self.persisted.depots.remove(&p);
             self.persisted.belts.remove(&p);
             self.persisted.fluid_entities.remove(&p);
+            self.persisted.chain_entities.remove(&p);
             if !self
                 .w
                 .table
@@ -291,6 +290,15 @@ impl Run {
             self.belt_casing.remove(&p);
         }
         self.w.block_changed(0, p, old, new);
+        if self.w.table.get(new).map(|(b, _)| b)
+            == Some(create_engine::Block::AdjustableChainGearshift)
+            && self.w.table.get(old).map(|(b, _)| b)
+                != Some(create_engine::Block::AdjustableChainGearshift)
+        {
+            // A freshly constructed entity receives the same on-load read as a saved
+            // one, with missing Signal defaulting to zero, before its first attachment.
+            self.w.restore_chain_signal(0, p, 0);
+        }
         self.conveyor_changed(p, old, new);
         if !notify {
             return;

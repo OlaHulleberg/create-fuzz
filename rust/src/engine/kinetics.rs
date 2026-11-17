@@ -33,19 +33,9 @@ impl Run {
             if self.w.reads_signal(state) {
                 let signal = i32::from(self.signal(p));
                 self.w.set_chain_signal(0, p, signal);
-                self.chain_signals.insert(p, signal);
             }
         }
-        for (p, drive) in self.w.take_chain_shapes(0) {
-            let next = with_prop(
-                &self.name(self.at(p)),
-                "axis_along_first",
-                if drive.along_first { "true" } else { "false" },
-            );
-            self.set(p, self.id(&next));
-            let next = with_prop(&self.name(self.at(p)), "part", drive.part.name());
-            self.set(p, self.id(&next));
-        }
+        self.apply_chain_shapes();
         let mut steps = Vec::new();
         for (p, running) in self.w.take_sequencer_checks(0) {
             let powered = self.signal(p) > 0;
@@ -70,12 +60,27 @@ impl Run {
         for e in events {
             if let create_engine::kinetics::Event::Break { pos } = e {
                 self.set(pos, AIR);
+                self.apply_chain_shapes();
             }
         }
         self.save_kinetic_records();
         self.mark_package_columns();
         self.publish_entities();
         self.flush_persistence();
+    }
+
+    /// Glue applies neighbour shapes in Inputs and immediately after each kinetic break.
+    fn apply_chain_shapes(&mut self) {
+        for (p, drive) in self.w.take_chain_shapes(0) {
+            let next = with_prop(
+                &self.name(self.at(p)),
+                "axis_along_first",
+                if drive.along_first { "true" } else { "false" },
+            );
+            self.set(p, self.id(&next));
+            let next = with_prop(&self.name(self.at(p)), "part", drive.part.name());
+            self.set(p, self.id(&next));
+        }
     }
 
     /// The glue's commit of a sequencer step: its `state` (kept while powered at the end).

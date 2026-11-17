@@ -14,6 +14,7 @@ pub(super) struct Store {
     pub belts: HashMap<Pos, Compound>,
     pub fluid_columns: BTreeMap<(i32, i32), Compound>,
     pub fluid_entities: HashMap<Pos, Compound>,
+    pub chain_entities: HashMap<Pos, Compound>,
     pub dirty_columns: std::collections::BTreeSet<(i32, i32)>,
     pub brackets: HashMap<Pos, create_engine::decor::Bracket>,
     pub conveyors: HashMap<Pos, Vec<Pos>>,
@@ -28,6 +29,7 @@ type ReloadData = (
     Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
     FluidReload,
+    Vec<(Pos, Compound)>,
 );
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -100,6 +102,11 @@ impl Run {
                 } else {
                     self.persisted.kinetics.remove(&(p, sub));
                 }
+            }
+            if let Some(signal) = self.w.saved_chain_signal(0, p) {
+                self.persisted
+                    .chain_entities
+                    .insert(p, Compound::from([("Signal".into(), Tag::Int(signal))]));
             }
         }
     }
@@ -284,6 +291,7 @@ impl Run {
                     .map(|(&p, d)| (p, d.clone()))
                     .collect(),
             },
+            self.persisted.chain_entities.iter().collect::<Vec<_>>(),
         ))
         .unwrap();
         let (
@@ -296,6 +304,7 @@ impl Run {
             saved_depots,
             saved_belts,
             fluids,
+            chains,
         ): ReloadData = serde_json::from_slice(&bytes).unwrap();
         self.depot_stacks = slots.into_iter().collect();
         self.handles = handles.into_iter().collect();
@@ -319,6 +328,7 @@ impl Run {
             crate::persistence::fluids::load_column(&mut self.w, data);
         }
         self.persisted.fluid_entities = fluids.entities.into_iter().collect();
+        let chains: HashMap<_, _> = chains.into_iter().collect();
         let saved_belts: HashMap<_, _> = saved_belts.into_iter().collect();
         let saved_depots: HashMap<_, _> = saved_depots.into_iter().collect();
         let saved_handles: HashMap<_, _> = saved_handles.into_iter().collect();
@@ -331,6 +341,11 @@ impl Run {
         // Complete one block_entity_on_load callback before starting the next one.
         for &(p, s) in &blocks {
             self.w.block_loaded(0, p, s);
+            let signal = match chains.get(&p).and_then(|data| data.get("Signal")) {
+                Some(Tag::Int(signal)) => *signal,
+                _ => 0,
+            };
+            self.w.restore_chain_signal(0, p, signal);
             // KineticEntity::block_entity_on_load does not consume Tank/Hose drawing NBT.
             // Fluid state was staged by chunk_load and is consumed by block_loaded above.
             if let Some(saved) = saved_belts.get(&p).and_then(codec::belt_segment_from_nbt) {
@@ -914,6 +929,64 @@ mod write_phase_tests {
 #[cfg(test)]
 mod reload_order_tests {
     use super::*;
+    #[test]
+    fn chain_signal_journal_round_trips_before_attachment_and_defaults_to_zero() {
+        let sc: Scenario = serde_json::from_value(serde_json::json!({"version":3,"ticks":20,"blocks":[
+            {"pos":[0,8,-1],"state":"create:creative_motor[facing=south]","motor":32},
+            {"pos":[0,8,0],"state":"create:adjustable_chain_gearshift[axis=z,axis_along_first=true,part=start,powered=false]"},
+            {"pos":[1,8,0],"state":"create:encased_chain_drive[axis=z,axis_along_first=true,part=end]"}
+        ]})).unwrap();
+        let mut r = Run::new(&sc);
+        let p = [0, 8, 0];
+        for b in &sc.blocks {
+            r.place(b);
+            r.set_motor(b);
+        }
+        r.tick();
+        r.set([0, 9, 0], 6); // controlled signal 3
+        r.tick();
+        assert!(matches!(
+            r.persisted.chain_entities[&p].get("Signal"),
+            Some(Tag::Int(3))
+        ));
+        for _ in 0..2 {
+            r.reload();
+            assert_eq!(r.w.saved_chain_signal(0, p), Some(3));
+            r.tick();
+            assert_eq!(r.w.speed(0, p), Some(32.));
+            assert_eq!(r.w.speed(0, [1, 8, 0]), Some(40.));
+        }
+        r.set([0, 9, 0], 18); // external power is newer than the stored entity record
+        r.reload();
+        assert_eq!(r.w.saved_chain_signal(0, p), Some(3));
+        r.persisted.chain_entities.clear();
+        r.reload();
+        assert_eq!(r.w.saved_chain_signal(0, p), Some(0));
+        r.persisted
+            .chain_entities
+            .insert(p, Compound::from([("Signal".into(), Tag::Int(3))]));
+        r.set(p, AIR);
+        assert!(!r.persisted.chain_entities.contains_key(&p));
+    }
+
+    #[test]
+    fn processed_signal_is_saved_without_a_speed_change() {
+        let sc: Scenario = serde_json::from_value(serde_json::json!({"version":3,"ticks":20,"blocks":[
+            {"pos":[0,8,0],"state":"create:adjustable_chain_gearshift[axis=z,axis_along_first=true,part=none,powered=false]"}
+        ]})).unwrap();
+        let mut r = Run::new(&sc);
+        let p = [0, 8, 0];
+        r.place(&sc.blocks[0]);
+        r.tick();
+        for signal in [3, 5] {
+            r.set([0, 9, 0], 3 + signal);
+            r.tick();
+            assert_eq!(r.w.speed(0, p), Some(0.));
+            assert!(
+                matches!(r.persisted.chain_entities[&p].get("Signal"),Some(Tag::Int(s)) if *s==signal as i32)
+            );
+        }
+    }
     fn before_reload() -> Run {
         let sc: Scenario =
             serde_json::from_str(include_str!("../persistence/sequencer-reload-case.json"))

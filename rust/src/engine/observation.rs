@@ -193,7 +193,7 @@ impl Run {
                 }),
             chain_modifier: (block == create_engine::Block::AdjustableChainGearshift).then(|| {
                 create_engine::chain::modifier_for_signal(
-                    self.chain_signals.get(&p).copied().unwrap_or(0),
+                    self.w.saved_chain_signal(0, p).unwrap_or(0),
                 )
             }),
             speed_setting: self.w.motor_setting(0, p),
