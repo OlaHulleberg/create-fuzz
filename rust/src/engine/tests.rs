@@ -173,10 +173,10 @@ fn remote_conveyor_links_form_loop_and_disconnect_symmetrically() {
 }
 
 #[test]
-fn belt_break_effects_follow_one_glue_batch_per_tick() {
+fn belt_break_effects_finish_the_glue_cascade_in_the_same_tick() {
     let sc = crate::belts::generate(15);
     let snap = super::run(&sc);
-    assert!(snap.checkpoints[&101].blocks["0,8,2"].belt.is_some());
+    assert!(snap.checkpoints[&101].blocks["0,8,2"].belt.is_none());
     assert!(snap.blocks["0,8,2"].state.starts_with("create:shaft"));
 }
 #[test]

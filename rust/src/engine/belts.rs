@@ -99,20 +99,7 @@ impl Run {
         true
     }
     pub(super) fn belt_breaks(&mut self) {
-        {
-            let pending = std::mem::take(&mut self.w.dims[0].belt_breaks);
-
-            for b in pending {
-                let s = b.shaft.map(|axis| {
-                    format!(
-                        "create:shaft[axis={},waterlogged=false]",
-                        format!("{axis:?}").to_lowercase()
-                    )
-                });
-                self.set(b.pos, s.map_or(AIR, |s| self.id(&s)));
-                self.belt_casing.remove(&b.pos);
-            }
-        }
+        belt::break_cascade(self);
     }
 }
 impl Run {
@@ -283,5 +270,21 @@ impl Run {
         self.w
             .reform_belt(0, chain[0], &chain, taken.items.to_save());
         true
+    }
+}
+
+impl belt::BreakWorld for Run {
+    fn take_breaks(&mut self) -> Vec<create_engine::world::BeltBreak> {
+        std::mem::take(&mut self.w.dims[0].belt_breaks)
+    }
+    fn replace(&mut self, b: create_engine::world::BeltBreak) {
+        let s = b.shaft.map(|axis| {
+            format!(
+                "create:shaft[axis={},waterlogged=false]",
+                format!("{axis:?}").to_lowercase()
+            )
+        });
+        self.set(b.pos, s.map_or(AIR, |s| self.id(&s)));
+        self.belt_casing.remove(&b.pos);
     }
 }
