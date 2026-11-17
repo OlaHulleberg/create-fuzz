@@ -56,27 +56,6 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             push(spec.state);
         }
     }
-    for block in crate::actions::BLOCKS {
-        for axis in ["x", "y", "z"] {
-            if *block == "create:creative_motor" || block.contains("chain") {
-                continue;
-            }
-            if *block == "create:clutch" || *block == "create:gearshift" {
-                for power in ["true", "false"] {
-                    push(format!("{block}[axis={axis},powered={power}]"));
-                }
-            } else {
-                push(format!(
-                    "{block}[axis={axis}{}]",
-                    if *block == "create:shaft" {
-                        ",waterlogged=false"
-                    } else {
-                        ""
-                    }
-                ));
-            }
-        }
-    }
     push("create:brass_casing".into());
     push("create:andesite_casing".into());
     for axis in ["x", "y", "z"] {
@@ -564,8 +543,16 @@ impl Run {
         let mut next = if let Some(f) = create_engine::place::facing(b, ctx, shaft) {
             format!("{block}[facing={}]", format!("{f:?}").to_lowercase())
         } else {
-            let (a, _) = create_engine::place::axis(b, ctx, shaft, Default::default())
-                .expect("placement axis");
+            let (a, _) = create_engine::place::axis(
+                b,
+                ctx,
+                shaft,
+                create_engine::place::Nearby {
+                    large_cog_above: self.w.large_cog_axis(0, add(p, [0, 1, 0])),
+                    ..Default::default()
+                },
+            )
+            .expect("placement axis");
             format!("{block}[axis={}]", format!("{a:?}").to_lowercase())
         };
         if block.contains("chain") {

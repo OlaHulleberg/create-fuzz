@@ -194,3 +194,9 @@ Rust maintains the glue's accepted-use data (target, duration, direction) and
 uses valve::drawn_angle; the world does not expose its private crank countdown.
 Generated traces exercise busy use, angle thresholds, both directions/sneaking
 and all sixteen dye items, with per-tick observations and propagated context.
+
+Controller traces now place the controller with `use` below an existing large cog.
+The adapter passes large_cog_axis to place::axis's Nearby context. Both legal
+controller axes (x/z), opposite cog axes and both input routes are generated.
+The y axis is absent from Create's controller property domain. The cog itself is
+an initial fixture; large-cog item placement and its assistance are not claimed.

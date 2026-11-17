@@ -15,10 +15,10 @@
     {
       "pos": [
         0,
-        8,
+        7,
         0
       ],
-      "state": "create:rotation_speed_controller[axis=x]"
+      "state": "minecraft:stone"
     },
     {
       "pos": [
@@ -55,6 +55,27 @@
     }
   ],
   "events": [
+    {
+      "action": {
+        "kind": "use",
+        "item": "create:rotation_speed_controller",
+        "face": "up",
+        "hit": [
+          0.5,
+          1.0,
+          0.5
+        ],
+        "yaw": 0.0,
+        "pitch": 0.0,
+        "sneaking": false
+      },
+      "tick": 10,
+      "pos": [
+        0,
+        7,
+        0
+      ]
+    },
     {
       "action": {
         "kind": "speed_setting",

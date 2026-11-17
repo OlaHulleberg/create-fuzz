@@ -21,7 +21,7 @@ pub fn crank(seed: u64) -> Scenario {
 pub fn generate(seed: u64) -> Scenario {
     let reverse = seed & 16 != 0;
     let mut blocks = serde_json::json!([
-        {"pos":[0,8,0],"state":"create:rotation_speed_controller[axis=x]"},
+        {"pos":[0,7,0],"state":"minecraft:stone"},
         {"pos":[0,9,0],"state":"create:large_cogwheel[axis=z,waterlogged=false]"},
         {"pos":[1,8,0],"state":"create:shaft[axis=x,waterlogged=false]"},
         {"pos":[2,8,0],"state":"create:mechanical_press[facing=east]"}
@@ -32,7 +32,14 @@ pub fn generate(seed: u64) -> Scenario {
         serde_json::json!({"pos":[-1,8,0],"state":"create:creative_motor[facing=east]","motor":32})
     });
     let motor = if reverse { [0, 9, -1] } else { [-1, 8, 0] };
-    let mut events = Vec::new();
+    let mut events = vec![use_block(
+        10,
+        [0, 7, 0],
+        "create:rotation_speed_controller",
+        0.,
+        0.,
+        false,
+    )];
     for (i, value) in [0, 1, 16, 128, 256].into_iter().enumerate() {
         for row in 0..2 {
             events.push(serde_json::json!({"tick":20+i*16+row*8,"pos":[0,8,0],
@@ -40,9 +47,28 @@ pub fn generate(seed: u64) -> Scenario {
         }
     }
     events.push(serde_json::json!({"tick":110,"pos":motor,"action":{"kind":"speed_setting","row":0,"value":64}}));
-    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":190,
-        "checkpoints":[19,28,44,60,76,92,120],"blocks":blocks,"events":events}))
-    .unwrap()
+    let mut value = serde_json::json!({"version":3,"seed":seed,"ticks":190,
+        "checkpoints":[19,28,44,60,76,92,120],"blocks":blocks,"events":events});
+    if seed & 32 != 0 {
+        for block in value["blocks"].as_array_mut().unwrap() {
+            let pos = block["pos"].as_array_mut().unwrap();
+            pos.swap(0, 2);
+            let state = block["state"]
+                .as_str()
+                .unwrap()
+                .replace("axis=x", "axis=TEMP")
+                .replace("axis=z", "axis=x")
+                .replace("axis=TEMP", "axis=z")
+                .replace("facing=east", "facing=TEMP")
+                .replace("facing=south", "facing=east")
+                .replace("facing=TEMP", "facing=south");
+            block["state"] = serde_json::json!(state);
+        }
+        for event in value["events"].as_array_mut().unwrap() {
+            event["pos"].as_array_mut().unwrap().swap(0, 2);
+        }
+    }
+    serde_json::from_value(value).unwrap()
 }
 
 #[cfg(test)]
