@@ -169,6 +169,135 @@
       "observations": [
         "all block state properties"
       ]
+    },
+    {
+      "id": "create:creative_fluid_tank",
+      "properties": {
+        "top": [
+          "false",
+          "true"
+        ],
+        "bottom": [
+          "false",
+          "true"
+        ],
+        "shape": [
+          "plain",
+          "window",
+          "window_nw",
+          "window_sw",
+          "window_ne",
+          "window_se"
+        ]
+      },
+      "source": "Create content/fluids; port glue/fluids placement, clicks and machines",
+      "inputs": [
+        "use",
+        "fluid item input",
+        "game mode where required"
+      ],
+      "observations": [
+        "state",
+        "fluid contents",
+        "filter/processing where applicable"
+      ]
+    },
+    {
+      "id": "create:smart_fluid_pipe",
+      "properties": {
+        "face": [
+          "floor",
+          "wall",
+          "ceiling"
+        ],
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "Create content/fluids; port glue/fluids placement, clicks and machines",
+      "inputs": [
+        "use",
+        "fluid item input",
+        "game mode where required"
+      ],
+      "observations": [
+        "state",
+        "fluid contents",
+        "filter/processing where applicable"
+      ]
+    },
+    {
+      "id": "create:fluid_valve",
+      "properties": {
+        "facing": [
+          "down",
+          "up",
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "axis_along_first": [
+          "false",
+          "true"
+        ],
+        "enabled": [
+          "false",
+          "true"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "Create content/fluids; port glue/fluids placement, clicks and machines",
+      "inputs": [
+        "use",
+        "fluid item input",
+        "game mode where required"
+      ],
+      "observations": [
+        "state",
+        "fluid contents",
+        "filter/processing where applicable"
+      ]
+    },
+    {
+      "id": "create:spout",
+      "properties": {},
+      "source": "Create content/fluids; port glue/fluids placement, clicks and machines",
+      "inputs": [
+        "use",
+        "fluid item input",
+        "game mode where required"
+      ],
+      "observations": [
+        "state",
+        "fluid contents",
+        "filter/processing where applicable"
+      ]
+    },
+    {
+      "id": "create:item_drain",
+      "properties": {},
+      "source": "Create content/fluids; port glue/fluids placement, clicks and machines",
+      "inputs": [
+        "use",
+        "fluid item input",
+        "game mode where required"
+      ],
+      "observations": [
+        "state",
+        "fluid contents",
+        "filter/processing where applicable"
+      ]
     }
   ],
   "unimplemented": {

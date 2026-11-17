@@ -60,3 +60,10 @@ pressures and path/flow plans. Rust's `pressure_model=endpoint_paths` reports th
 and marks stored connection pressure as unavailable. Pressure-only projection differences
 are not sufficient evidence of a port defect; flow, transfer and glue traces establish the
 functional findings.
+
+Machine observations preserve cycle counters, storage and held-item state. The existing belt
+`stalled` observation uses native previous-position equality on Java and the engine's stored
+queue/end stalled flag on Rust; machine-held stillness can differ by representation. Those
+comparisons remain enabled and are reported as an observation-model limit, separately from
+cycle, contents, lock and position differences. The driver does not infer a port bug from that
+flag alone.

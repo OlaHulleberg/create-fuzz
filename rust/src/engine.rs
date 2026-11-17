@@ -7,6 +7,7 @@
 
 mod belts;
 mod conveyors;
+mod fluid_machines;
 mod fluid_world;
 mod fluids;
 mod interaction;
@@ -73,7 +74,9 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             push(state);
         }
     }
-    push("create:depot[waterlogged=false]".into());
+    for water in ["false", "true"] {
+        push(format!("create:depot[waterlogged={water}]"));
+    }
     push("create:brass_casing".into());
     push("create:andesite_casing".into());
     for axis in ["x", "y", "z"] {
@@ -127,6 +130,7 @@ pub struct Run {
     entity_order: Vec<Pos>,
     notes: Vec<String>,
     depot_stacks: HashMap<Pos, crate::transport::Stack>,
+    depot_outputs: HashMap<Pos, Vec<crate::transport::Stack>>,
     item_outcomes: Vec<crate::transport::Outcome>,
     chains: create_engine::chain_conveyor::Chains<()>,
     connector: Option<Pos>,
@@ -135,6 +139,7 @@ pub struct Run {
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
     java_ties: bool,
+    creative: bool,
     fluid_runs: HashMap<Pos, pumps::Running>,
     fluid_pressures: HashMap<(Pos, create_engine::kinetics::Dir), [f32; 2]>,
     fluid_host: Option<crate::fluid_host::Host>,
@@ -180,6 +185,7 @@ impl Run {
             entity_order: Vec::new(),
             notes: Vec::new(),
             depot_stacks: HashMap::new(),
+            depot_outputs: HashMap::new(),
             item_outcomes: Vec::new(),
             chains: Default::default(),
             connector: None,
@@ -188,6 +194,7 @@ impl Run {
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
             java_ties: false,
+            creative: false,
             fluid_runs: HashMap::new(),
             fluid_pressures: HashMap::new(),
             fluid_host: None,
@@ -314,6 +321,7 @@ impl Run {
                 .is_some_and(|(b, _)| b == create_engine::Block::Depot)
         {
             self.depot_stacks.remove(&p);
+            self.depot_outputs.remove(&p);
         }
         if self.brackets.remove(&p).is_some() {
             self.mark_column(p);

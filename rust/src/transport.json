@@ -1,11 +1,76 @@
 {
   "blocks": [
-    {"id":"create:depot", "properties":{"waterlogged":["false"]}, "source":"DepotBlock.createBlockStateDefinition/getStateForPlacement; dry scenarios"}
+    {
+      "id": "create:depot",
+      "properties": {
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "DepotBlock.createBlockStateDefinition/getStateForPlacement"
+    }
   ],
   "items": [
-    {"id":"minecraft:iron_ingot","max_stack":64},
-    {"id":"minecraft:gold_ingot","max_stack":64},
-    {"id":"minecraft:diamond","max_stack":64},
-    {"id":"minecraft:ender_pearl","max_stack":16}
+    {
+      "id": "minecraft:iron_ingot",
+      "max_stack": 64
+    },
+    {
+      "id": "minecraft:gold_ingot",
+      "max_stack": 64
+    },
+    {
+      "id": "minecraft:diamond",
+      "max_stack": 64
+    },
+    {
+      "id": "minecraft:ender_pearl",
+      "max_stack": 16
+    },
+    {
+      "id": "minecraft:bucket",
+      "max_stack": 16
+    },
+    {
+      "id": "minecraft:water_bucket",
+      "max_stack": 1
+    },
+    {
+      "id": "minecraft:lava_bucket",
+      "max_stack": 1
+    },
+    {
+      "id": "minecraft:milk_bucket",
+      "max_stack": 1
+    },
+    {
+      "id": "create:honey_bucket",
+      "max_stack": 1
+    },
+    {
+      "id": "create:chocolate_bucket",
+      "max_stack": 1
+    },
+    {
+      "id": "minecraft:glass_bottle",
+      "max_stack": 64
+    },
+    {
+      "id": "minecraft:honey_bottle",
+      "max_stack": 16
+    },
+    {
+      "id": "create:builders_tea",
+      "max_stack": 16
+    },
+    {
+      "id": "minecraft:sweet_berries",
+      "max_stack": 64
+    },
+    {
+      "id": "create:chocolate_glazed_berries",
+      "max_stack": 64
+    }
   ]
 }

@@ -57,6 +57,8 @@ pub struct Item {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Contents {
+    #[serde(default)]
+    pub outputs: Vec<Stack>,
     pub kind: String,
     pub items: Vec<Item>,
 }
@@ -335,17 +337,31 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                 "minecraft:redstone_block",
                 "create:shaft",
                 "create:creative_motor",
+                "create:cogwheel",
+                "create:clutch",
+                "create:gearshift",
                 "create:belt",
                 "create:depot"
             ]
-            .contains(&id.as_str()),
+            .contains(&id.as_str())
+                || crate::fluids::contract()
+                    .blocks
+                    .iter()
+                    .any(|block| block.id == id),
             "transport adapter does not model collision/processing for {id}"
         );
     }
     for e in &sc.events {
         if let Some(crate::actions::Action::Use { item, .. }) = &e.action {
             assert!(
-                ["create:belt_connector", "minecraft:air"].contains(&item.as_str()),
+                ["create:belt_connector", "minecraft:air"].contains(&item.as_str())
+                    || crate::fluids::contract()
+                        .blocks
+                        .iter()
+                        .any(|block| block.id == *item)
+                    || item == "create:depot"
+                    || crate::fluid_recipes::contents(item).is_some()
+                    || item == "minecraft:bucket",
                 "loaded-belt structural edits and item overrides require a separate transport adapter"
             );
         }
@@ -357,13 +373,13 @@ mod tests {
     #[test]
     fn transport_contract_rejects_unsupported_states_and_stacks() {
         for state in [
-            "create:depot[waterlogged=true]",
             "create:depot[waterlogged=false",
             "create:depot[waterlogged=false,waterlogged=false]",
         ] {
             assert!(crate::catalogue::validate(state).is_err());
         }
         assert!(crate::catalogue::validate("create:depot[waterlogged=false]").is_ok());
+        assert!(crate::catalogue::validate("create:depot[waterlogged=true]").is_ok());
         assert!(
             std::panic::catch_unwind(|| super::Stack {
                 item: "minecraft:ender_pearl".into(),

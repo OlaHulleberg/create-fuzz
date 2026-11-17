@@ -21,7 +21,7 @@ final class TransportObservations {
         o.add("stalled",stalled==null?JsonNull.INSTANCE:new JsonPrimitive(stalled));return o;
     }
     static JsonObject observe(BlockEntity be) {
-        JsonObject out=new JsonObject();var items=new ArrayList<JsonObject>();
+        JsonObject out=new JsonObject();var items=new ArrayList<JsonObject>();var outputs=new ArrayList<JsonObject>();
         if(be instanceof BeltBlockEntity b) {
             if(!b.isController()) return null;
             out.addProperty("kind","belt");var inv=b.getInventory();
@@ -37,10 +37,13 @@ final class TransportObservations {
             out.addProperty("kind","depot");
             TransportedItemStack held=field(depot,DepotBehaviour.class,"heldItem");
             if(held!=null) items.add(item(held,false,null));
+            net.neoforged.neoforge.items.IItemHandler buffer=field(depot,DepotBehaviour.class,"processingOutputBuffer");
+            for(int i=0;i<buffer.getSlots();i++)if(!buffer.getStackInSlot(i).isEmpty())outputs.add(ItemInputs.stack(buffer.getStackInSlot(i)).getAsJsonObject());
         }
         items.sort(Comparator.comparingDouble((JsonObject i)->i.get("position").getAsDouble())
             .thenComparing(i->i.getAsJsonObject("stack").get("item").getAsString())
             .thenComparingInt(i->i.getAsJsonObject("stack").get("count").getAsInt()));
-        out.add("items",CreateFuzz.GSON.toJsonTree(items));return out;
+        outputs.sort(Comparator.comparing((JsonObject s)->s.get("item").getAsString()).thenComparingInt(s->s.get("count").getAsInt()));
+        out.add("outputs",CreateFuzz.GSON.toJsonTree(outputs));out.add("items",CreateFuzz.GSON.toJsonTree(items));return out;
     }
 }

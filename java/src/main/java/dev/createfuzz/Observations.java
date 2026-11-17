@@ -66,6 +66,7 @@ final class Observations {
                         snap.add("world_fluid", fluid);
                     }
                     BlockEntity be = level.getBlockEntity(pos);
+                    FluidMachineObservations.add(be,snap);
                     var fluidNetwork=FluidObservations.observe(level,pos);if(fluidNetwork!=null)snap.add("fluid_network",fluidNetwork);
                     if (be instanceof com.simibubi.create.content.fluids.tank.FluidTankBlockEntity tank) {
                         var cbe = tank.getControllerBE();
@@ -78,7 +79,7 @@ final class Observations {
                             var inv = cbe.getTankInventory();
                             t.addProperty("capacity", inv.getCapacity());
                             t.addProperty("amount", inv.getFluidAmount());
-                            if (!inv.getFluid().isEmpty()) t.addProperty("fluid", net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(inv.getFluid().getFluid()).toString());
+                            if (!inv.getFluid().isEmpty()) t.addProperty("fluid", FluidIds.of(inv.getFluid()));
                             snap.add("fluid_tank", t);
                         }
                     }

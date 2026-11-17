@@ -52,6 +52,24 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
             (Some(j), None) => out.push(format!("{k}: java has {}, rust has air", j.state)),
             (None, Some(r)) => out.push(format!("{k}: java has air, rust has {}", r.state)),
             (Some(j), Some(r)) => {
+                if j.fluid_storage != r.fluid_storage {
+                    out.push(format!(
+                        "{k}: fluid storage: java {:?} rust {:?}",
+                        j.fluid_storage, r.fluid_storage
+                    ));
+                }
+                if j.fluid_filter != r.fluid_filter {
+                    out.push(format!(
+                        "{k}: fluid filter: java {:?} rust {:?}",
+                        j.fluid_filter, r.fluid_filter
+                    ));
+                }
+                if j.fluid_machine != r.fluid_machine {
+                    out.push(format!(
+                        "{k}: fluid machine: java {:?} rust {:?}",
+                        j.fluid_machine, r.fluid_machine
+                    ));
+                }
                 out.extend(
                     fluid_network_diff(j.fluid_network.as_ref(), r.fluid_network.as_ref())
                         .into_iter()
@@ -260,6 +278,7 @@ fn transport_equal(
         (None, None) => true,
         (Some(a), Some(b)) => {
             a.kind == b.kind
+                && a.outputs == b.outputs
                 && a.items.len() == b.items.len()
                 && a.items.iter().zip(&b.items).all(|(a, b)| {
                     a.stack == b.stack

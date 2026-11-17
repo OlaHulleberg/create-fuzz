@@ -41,6 +41,10 @@ impl Run {
         }
     }
     pub(super) fn item_input(&mut self, p: Pos, input: &Input) {
+        if let Some(outcome) = self.fluid_item_input(p, input) {
+            self.item_outcomes.push(outcome);
+            return;
+        }
         let mut taken = Vec::new();
         let offered = match input {
             Input::DropOn { stack } => Some(stack.clone()),
@@ -187,6 +191,9 @@ impl Run {
                     run: self,
                     past,
                     movement: belt::movement_facing(rpm, seg.facing),
+                    controller: c,
+                    segment: seg,
+                    length,
                 },
             );
             if let Some(b) = self.w.dims[0].belts.get_mut(&c) {
@@ -212,7 +219,20 @@ impl Run {
             self.w.mark_unsaved(0, p);
         }
     }
-    fn insert_transport(&mut self, p: Pos, side: Dir, item: &belt::Item) -> Option<u8> {
+    pub(super) fn insert_transport(&mut self, p: Pos, side: Dir, item: &belt::Item) -> Option<u8> {
+        if let Some(d) = self.w.dims[0].drains.get_mut(&p) {
+            let got = create_engine::drain::insert(
+                d,
+                &item.item,
+                item.count,
+                side,
+                &crate::fluid_recipes::emptying(),
+            );
+            if got > 0 {
+                self.mark_column(p);
+            }
+            return Some(item.count - got);
+        }
         if self.w.dims[0].depots.contains_key(&p) {
             if self.depot_stacks.contains_key(&p) {
                 return Some(item.count);
@@ -297,7 +317,10 @@ impl Run {
                 })
                 .into_iter()
                 .collect();
+            let mut outputs = self.depot_outputs.get(&p).cloned().unwrap_or_default();
+            outputs.sort_by(|a, b| (&a.item, a.count).cmp(&(&b.item, b.count)));
             return Some(Contents {
+                outputs,
                 kind: "depot".into(),
                 items,
             });
@@ -334,6 +357,7 @@ impl Run {
                 .then(a.stack.count.cmp(&b.stack.count))
         });
         Some(Contents {
+            outputs: Vec::new(),
             kind: "belt".into(),
             items,
         })
@@ -353,12 +377,13 @@ impl depot::PlayerUse for DepotUse<'_> {
     type Stack = Stack;
 
     fn take_contents(&mut self) -> Option<Vec<Stack>> {
-        let contents = self
+        let mut contents: Vec<_> = self
             .run
             .depot_stacks
             .remove(&self.pos)
             .into_iter()
             .collect();
+        contents.extend(self.run.depot_outputs.remove(&self.pos).unwrap_or_default());
         self.run.w.depot_put(0, self.pos, None);
         Some(contents)
     }
@@ -394,14 +419,18 @@ struct Side<'a> {
     run: &'a mut Run,
     past: Pos,
     movement: Dir,
+    controller: Pos,
+    segment: belt::Segment,
+    length: i32,
 }
 impl belt::Surroundings for Side<'_> {
     fn ending(&mut self) -> belt::Ending {
         if self.run.w.dims[0].depots.contains_key(&self.past)
             || self.run.belt_location(self.past).is_some()
+            || self.run.w.dims[0].drains.contains_key(&self.past)
         {
             belt::Ending::Insert
-        } else if matches!(self.run.at(self.past), OTHER | REDSTONE_BLOCK) {
+        } else if self.run.sturdy(self.past, self.movement.opposite()) {
             belt::Ending::Blocked
         } else {
             belt::Ending::Eject
@@ -410,7 +439,13 @@ impl belt::Surroundings for Side<'_> {
     fn insert(&mut self, i: &belt::Item) -> Option<u8> {
         self.run.insert_transport(self.past, self.movement, i)
     }
-    fn process(&mut self, _: i32, _: &mut belt::Item, _: bool) -> Option<belt::Process> {
-        None
+    fn process(
+        &mut self,
+        index: i32,
+        item: &mut belt::Item,
+        locked: bool,
+    ) -> Option<belt::Process> {
+        let p = belt::position_for_offset(self.controller, &self.segment, self.length, index);
+        self.run.spout_on_belt(p, item, locked)
     }
 }

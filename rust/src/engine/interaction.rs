@@ -4,6 +4,7 @@ impl Run {
     pub(super) fn action(&mut self, p: Pos, action: &crate::actions::Action) {
         use crate::actions::Action;
         match action {
+            Action::GameMode { creative } => self.creative = *creative,
             Action::Reload => self.reload(),
             Action::Item { input } => self.item_input(p, input),
             Action::SpeedSetting { row, value } => {
@@ -82,13 +83,15 @@ impl Run {
         if self.belt_use(p, item, face, hit, sneaking) {
             return;
         }
+        if self.fluid_use(p, item, face, hit, sneaking) {
+            self.publish_interaction();
+            return;
+        }
         if self.world_bucket(p, item, face) {
             return;
         }
         if self.pipe_use(p, item, face, hit, sneaking) {
-            return;
-        }
-        if self.fluid_use(p, item, sneaking) {
+            self.publish_interaction();
             return;
         }
         let state = self.at(p);
@@ -257,7 +260,11 @@ impl Run {
             self.switch(p, self.id(&next));
             return;
         }
-        if item == "minecraft:air" || create_engine::dye::DyeColor::of_item(item).is_some() {
+        if item == "minecraft:air"
+            || create_engine::dye::DyeColor::of_item(item).is_some()
+            || (!crate::actions::BLOCKS.contains(&item)
+                && !["create:andesite_casing", "create:brass_casing"].contains(&item))
+        {
             return;
         }
         // No override of the clicked position: air replaces itself; solid clicks place adjacent.

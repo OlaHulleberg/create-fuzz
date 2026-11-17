@@ -127,12 +127,17 @@ pub fn enabled(sc: &crate::scenario::Scenario) -> bool {
                 || state.contains("honey_level")
         })
         || sc.events.iter().any(|e| match &e.action {
-            Some(crate::actions::Action::Use { item, .. }) => item.ends_with("bucket"),
+            Some(crate::actions::Action::Use { item, .. }) => {
+                item.ends_with("bucket") || crate::fluid_recipes::contents(item).is_some()
+            }
             Some(crate::actions::Action::Item { input }) => match input {
-                crate::transport::Input::DropOn { stack } => stack.item.ends_with("bucket"),
-                crate::transport::Input::Use { stack, .. } => {
-                    stack.as_ref().is_some_and(|s| s.item.ends_with("bucket"))
+                crate::transport::Input::DropOn { stack } => {
+                    stack.item.ends_with("bucket")
+                        || crate::fluid_recipes::contents(&stack.item).is_some()
                 }
+                crate::transport::Input::Use { stack, .. } => stack.as_ref().is_some_and(|s| {
+                    s.item.ends_with("bucket") || crate::fluid_recipes::contents(&s.item).is_some()
+                }),
             },
             _ => false,
         })

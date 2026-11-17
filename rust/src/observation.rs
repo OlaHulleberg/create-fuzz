@@ -27,6 +27,12 @@ pub struct Snapshot {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct BlockSnap {
     #[serde(default)]
+    pub fluid_storage: Option<crate::fluid_machines::Storage>,
+    #[serde(default)]
+    pub fluid_machine: Option<crate::fluid_machines::Machine>,
+    #[serde(default)]
+    pub fluid_filter: Option<String>,
+    #[serde(default)]
     pub fluid_network: Option<crate::fluid_network::Observation>,
     #[serde(default)]
     pub world_fluid: Option<crate::fluid_world::Observation>,

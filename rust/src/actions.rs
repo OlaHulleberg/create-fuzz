@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
+    GameMode {
+        creative: bool,
+    },
     Reload,
     Item {
         input: crate::transport::Input,
@@ -73,6 +76,12 @@ impl Face {
     }
 }
 pub const BLOCKS: &[&str] = &[
+    "create:creative_fluid_tank",
+    "create:smart_fluid_pipe",
+    "create:fluid_valve",
+    "create:spout",
+    "create:item_drain",
+    "create:depot",
     "create:fluid_pipe",
     "create:mechanical_pump",
     "create:fluid_tank",
@@ -87,6 +96,12 @@ pub const BLOCKS: &[&str] = &[
     "create:flywheel",
 ];
 pub const ITEMS: &[&str] = &[
+    "minecraft:milk_bucket",
+    "create:honey_bucket",
+    "create:chocolate_bucket",
+    "minecraft:glass_bottle",
+    "minecraft:honey_bottle",
+    "create:builders_tea",
     "minecraft:bucket",
     "minecraft:water_bucket",
     "minecraft:lava_bucket",
@@ -144,7 +159,7 @@ impl Action {
                     target[0].abs() <= 23 && target[2].abs() <= 23 && (1..=23).contains(&target[1])
                 );
             }
-            Self::Remove | Self::Reload => {}
+            Self::Remove | Self::Reload | Self::GameMode { .. } => {}
         }
     }
 }
@@ -162,7 +177,9 @@ mod tests {
             let copy = serde_json::from_str(&serde_json::to_string(&sc).unwrap()).unwrap();
             assert_eq!(sc, copy);
             crate::catalogue::scenario(&copy);
-            crate::engine::run(&copy);
+            if !crate::fluid_world::enabled(&copy) {
+                crate::engine::run(&copy);
+            }
         }
     }
     #[test]

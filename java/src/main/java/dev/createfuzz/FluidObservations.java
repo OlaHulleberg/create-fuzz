@@ -26,7 +26,7 @@ final class FluidObservations {
     private static void buffer(Object handler,Set<Object> seen,Map<String,Integer> fluids) {
         if(!OPEN_HANDLER.isInstance(handler)||!seen.add(handler))return;
         var held=((net.neoforged.neoforge.fluids.capability.IFluidHandler)handler).getFluidInTank(0);
-        if(!held.isEmpty())fluids.merge(BuiltInRegistries.FLUID.getKey(held.getFluid()).toString(),held.getAmount(),Integer::sum);
+        if(!held.isEmpty())fluids.merge(FluidIds.of(held),held.getAmount(),Integer::sum);
     }
     static JsonObject observe(ServerLevel level,BlockPos pos) {
         var behaviour=BlockEntityBehaviour.get(level,pos,FluidTransportBehaviour.TYPE);
@@ -42,7 +42,7 @@ final class FluidObservations {
             if(connection!=null) {
                 var flow=behaviour.getFlow(side);
                 if(flow!=null) {
-                    var f=new JsonObject();f.addProperty("fluid",BuiltInRegistries.FLUID.getKey(flow.fluid.getFluid()).toString());
+                    var f=new JsonObject();f.addProperty("fluid",FluidIds.of(flow.fluid));
                     f.addProperty("inbound",flow.inbound);f.addProperty("progress",flow.progress.getValue());f.addProperty("complete",flow.complete);c.add("flow",f);
                 }
                 try {

@@ -96,7 +96,7 @@ JaCoCo and ASM jars are checked against pinned Maven Central SHA-1 values on eve
 cached jars; mismatches are deleted and stop the command.
 `FUZZ_COVERAGE_INCLUDES` is a colon-separated JaCoCo include list; it defaults to
 `com.simibubi.create.content.kinetics.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*`,
-including the kinetic network, torque propagator, stress values and their registry helpers. Extend it for belts or fluids. `FUZZ_CREATE_JAR` selects the matching published Create binary.
+including the kinetic network, torque propagator, stress values and their registry helpers. Fluid, belt and depot classes are included by the default wrapper. `FUZZ_CREATE_JAR` selects the matching published Create binary.
 Each guided case resets the agent after area cleanup and dumps probes before publishing its snapshot.
 Offline analysis unions those probes before counting branches, so discoveries on opposite edges of the
 same line count separately. The agent dumps only included Create classes into `work/coverage-classes`: analysis uses these
@@ -174,17 +174,13 @@ and networks grown through compatible shaft faces. Geometry cases probe all six 
 gears. Repeated domain passes reverse insertion order. Motors reverse after a source removal;
 a settled checkpoint preserves the initial drive observation. Every eighth seed tests loads
 4, 8 or 12 per source rpm against crank capacity 8, with a 2:1 cog speed ratio. These are the
-adjacent load steps in that fixture. Static specifications include waterlogging; resulting Java
-fluid spread is observed as a difference because the Rust adapter has no fluid world simulation.
-No fluid differences are suppressed. This is state injection, not player placement coverage.
+adjacent load steps in that fixture. Static specifications include waterlogging. Contained fluid fixtures use the native fluid scheduler through the private host peer, described below. Static geometry remains state injection; dedicated fluid histories use player placement.
 
 `manifest` includes an explicit static exclusion reason for each omitted id: belt/conveyor
 links (group 5), environmental generators (group 6), moving/assembling machines (group 7),
 and independent static chain-shape injection. Transmission traces exercise chain
 placement/topology, controller placement/boards, sequencer programs, valve boards/use/dye
-and crank expiry. Inherited crank turns are never used as valve activation. Machine work,
-fluid transfer, crafting, inventory, crushing entities and equipment filling remain outside the
-static solver tests. The scenario JSON format and comparisons are unchanged.
+and crank expiry. Inherited crank turns are never used as valve activation. Machine work, crafting, crushing entities and equipment filling remain outside static solver tests. Dedicated fluid histories exercise transfer, filters, buckets and item machines.
 
 Observation scope is explicit per block in the manifest's `observation_scope` map:
 only its named properties are omitted by the shared comparison; raw snapshots retain
@@ -192,9 +188,7 @@ them. Chain part and connection coordinate are committed and fully compared.
 Display up/down and girder top/bottom belong to shape updates, gantry part/carriage axis to
 their updateShape methods, and large-wheel extension to LargeWaterWheelBlock.updateShape.
 Placement-selected facing/axis/shaft flags remain compared: state injection supplies
-those inputs, rather than invoking player placement. FluidValveBlockEntity.tick's
-enabled output belongs to the fluids phase (`state_phase`); its speed, stress,
-capacity, source and network observations remain compared.
+those inputs, rather than invoking player placement. Fluid valve enabled state, kinetic observations and pointer are compared through the fluids phase.
 
 Kinetic generation remains dry. Contained fluid-world cases can use waterlogged states:
 the Rust adapter reads and changes the native environment through the private server's
@@ -229,3 +223,7 @@ pulley insertion/removal and endpoint shortening/extension. Conveyor loop traces
 use `chain_link`, the server transaction sent after the player's chain selection.
 Snapshots compare controller/index/length/casing and sorted conveyor link offsets.
 See [item transport](docs/item-transport.md) for player stack landings/uses, movement, belt/depot handoff, stalls, per-tick observations and explicit native-flight/component boundaries. Inventory-backed splitting remains separate.
+
+Fluid histories use `fluids.json` state domains and version-3 player uses for pipe/pump/tank placement, wrench/glass/copper casing, creative actor bucket exchange (`game_mode`), smart filter slots, and redstone-controlled valve transmissions. `fluid_inputs.rs` drives creative tanks, drains, depot/belt spouts and a startup-audited component-free recipe subset. Observations include tank shapes/contents, six connection pressures and flights, world fluid state, machine storage/cycles/held items, filters and depot output slots. The port has no stored connection pressure; its endpoint-path projection is labelled in snapshots and comparisons remain enabled. Component-bearing potions, arbitrary recipes, contraptions and item entity flight are outside the admitted contract.
+
+Shrinking evaluates one candidate at a time. Check/fuzz batches are bounded by observed checkpoint cells and JSON records stream through buffered readers/writers. On the shared VM, run runtime sweeps and shrinks one at a time under `prlimit --as=3000000000`, after checking at least 4 GiB is available.

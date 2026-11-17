@@ -1,5 +1,5 @@
 //! Shrinks a mismatch one block or event group at a time to the smallest case that still
-//! differs. Each round runs every one-step-smaller candidate side by side on the Java server.
+//! differs. Each round evaluates one candidate history at a time.
 
 use crate::scenario::Scenario;
 use crate::{compare, engine, java};

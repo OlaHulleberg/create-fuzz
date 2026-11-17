@@ -50,30 +50,164 @@ impl Run {
                 self.set(p, self.id(&next));
             }
         }
+        self.tick_fluid_machines();
     }
-    pub(super) fn fluid_use(&mut self, p: Pos, item: &str, sneaking: bool) -> bool {
-        if self.w.block_at(0, p) != Some(create_engine::Block::FluidTank) {
+    pub(super) fn fluid_use(
+        &mut self,
+        p: Pos,
+        item: &str,
+        _face: create_engine::kinetics::Dir,
+        hit: [f64; 3],
+        sneaking: bool,
+    ) -> bool {
+        use create_engine::{Block, fluids::SmartFilter};
+        let Some((block, info)) = self.w.table.get(self.at(p)).map(|(b, i)| (b, *i)) else {
             return false;
-        }
-        if item == "create:wrench" {
-            if sneaking {
-                self.set(p, AIR);
+        };
+        if block == Block::SmartFluidPipe
+            && !sneaking
+            && item != "create:wrench"
+            && let (Some(side), Some(facing)) = (info.face, info.facing)
+            && create_engine::fluids::smart_pipe_filter_hit(side, facing, hit)
+        {
+            let filter = (item != "minecraft:air").then(|| SmartFilter {
+                item: item.into(),
+                fluid: crate::fluid_recipes::contents(item).map(|e| e.fluid),
+            });
+            let changed = if let Some(filter) = filter {
+                self.w.dims[0].plumbing.filters.insert(p, filter.clone()) != Some(filter)
             } else {
-                self.w.toggle_tank_windows(0, p);
+                self.w.dims[0].plumbing.filters.remove(&p).is_some()
+            };
+            if changed {
+                self.w.dims[0].pipes_changed = true;
+                self.w.dims[0].plumbing.filter_changes.push(p);
+                self.mark_column(p);
+            }
+            return true;
+        }
+        if matches!(block, Block::FluidTank | Block::CreativeFluidTank) {
+            if item == "create:wrench" {
+                if sneaking {
+                    self.set(p, AIR);
+                } else {
+                    self.w.toggle_tank_windows(0, p);
+                }
+                return true;
+            }
+            if (self.creative || block == Block::CreativeFluidTank) && item != "minecraft:air" {
+                if let Some(empty) = crate::fluid_recipes::contents(item) {
+                    if block == Block::CreativeFluidTank {
+                        self.w.set_creative_fluid(0, p, Some(empty.fluid));
+                        return true;
+                    }
+                    if self
+                        .w
+                        .fill_boiler(0, p, empty.fluid, empty.amount)
+                        .is_some()
+                    {
+                        return true;
+                    }
+                    if let Some((_, m)) = self.w.tank(0, p) {
+                        let mut t = m.tank;
+                        if t.fill_amount(empty.fluid, empty.amount, m.capacity()) == empty.amount {
+                            self.w.set_tank(0, p, t);
+                            return true;
+                        }
+                    }
+                }
+                let content = if block == Block::CreativeFluidTank {
+                    self.w.dims[0]
+                        .plumbing
+                        .creative_fluid(p)
+                        .flatten()
+                        .map(|f| (f, u32::MAX))
+                } else if self.w.is_boiler(0, p) {
+                    None
+                } else {
+                    self.w
+                        .tank(0, p)
+                        .and_then(|(_, m)| m.tank.fluid.map(|f| (f, m.tank.amount)))
+                };
+                if let Some((fluid, have)) = content
+                    && let Some((need, _)) =
+                        create_engine::spout::filling(item, fluid, &crate::fluid_recipes::filling())
+                    && need <= have
+                {
+                    if block == Block::CreativeFluidTank {
+                        self.w.set_creative_fluid(0, p, None);
+                    } else {
+                        self.w.drain_tank(0, p, need);
+                    }
+                    return true;
+                }
+                return crate::fluid_recipes::contents(item).is_some()
+                    || create_engine::spout::fillable(item, &crate::fluid_recipes::filling());
+            }
+        }
+        if block == Block::ItemDrain {
+            if let Some(empty) = crate::fluid_recipes::contents(item) {
+                let d = self.w.dims[0].drains.get_mut(&p).unwrap();
+                if d.fluid.is_none_or(|(f, n)| {
+                    f == empty.fluid && n + empty.amount <= create_engine::drain::CAPACITY
+                }) {
+                    d.fluid = Some((empty.fluid, d.fluid.map_or(0, |(_, n)| n) + empty.amount));
+                    self.w.dims[0].analog_checks.push(p);
+                    self.mark_column(p);
+                }
+                return true;
+            }
+            if crate::actions::BLOCKS.contains(&item)
+                || ["create:andesite_casing", "create:brass_casing"].contains(&item)
+            {
+                return false;
+            }
+            if self.w.dims[0]
+                .drains
+                .get_mut(&p)
+                .unwrap()
+                .held
+                .take()
+                .is_some()
+            {
+                self.mark_column(p);
             }
             return true;
         }
         false
     }
     pub(super) fn fluid_tank(&self, p: Pos) -> Option<crate::fluids::Tank> {
-        let (controller, m) = self.w.tank(0, p)?;
+        let creative = self.w.block_at(0, p) == Some(create_engine::Block::CreativeFluidTank);
+        let (controller, m) = if creative {
+            self.w.creative_tank(0, p)?
+        } else {
+            self.w.tank(0, p)?
+        };
         Some(crate::fluids::Tank {
             controller,
             width: m.width,
             height: m.height,
             capacity: m.capacity(),
-            fluid: m.tank.fluid.map(|f| f.key()),
-            amount: m.tank.amount,
+            fluid: if creative {
+                self.w.dims[0].plumbing.creative_fluid(p).flatten()
+            } else {
+                m.tank.fluid
+            }
+            .map(|f| f.key()),
+            amount: if creative {
+                if self.w.dims[0]
+                    .plumbing
+                    .creative_fluid(p)
+                    .flatten()
+                    .is_some()
+                {
+                    m.capacity()
+                } else {
+                    0
+                }
+            } else {
+                m.tank.amount
+            },
         })
     }
 }

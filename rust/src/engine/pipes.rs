@@ -26,6 +26,16 @@ impl Run {
         match block {
             Block::FluidPipe => Cell::Pipe(self.pipe_sides(p)),
             Block::EncasedFluidPipe => Cell::Encased(self.pipe_sides(p)),
+            Block::SmartFluidPipe => i.facing.map_or(Cell::Solid, |f| {
+                Cell::Axis(
+                    fluids::smart_pipe_axis(i.face == Some(create_engine::steam::Face::Wall), f),
+                    self.w.dims[0]
+                        .plumbing
+                        .filters
+                        .get(&p)
+                        .map_or(Gate::Open, |filter| filter.gate()),
+                )
+            }),
             Block::GlassFluidPipe => i.axis.map_or(Cell::Solid, |a| Cell::Axis(a, Gate::Open)),
             Block::MechanicalPump => i.facing.map_or(Cell::Solid, Cell::Pump),
             Block::FluidTank
@@ -126,6 +136,48 @@ impl Run {
                 };
                 format!("{item}[facing={},waterlogged={water}]", dir(facing))
             }
+            "create:fluid_valve" => {
+                let (facing, along) = fluids::valve_placement(
+                    nearest,
+                    sneaking,
+                    create_engine::place::horizontal_direction(yaw),
+                    |d| {
+                        self.w
+                            .has_shaft_towards(0, add(p, d.offset()), d.opposite())
+                    },
+                    |d| fluids::connects(self.pipe_cell(add(p, d.offset())), d),
+                );
+                format!(
+                    "{item}[axis_along_first={along},enabled=false,facing={},waterlogged=false]",
+                    dir(facing)
+                )
+            }
+            "create:smart_fluid_pipe" => {
+                use create_engine::steam::Face;
+                let horizontal = create_engine::place::horizontal_direction(yaw);
+                let (mut face, mut facing) = match nearest {
+                    Dir::Up => (Face::Ceiling, horizontal),
+                    Dir::Down => (Face::Floor, horizontal),
+                    d => (Face::Wall, d.opposite()),
+                };
+                if let Some((f, d)) = fluids::smart_pipe_placement(
+                    |d| fluids::connects(self.pipe_cell(add(p, d.offset())), d),
+                    create_engine::place::ordered_by_nearest(yaw, pitch),
+                    face,
+                    facing,
+                ) {
+                    face = f;
+                    facing = d;
+                }
+                format!(
+                    "{item}[face={},facing={},waterlogged=false]",
+                    face.name(),
+                    dir(facing)
+                )
+            }
+            "create:creative_fluid_tank" => format!("{item}[bottom=true,shape=window,top=true]"),
+            "create:item_drain" | "create:spout" => item.to_owned(),
+            "create:depot" => "create:depot[waterlogged=false]".into(),
             _ => return false,
         };
         self.set(p, self.id(&next));

@@ -23,6 +23,13 @@ impl Run {
             blocks.insert(
                 key(p),
                 BlockSnap {
+                    fluid_storage: self.fluid_storage(p),
+                    fluid_machine: self.fluid_machine(p),
+                    fluid_filter: self.w.dims[0]
+                        .plumbing
+                        .filters
+                        .get(&p)
+                        .map(|f| f.item.clone()),
                     fluid_network: self.fluid_network(p),
                     world_fluid: self.world_fluid_observation(p),
                     payload: self.saved_payload(p),

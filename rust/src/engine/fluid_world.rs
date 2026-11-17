@@ -55,6 +55,9 @@ impl Run {
         self.at(p) == AIR
             || crate::fluid_world::fluid(&self.name(self.at(p))).is_some() && !self.waterloggable(p)
     }
+    pub(super) fn host_collision(&self, p: Pos) -> bool {
+        self.solid(p)
+    }
     fn solid(&self, p: Pos) -> bool {
         self.facts(p)
             .map_or_else(|| !self.replaceable(p), |f| f.collision)
@@ -76,11 +79,12 @@ impl Run {
         }
     }
     pub(super) fn world_bucket(&mut self, p: Pos, item: &str, face: Dir) -> bool {
-        if !matches!(
-            item,
-            "minecraft:bucket" | "minecraft:water_bucket" | "minecraft:lava_bucket"
-        ) {
+        let contained = Fluid::of_bucket(item);
+        if item != "minecraft:bucket" && contained.is_none() {
             return false;
+        }
+        if contained.is_some_and(|fluid| !fluid.placeable()) {
+            return true;
         }
         let (block, props) = parse_state(&self.name(self.at(p)));
         if block.ends_with("cauldron") {
@@ -97,8 +101,11 @@ impl Run {
             };
             if let Some(state) = next {
                 self.set_world_state(p, state);
+                return true;
             }
-            return true;
+            if item == "minecraft:bucket" {
+                return true;
+            }
         }
         if item == "minecraft:bucket" {
             if let Some((fluid, 0)) = self.world_fluid(p)
@@ -113,11 +120,7 @@ impl Run {
             }
             return true;
         }
-        let fluid = if item == "minecraft:water_bucket" {
-            Fluid::Water
-        } else {
-            Fluid::Lava
-        };
+        let fluid = contained.unwrap();
         let target = if self.waterloggable(p) && fluid == Fluid::Water {
             p
         } else {

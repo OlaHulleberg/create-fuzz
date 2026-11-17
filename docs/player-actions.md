@@ -257,3 +257,5 @@ Item inputs, movement, belt/belt and belt/depot handoff, stalls and stack/positi
 observations are documented in [item transport](item-transport.md). Native flight,
 loaded slicing and full interaction closure remain separate coverage boundaries.
 No comparison field or allowance was removed.
+
+`game_mode` with a boolean `creative` selects the real actor game mode on Java and the corresponding glue permission branch on Rust. Normal tank bucket exchange requires creative; creative tanks accept fluid selection from either mode. Fluid pipe/pump/smart pipe/valve and machine placement uses the same `use` primitive and custom placement callbacks. Smart filters use their actual slot hit region. Drain landings use the existing typed `item/drop_on` primitive; item flight before landing is outside this boundary.

@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 32 == 19 {
+        return crate::fluid_inputs::generate(seed);
+    }
     if seed % 32 == 18 {
         return crate::fluid_pumps::generate(seed);
     }

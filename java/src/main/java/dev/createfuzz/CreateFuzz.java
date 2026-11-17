@@ -71,6 +71,7 @@ public class CreateFuzz {
         try {
             Catalogue.audit();
             ItemInputs.audit();
+            FluidRecipeAudit.check(e.getServer().overworld());
             Files.createDirectories(dir);
             Files.writeString(
                     dir.resolve("actor-probe.json"),
