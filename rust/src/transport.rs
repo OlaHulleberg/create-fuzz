@@ -324,3 +324,34 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn transport_contract_rejects_unsupported_states_and_stacks() {
+        for state in [
+            "create:depot[waterlogged=true]",
+            "create:depot[waterlogged=false",
+            "create:depot[waterlogged=false,waterlogged=false]",
+        ] {
+            assert!(crate::catalogue::validate(state).is_err());
+        }
+        assert!(crate::catalogue::validate("create:depot[waterlogged=false]").is_ok());
+        assert!(
+            std::panic::catch_unwind(|| super::Stack {
+                item: "minecraft:ender_pearl".into(),
+                count: 17
+            }
+            .validate())
+            .is_err()
+        );
+        assert!(
+            std::panic::catch_unwind(|| super::Stack {
+                item: "minecraft:unknown".into(),
+                count: 1
+            }
+            .validate())
+            .is_err()
+        );
+    }
+}

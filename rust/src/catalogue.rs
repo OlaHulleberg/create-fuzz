@@ -33,6 +33,9 @@ pub fn validate(state: &str) -> Result<(), String> {
             Err(format!("unrepresented external state {state}"))
         };
     }
+    if state.contains('[') && !state.ends_with(']') {
+        return Err(format!("malformed state {state}"));
+    }
     if let Some(result) = crate::transport::validate_state(&id, &props) {
         return result;
     }
@@ -44,9 +47,6 @@ pub fn validate(state: &str) -> Result<(), String> {
         return Err(
             "waterlogged=true requires a fluid-world adapter; kinetics scenarios are dry".into(),
         );
-    }
-    if state.contains('[') && !state.ends_with(']') {
-        return Err(format!("malformed state {state}"));
     }
     let mut seen = BTreeSet::new();
     for (k, v) in props {
