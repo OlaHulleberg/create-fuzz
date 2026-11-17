@@ -304,6 +304,10 @@ impl Run {
                 }
             }
             Action::Program { instructions } => {
+                // sequencer::client_message rejects late screen packets after replacement.
+                if self.w.block_at(0, p) != Some(create_engine::Block::SequencedGearshift) {
+                    return;
+                }
                 self.w.set_sequencer_instructions(
                     0,
                     p,
@@ -878,6 +882,33 @@ pub fn run(sc: &Scenario) -> Snapshot {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn late_program_packet_cannot_reconfigure_a_replacement_motor() {
+        let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({"ticks":80,
+            "blocks":[{"pos":[0,8,0],"state":"create:sequenced_gearshift[axis=x,vertical=false,state=0]"}],
+            "events":[{"tick":5,"pos":[0,8,0],"state":"create:creative_motor[facing=east]","motor":32}]})).unwrap();
+        let mut r = super::Run::new(&sc);
+        let p = [0, 8, 0];
+        r.place(&sc.blocks[0]);
+        r.place(&sc.events[0].placed().unwrap());
+        let previous = r.w.sequencer_instructions(0, p);
+        r.action(
+            p,
+            &crate::actions::Action::Program {
+                instructions: vec![crate::program::Instruction {
+                    instruction: crate::program::Kind::Delay,
+                    modifier: crate::program::Modifier::Forward,
+                    value: 5,
+                }],
+            },
+        );
+        assert_eq!(r.w.sequencer_instructions(0, p), previous);
+        assert_eq!(
+            r.w.block_at(0, p),
+            Some(create_engine::Block::CreativeMotor)
+        );
+    }
+
     #[test]
     fn replaced_sequencer_has_only_the_current_blocks_observations() {
         let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({
