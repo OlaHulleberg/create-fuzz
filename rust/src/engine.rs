@@ -345,7 +345,6 @@ impl Run {
         let own = self.w.table.get(state).map(|(b, i)| (b, *i));
         if let Some((block, info)) = own.filter(|(b, _)| create_engine::dye::is_valve_handle(*b)) {
             if !sneaking
-                && self.handles.get(&p).is_some_and(|h| h.remaining == 0)
                 && let Some(slot) = info.facing.and_then(|f| board::valve_slot(f, face))
                 && board::hits_valve_box(slot, hit)
             {
@@ -882,6 +881,28 @@ pub fn run(sc: &Scenario) -> Snapshot {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn busy_valve_centre_still_enters_the_ports_value_box_handler() {
+        let sc: crate::scenario::Scenario =
+            serde_json::from_value(serde_json::json!({"ticks":80,"blocks":[
+            {"pos":[0,7,0],"state":"minecraft:stone"},
+            {"pos":[0,8,0],"state":"create:copper_valve_handle[facing=up,waterlogged=false]"}]}))
+            .unwrap();
+        let mut r = super::Run::new(&sc);
+        for b in &sc.blocks {
+            r.place(b);
+        }
+        let p = [0, 8, 0];
+        let face = create_engine::kinetics::Dir::Up;
+        r.use_item(p, "minecraft:air", face, [0.1, 1., 0.1], 0., 0., false);
+        assert!(r.handles[&p].remaining > 0);
+        r.use_item(p, "minecraft:red_dye", face, [0.5, 1., 0.5], 0., 0., false);
+        assert_eq!(
+            r.w.block_at(0, p),
+            Some(create_engine::Block::CopperValveHandle)
+        );
+    }
+
     #[test]
     fn late_program_packet_cannot_reconfigure_a_replacement_motor() {
         let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({"ticks":80,

@@ -210,3 +210,10 @@ The driver distinguishes committed state changes with neighbour notifications
 (`UPDATE_ALL`) from the glue's client-only powered-property updates
 (`UPDATE_CLIENTS`). Both call block_changed; only the former call neighbour
 callbacks. Shape and sequencer-state commits continue to notify neighbours.
+
+The port's `values::right_click` tests a valve box geometrically even while the
+valve is busy. The Rust adapter follows that handler; it does not import Java's
+inUse-dependent `isActive` condition. Thus an unsneaking centred dye click can be
+consumed by the port before recolouring. Off-centre and sneaking clicks still
+reach the block's dye/use handler. This source-level port/Java difference is
+retained by comparison.
