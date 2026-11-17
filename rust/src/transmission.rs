@@ -12,9 +12,9 @@ pub fn crank(seed: u64) -> Scenario {
         .collect();
     serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":160,
         "checkpoints":(20..53).collect::<Vec<_>>(),"blocks":[
-        {"pos":[0,7,0],"state":"minecraft:stone"},
+        {"pos":[0,7,0],"state":"create:shaft[axis=y,waterlogged=false]"},
         {"pos":[0,8,0],"state":"create:hand_crank[facing=up,waterlogged=false]"},
-        {"pos":[0,9,0],"state":"create:shaft[axis=y,waterlogged=false]"}],"events":events}))
+        {"pos":[0,6,0],"state":"create:shaft[axis=y,waterlogged=false]"}],"events":events}))
     .unwrap()
 }
 
@@ -221,6 +221,14 @@ pub fn valve(seed: u64) -> Scenario {
         event["action"]["hit"] = serde_json::json!([0.1, 1, 0.1]);
         events.push(event);
     }
+    // activate rejects external power and the four-tick cooldown after use.
+    // A short angle plus consecutive clicks crosses both rejection boundaries.
+    events.push(serde_json::json!({"tick":300,"pos":[0,8,0],"action":{"kind":"valve_setting","row":1,"value":1}}));
+    for tick in 301..345 {
+        events.push(use_block(tick, [0,8,0], "minecraft:air", 0., 0., false));
+    }
+    events.push(serde_json::json!({"tick":320,"pos":[0,5,0],"state":"create:creative_motor[facing=up]","motor":32}));
+    events.push(serde_json::json!({"tick":335,"pos":[0,5,0],"action":{"kind":"remove"}}));
     // The up-facing handle's gameplay hit shape is half-height (Create AllShapes).
     // A surface normal is not the boundary plane of its containing unit cell.
     for event in &mut events {
@@ -228,7 +236,7 @@ pub fn valve(seed: u64) -> Scenario {
             event["action"]["hit"][1] = serde_json::json!(0.5);
         }
     }
-    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":370,"checkpoints":(10..300).collect::<Vec<_>>(),"blocks":[
+    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":370,"checkpoints":(10..350).collect::<Vec<_>>(),"blocks":[
         {"pos":[0,7,0],"state":"create:shaft[axis=y,waterlogged=false]"},
         {"pos":[0,8,0],"state":"create:copper_valve_handle[facing=up,waterlogged=false]"},
         {"pos":[0,6,0],"state":"create:shaft[axis=y,waterlogged=false]"}],"events":events})).unwrap()
