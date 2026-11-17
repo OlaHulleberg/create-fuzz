@@ -36,8 +36,29 @@ final class PlayerActor {
     }
 
     static void release(ServerLevel level, ServerPlayer player) {
-        // A fresh UUID must not leave PlayerList's statistics/advancement caches behind.
-        level.getServer().getPlayerList().remove(player);
+        var statistics = player.getStats();
+        var advancements = player.getAdvancements();
+        advancements.stopListening();
+        var players = level.getServer().getPlayerList();
+        players.remove(player);
+        // Unregistered actors are absent from playersByUUID, so ordinary logout's
+        // registered-player cache eviction does not apply. Remove only our exact
+        // objects; never clear other players' entries.
+        try {
+            for (Class<?> type = players.getClass(); type != null; type = type.getSuperclass()) {
+                for (var field : type.getDeclaredFields()) {
+                    if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+                            || !java.util.Map.class.isAssignableFrom(field.getType())) continue;
+                    field.setAccessible(true);
+                    var cache = (java.util.Map<?, ?>) field.get(players);
+                    var entry = cache.get(player.getUUID());
+                    if (entry == statistics || entry == advancements) cache.remove(player.getUUID());
+                    entry = cache.get(player.getUUID());
+                    if (entry == statistics || entry == advancements)
+                        throw new IllegalStateException("case actor cache survived disposal: " + field.getName());
+                }
+            }
+        } catch (ReflectiveOperationException e) { throw new IllegalStateException(e); }
     }
 
     static JsonObject probe(ServerLevel level) {
