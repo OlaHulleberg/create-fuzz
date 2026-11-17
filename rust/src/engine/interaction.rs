@@ -112,6 +112,9 @@ impl Run {
                 && name != "create:brass_encased_shaft"
                 && name != "create:brass_casing"
                 && name != "create:andesite_casing"
+                && !(name == "create:belt"
+                    && sneaking
+                    && ["create:andesite_casing", "create:brass_casing"].contains(&item))
             {
                 self.notes.push(format!("adapter gap: RightClickBlock/value-box and block-use handlers for {name} at {p:?} are outside the supported subset; input retained"));
                 return;

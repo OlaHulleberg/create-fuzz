@@ -456,3 +456,35 @@ fn adding_item_cases_preserves_the_conveyor_generator_lane() {
             .any(|e| matches!(e.action, Some(crate::actions::Action::Item { .. })))
     );
 }
+
+#[test]
+fn sneaking_casing_on_a_belt_reaches_normal_item_placement() {
+    use crate::actions::{Action, Face};
+    let mut sc = crate::transport::generate(31);
+    sc.events.retain(|e| e.tick < 40);
+    sc.checkpoints.clear();
+    let mut r = super::Run::new(&sc);
+    for b in &sc.blocks {
+        r.place(b);
+    }
+    for e in &sc.events {
+        if let Some(a) = &e.action {
+            r.action(e.pos, a);
+        }
+    }
+    r.tick();
+    r.action(
+        [0, 8, 0],
+        &Action::Use {
+            item: "create:brass_casing".into(),
+            face: Face::Up,
+            hit: [0.5, 1., 0.5],
+            yaw: 0.,
+            pitch: 0.,
+            sneaking: true,
+        },
+    );
+    assert_eq!(r.name(r.at([0, 9, 0])), "create:brass_casing");
+    assert_eq!(r.belt_observation([0, 8, 0]).unwrap().casing, "none");
+    assert!(r.notes.is_empty());
+}
