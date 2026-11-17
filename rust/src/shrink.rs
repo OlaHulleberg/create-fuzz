@@ -73,11 +73,13 @@ fn candidates(sc: &Scenario) -> Vec<Scenario> {
 
 /// The differences a case shows now (empty when it matches).
 pub fn diffs(dir: &Path, cases: &[Scenario]) -> Vec<Vec<String>> {
-    let java = java::run(dir, cases);
     cases
         .iter()
-        .zip(&java)
-        .map(|(sc, j)| compare::diff(j, &engine::run_at_phase(sc, j.save_phase)))
+        .map(|sc| {
+            let mut snapshots = java::run(dir, std::slice::from_ref(sc));
+            let java = snapshots.pop().unwrap();
+            compare::diff(&java, &engine::run_at_phase(sc, java.save_phase))
+        })
         .collect()
 }
 
@@ -89,11 +91,11 @@ pub fn shrink(dir: &Path, mut sc: Scenario, required: Option<&str>) -> (Scenario
     }
     // Keep a witness from the original observation: reduction must not replace a
     // network finding with an unrelated state-injection discrepancy.
-    let witness = last.clone();
-    let required_witness: Vec<_> = witness
+    let witness: std::collections::HashSet<String> = last.iter().cloned().collect();
+    let required_witness: std::collections::HashSet<&str> = witness
         .iter()
         .filter(|d| required.is_none_or(|text| d.contains(text)))
-        .cloned()
+        .map(String::as_str)
         .collect();
     assert!(
         !required_witness.is_empty(),
@@ -104,17 +106,18 @@ pub fn shrink(dir: &Path, mut sc: Scenario, required: Option<&str>) -> (Scenario
         if cands.is_empty() {
             break;
         }
-        // Small batches avoid constructing and clearing many areas after an early coarse hit.
-        // The Java protocol permits up to 128, but shrinking usually accepts an early candidate.
+        // Retain one Java history and one Rust history at a time. Full checkpoint
+        // maps are much larger than the candidate scenario or the difference strings.
         let mut hit = None;
-        for chunk in cands.chunks(16) {
-            let results = diffs(dir, chunk);
-            if let Some((c, d)) = chunk.iter().zip(results).find(|(_, d)| {
-                !d.is_empty()
-                    && d.iter().all(|item| witness.contains(item))
-                    && d.iter().any(|item| required_witness.contains(item))
-            }) {
-                hit = Some((c.clone(), d));
+        for candidate in cands {
+            let differences = diffs(dir, std::slice::from_ref(&candidate)).pop().unwrap();
+            if !differences.is_empty()
+                && differences.iter().all(|item| witness.contains(item))
+                && differences
+                    .iter()
+                    .any(|item| required_witness.contains(item.as_str()))
+            {
+                hit = Some((candidate, differences));
                 break;
             }
         }

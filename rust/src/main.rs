@@ -108,22 +108,24 @@ fn main() {
 }
 
 fn check(cases: &[Scenario], names: &[String]) -> usize {
-    let java = java::run(&fuzz_dir(), cases);
     let mut failed = 0;
-    for ((sc, j), name) in cases.iter().zip(&java).zip(names) {
-        let r = engine::run_at_phase(sc, j.save_phase);
-        let diffs = compare::diff(j, &r);
-        if diffs.is_empty() {
-            println!("{name}: match ({} blocks)", j.blocks.len());
-        } else {
-            failed += 1;
-            println!("{name}: {} differences", diffs.len());
-            for d in &diffs {
-                println!("  {d}");
-            }
-            for (k, b) in &j.blocks {
-                if diffs.iter().any(|d| d.starts_with(&format!("{k}:"))) {
-                    println!("  java {k} debug: {}", b.debug.as_deref().unwrap_or("-"));
+    for range in java::batches(cases, 128) {
+        let java = java::run(&fuzz_dir(), &cases[range.clone()]);
+        for ((sc, j), name) in cases[range.clone()].iter().zip(&java).zip(&names[range]) {
+            let r = engine::run_at_phase(sc, j.save_phase);
+            let diffs = compare::diff(j, &r);
+            if diffs.is_empty() {
+                println!("{name}: match ({} blocks)", j.blocks.len());
+            } else {
+                failed += 1;
+                println!("{name}: {} differences", diffs.len());
+                for d in &diffs {
+                    println!("  {d}");
+                }
+                for (k, b) in &j.blocks {
+                    if diffs.iter().any(|d| d.starts_with(&format!("{k}:"))) {
+                        println!("  java {k} debug: {}", b.debug.as_deref().unwrap_or("-"));
+                    }
                 }
             }
         }
@@ -138,27 +140,9 @@ fn fuzz(first: u64, count: u64, batch: usize) {
     let mut counts = Counts::default();
     for chunk in seeds.chunks(batch) {
         let cases: Vec<Scenario> = chunk.iter().map(|&s| generate::generate(s)).collect();
-        let java = java::run(&fuzz_dir(), &cases);
-        // Always recheck Java, including cases whose first snapshot matches the port.
-        // Separate requests and shifted slots expose history/phase-sensitive failures
-        // that three adjacent copies in one batch cannot detect.
-        let first_replay = java::varied(&fuzz_dir(), &cases, 1, (java[0].save_phase + 3) % 10);
-        let second_replay = java::varied(&fuzz_dir(), &cases, 17, (java[0].save_phase + 7) % 10);
-        for (index, (sc, j)) in cases.iter().zip(&java).enumerate() {
-            let again = [&first_replay[index], &second_replay[index]];
-            if again.iter().any(|next| !compare::diff(j, next).is_empty()) {
-                counts.unstable += 1;
-                let found =
-                    std::path::PathBuf::from(std::env::var("FUZZ_FOUND").expect("use run.sh"));
-                std::fs::create_dir_all(&found).unwrap();
-                let record = serde_json::json!({"scenario":sc,"java":j,"java_again":again});
-                std::fs::write(
-                    found.join(format!("unstable-{}.json", sc.seed)),
-                    serde_json::to_string_pretty(&record).unwrap(),
-                )
-                .unwrap();
-                println!("seed {}: java unstable across batch contexts", sc.seed);
-            } else {
+        for range in java::batches(&cases, batch) {
+            let java = java::run(&fuzz_dir(), &cases[range.clone()]);
+            for (sc, j) in cases[range].iter().zip(&java) {
                 record(sc, j, &mut counts);
             }
         }
@@ -173,18 +157,33 @@ pub fn fuzz_dir() -> PathBuf {
 }
 
 fn load(path: &str) -> Scenario {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
-    let mut value: serde_json::Value =
-        serde_json::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
-    // A saved mismatch (`found/<seed>.json`) holds its case under `scenario`.
-    if let Some(sc) = value.get_mut("scenario") {
-        value = sc.take();
+    use std::io::BufReader;
+    #[derive(serde::Deserialize)]
+    struct Wrapped {
+        scenario: Scenario,
     }
-    serde_json::from_value(value).unwrap_or_else(|e| panic!("{path}: {e}"))
+    // Found records can contain hundreds of MB of observations. Deserialize only
+    // their scenario; Serde skips the other fields without building a Value tree.
+    let open = || std::fs::File::open(path).unwrap_or_else(|error| panic!("{path}: {error}"));
+    if let Ok(record) = serde_json::from_reader::<_, Wrapped>(BufReader::new(open())) {
+        return record.scenario;
+    }
+    serde_json::from_reader(BufReader::new(open()))
+        .unwrap_or_else(|error| panic!("{path}: {error}"))
+}
+
+fn write_record(path: &Path, value: &impl serde::Serialize) {
+    let file = std::fs::File::create(path).expect("create record");
+    let mut writer = std::io::BufWriter::new(file);
+    serde_json::to_writer_pretty(&mut writer, value).expect("write record");
+    std::io::Write::flush(&mut writer).expect("flush record");
 }
 
 fn print(s: &Snapshot) {
-    println!("{}", serde_json::to_string_pretty(s).unwrap());
+    let stdout = std::io::stdout();
+    let mut writer = std::io::BufWriter::new(stdout.lock());
+    serde_json::to_writer_pretty(&mut writer, s).unwrap();
+    std::io::Write::write_all(&mut writer, b"\n").unwrap();
 }
 
 #[derive(Default)]
@@ -216,12 +215,24 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) -> bool {
             .any(|s| s == crate::fluid_world::OUTSIDE)
     }) {
         counts.unsupported += 1;
-        let record = serde_json::json!({"kind":"driver-unsupported","scenario":sc,"java":j,"rust":r,"diffs":diffs});
-        std::fs::write(
-            found.join(format!("unsupported-{}.json", sc.seed)),
-            serde_json::to_string_pretty(&record).unwrap(),
-        )
-        .unwrap();
+        #[derive(serde::Serialize)]
+        struct Unsupported<'a> {
+            kind: &'static str,
+            scenario: &'a Scenario,
+            java: &'a Snapshot,
+            rust: &'a Snapshot,
+            diffs: &'a [String],
+        }
+        write_record(
+            &found.join(format!("unsupported-{}.json", sc.seed)),
+            &Unsupported {
+                kind: "driver-unsupported",
+                scenario: sc,
+                java: j,
+                rust: &r,
+                diffs: &diffs,
+            },
+        );
         println!("seed {}: driver unsupported (fluid containment)", sc.seed);
         return false;
     }
@@ -229,46 +240,54 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) -> bool {
         counts.matched += 1;
         return true;
     }
-    // Recheck repeatability before recording a port difference. Controlled Java inputs
-    // must agree across all three reruns; print the actual disagreement if they do not.
-    let again: Vec<_> = [(1, 3), (7, 5), (17, 7)]
-        .into_iter()
-        .map(|(offset, delta)| {
-            java::varied(
-                &fuzz_dir(),
-                std::slice::from_ref(sc),
-                offset,
-                (j.save_phase + delta) % 10,
-            )
-            .remove(0)
-        })
-        .collect();
-    if again.iter().any(|a| !compare::diff(j, a).is_empty()) {
-        counts.unstable += 1;
-        for (index, rerun) in again.iter().enumerate() {
+    // Recheck sequentially: three full checkpoint histories must not stay live
+    // together with the original Java/Rust pair. One differing rerun proves instability.
+    for index in 0..3 {
+        let rerun = java::run(&fuzz_dir(), std::slice::from_ref(sc))
+            .pop()
+            .unwrap();
+        let disagreement = compare::diff(j, &rerun);
+        if !disagreement.is_empty() {
+            counts.unstable += 1;
             println!(
-                "java-unstable seed {} rerun {}: {:?}",
-                sc.seed,
-                index,
-                compare::diff(j, rerun)
+                "DEBUG java-unstable seed {} rerun {}: {:?}",
+                sc.seed, index, disagreement
             );
+            #[derive(serde::Serialize)]
+            struct Unstable<'a> {
+                scenario: &'a Scenario,
+                java: &'a Snapshot,
+                java_again: [&'a Snapshot; 1],
+            }
+            write_record(
+                &found.join(format!("unstable-{}.json", sc.seed)),
+                &Unstable {
+                    scenario: sc,
+                    java: j,
+                    java_again: [&rerun],
+                },
+            );
+            println!("seed {}: java unstable", sc.seed);
+            return true;
         }
-        let record = serde_json::json!({"scenario": sc, "java": j, "java_again": again});
-        std::fs::write(
-            found.join(format!("unstable-{}.json", sc.seed)),
-            serde_json::to_string_pretty(&record).unwrap(),
-        )
-        .unwrap();
-        println!("seed {}: java unstable", sc.seed);
-        return true;
     }
     counts.differed += 1;
-    let record = serde_json::json!({"scenario": sc, "java": j, "rust": r, "diffs": diffs});
-    std::fs::write(
-        found.join(format!("{}.json", sc.seed)),
-        serde_json::to_string_pretty(&record).unwrap(),
-    )
-    .unwrap();
+    #[derive(serde::Serialize)]
+    struct Difference<'a> {
+        scenario: &'a Scenario,
+        java: &'a Snapshot,
+        rust: &'a Snapshot,
+        diffs: &'a [String],
+    }
+    write_record(
+        &found.join(format!("{}.json", sc.seed)),
+        &Difference {
+            scenario: sc,
+            java: j,
+            rust: &r,
+            diffs: &diffs,
+        },
+    );
     println!(
         "seed {}: {} differences, first: {}",
         sc.seed,

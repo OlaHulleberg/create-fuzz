@@ -102,28 +102,30 @@ fn exchange(
     let out = dir.join("outbox").join(&name);
     let start = Instant::now();
     loop {
-        if let Ok(text) = std::fs::read_to_string(&out) {
-            let _ = std::fs::remove_file(&out);
-            let value: serde_json::Value = serde_json::from_str(&text).expect("outbox json");
-            if let Some(e) = value.get("error") {
-                panic!("java side: {e}");
+        if let Ok(file) = std::fs::File::open(&out) {
+            use std::io::BufRead;
+            let mut reader = std::io::BufReader::new(file);
+            let first = reader
+                .fill_buf()
+                .expect("outbox read")
+                .iter()
+                .copied()
+                .find(|b| !b.is_ascii_whitespace());
+            if first == Some(b'[') {
+                let after: serde_json::Value = serde_json::from_reader(std::fs::File::open(&runtime).expect("runtime stamp after response")).expect("runtime stamp");
+                assert_eq!(after["boot"],stamp["boot"],"Java restarted during request");
+                assert_eq!(after["source_hash"],stamp["source_hash"],"Java build changed during request");
+                let snapshots = serde_json::from_reader(reader).expect("snapshots");
+                let _ = std::fs::remove_file(&out);
+                return (snapshots, dir.join("outbox").join(format!("{name}.exec")));
             }
-            let after: serde_json::Value = serde_json::from_str(
-                &std::fs::read_to_string(&runtime).expect("runtime stamp after response"),
-            )
-            .expect("runtime stamp");
-            assert_eq!(
-                after["boot"], stamp["boot"],
-                "Java restarted while handling the request"
-            );
-            assert_eq!(
-                after["source_hash"], stamp["source_hash"],
-                "Java build changed during the request"
-            );
-            return (
-                serde_json::from_value(value).expect("snapshots"),
-                dir.join("outbox").join(format!("{name}.exec")),
-            );
+            #[derive(serde::Deserialize)]
+            struct ErrorResponse {
+                error: String,
+            }
+            let error: ErrorResponse = serde_json::from_reader(reader).expect("outbox error");
+            let _ = std::fs::remove_file(&out);
+            panic!("java side: {}", error.error);
         }
         if let Ok(pid) = std::fs::read_to_string(dir.join("server.pid"))
             && std::fs::read_to_string(format!("/proc/{}/stat", pid.trim()))
@@ -138,5 +140,61 @@ fn exchange(
             panic!("no answer from the Java side in 10 min: is `./run.sh server` running?");
         }
         std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Bound concurrently retained checkpoint cells on both the Java and Rust sides.
+/// A single larger case runs alone; callers must consume each batch before requesting more.
+pub fn batches(
+    cases: &[Scenario],
+    maximum: usize,
+) -> impl Iterator<Item = std::ops::Range<usize>> + '_ {
+    let mut start = 0;
+    std::iter::from_fn(move || {
+        if start == cases.len() {
+            return None;
+        }
+        let begin = start;
+        let mut cells = 0usize;
+        while start < cases.len() && start - begin < maximum.max(1) {
+            let next = cases[start]
+                .region()
+                .len()
+                .saturating_mul(cases[start].checkpoints.len() + 1);
+            if start > begin && cells.saturating_add(next) > 131_072 {
+                break;
+            }
+            cells = cells.saturating_add(next);
+            start += 1;
+        }
+        Some(begin..start)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn large_histories_run_alone_and_batching_keeps_order() {
+        let mut heavy = crate::fluid_world::generate(17);
+        heavy.ticks = 1000;
+        heavy.checkpoints = (0..heavy.ticks).collect();
+        println!(
+            "BlockSnap inline bytes {}; heavy scenario cells {}",
+            std::mem::size_of::<crate::observation::BlockSnap>(),
+            heavy.region().len() * (heavy.checkpoints.len() + 1)
+        );
+        let cases = vec![
+            heavy.clone(),
+            heavy,
+            crate::geometry::generate(0),
+            crate::geometry::generate(2),
+        ];
+        let batches: Vec<_> = super::batches(&cases, 128).collect();
+        assert_eq!(batches[0], 0..1);
+        assert_eq!(batches[1], 1..2);
+        assert_eq!(
+            batches.into_iter().flatten().collect::<Vec<_>>(),
+            vec![0, 1, 2, 3]
+        );
     }
 }

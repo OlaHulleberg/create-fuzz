@@ -16,6 +16,14 @@ final class FluidHost {
     private static final BlockPos ORIGIN = new BlockPos(2048, 0, 2048);
     private static String owner;
     private static long epoch;
+    static void reapStale(ServerLevel level) {
+        if(owner==null)return;
+        try {
+            long pid=Long.parseLong(owner.substring(0,owner.indexOf('-')));
+            if(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false))return;
+            abort(level);
+        }catch(NumberFormatException|IndexOutOfBoundsException ignored) { /* Diagnostic test owners have no process id. */ }
+    }
     static boolean busy() {return owner!=null;}
     static void prepare(ServerLevel level) {
         for(int x=(ORIGIN.getX()-24)>>4;x<=(ORIGIN.getX()+24)>>4;x++)
@@ -30,6 +38,7 @@ final class FluidHost {
         level.getBlockTicks().clearArea(new BoundingBox(ORIGIN.getX()-24,0,ORIGIN.getZ()-24,ORIGIN.getX()+24,24,ORIGIN.getZ()+24));
     }
     static JsonObject handle(ServerLevel level, JsonObject request) throws Exception {
+        reapStale(level);
         String key=request.get("owner").getAsString();
         if(request.has("begin")) {
             if(owner!=null&&!owner.equals(key)) throw new IllegalStateException("fluid host already owned by "+owner);

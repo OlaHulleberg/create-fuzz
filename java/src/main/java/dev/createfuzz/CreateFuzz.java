@@ -137,11 +137,10 @@ public class CreateFuzz {
                 Files.delete(next);
                 if(next.getFileName().toString().startsWith("fluid-host-")) {
                     var result=FluidHost.handle(level,input.getAsJsonObject());
-                    Path tmp=dir.resolve("outbox").resolve(next.getFileName()+".tmp");
-                    Files.writeString(tmp,GSON.toJson(result));
-                    Files.move(tmp,dir.resolve("outbox").resolve(next.getFileName()),StandardCopyOption.ATOMIC_MOVE);
+                    writeResponse(dir.resolve("outbox").resolve(next.getFileName()),result);
                     return;
                 }
+                FluidHost.reapStale(level);
                 if(FluidHost.busy()) throw new IllegalStateException("fluid world active; use one runner per private server");
                 server.tickRateManager().setFrozen(false);
                 JsonArray cases=input.getAsJsonArray();
@@ -166,12 +165,7 @@ public class CreateFuzz {
             try {
                 if (batch.name.startsWith("cover-") && !batch.coverageCaptured)
                     coverage(dir.resolve("outbox").resolve(batch.name + ".exec"));
-                Path tmp = dir.resolve("outbox").resolve(batch.name + ".tmp");
-                Files.writeString(tmp, GSON.toJson(batch.results), StandardCharsets.UTF_8);
-                Files.move(
-                        tmp,
-                        dir.resolve("outbox").resolve(batch.name),
-                        StandardCopyOption.ATOMIC_MOVE);
+                writeResponse(dir.resolve("outbox").resolve(batch.name),batch.results);
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
@@ -215,13 +209,20 @@ public class CreateFuzz {
         }
     }
 
+    static void writeResponse(Path output,JsonElement value) throws IOException {
+        Path tmp=output.resolveSibling(output.getFileName()+".tmp");
+        try(var writer=Files.newBufferedWriter(tmp,StandardCharsets.UTF_8)){GSON.toJson(value,writer);}
+        Files.move(tmp,output,StandardCopyOption.ATOMIC_MOVE);
+    }
+
     /** A batch that could not run: its answer is the error, and its area is cleared. */
     void fail(ServerLevel level, String name, Exception ex) {
         try {
             Files.deleteIfExists(dir.resolve("inbox").resolve(name));
             JsonObject o = new JsonObject();
             o.addProperty("error", ex + (ex.getCause() != null ? ": " + ex.getCause() : ""));
-            Files.writeString(dir.resolve("outbox").resolve(name), GSON.toJson(o));
+            writeResponse(dir.resolve("outbox").resolve(name),o);
+            System.err.println("fuzz request failed: "+name+": "+ex);
         } catch (IOException ignored) {
         }
         if (batch != null) {
