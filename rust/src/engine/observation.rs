@@ -124,14 +124,23 @@ impl Run {
         let speed = k.speed(p, sub)?;
         let generated = k.generated(p, sub)?;
         let part = both[sub as usize]?;
-        let faces = both[1].is_some().then(|| {
+        let faces = (both[1].is_some()
+            || matches!(
+                part.rotation,
+                create_engine::kinetics::ShaftRotation::Split(_)
+            ))
+        .then(|| {
             let mut m = BTreeMap::new();
             for d in create_engine::kinetics::Dir::ALL {
                 for (s, half) in both.iter().enumerate() {
                     if half.is_some_and(|h| h.shafts & d.bit() != 0) {
                         m.insert(
                             format!("{d:?}").to_lowercase(),
-                            k.speed(p, s as u8).unwrap_or(0.0),
+                            if both[1].is_none() {
+                                k.face_speed(p, d).unwrap_or(0.0)
+                            } else {
+                                k.speed(p, s as u8).unwrap_or(0.0)
+                            },
                         );
                     }
                 }

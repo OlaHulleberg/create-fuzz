@@ -68,13 +68,7 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
                 }
                 match (&j.kinetic, &r.kinetic) {
                     (Some(a), Some(b)) => {
-                        let mut b = b.clone();
-                        if crate::allow::gearbox_frame(&j.state, a, &b)
-                            || crate::allow::split_shaft_frame(a, &b)
-                        {
-                            (b.speed, b.theoretical) = (a.speed, a.theoretical);
-                        }
-                        out.extend(kinetic_diff(a, &b).into_iter().map(|d| format!("{k}: {d}")))
+                        out.extend(kinetic_diff(a, b).into_iter().map(|d| format!("{k}: {d}")))
                     }
                     (Some(_), None) => {
                         out.push(format!("{k}: java kinetic, rust not ({})", j.state))
