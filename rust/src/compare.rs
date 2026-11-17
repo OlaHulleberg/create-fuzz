@@ -261,7 +261,7 @@ mod tests {
                 "create:fluid_valve[enabled=true,axis=x]",
                 "create:fluid_valve[enabled=false,axis=x]"
             )
-            .is_none()
+            .is_some()
         );
         assert!(
             state_diff(
