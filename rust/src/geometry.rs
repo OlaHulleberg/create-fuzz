@@ -364,6 +364,13 @@ fn stress_boundary(seed: u64) -> Scenario {
             None,
         ));
     }
+    // Zero-impact gauge at half capacity, exact capacity and overload. Its
+    // comparator and dial use the same network values as the driven load.
+    blocks.push(placed(
+        [n + 1, 9, 1],
+        "create:stressometer[facing=up,axis_along_first=true]".into(),
+        None,
+    ));
     let end = blocks.len() as u32;
     let events = (end..end + 100)
         .step_by(4)
