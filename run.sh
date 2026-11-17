@@ -11,9 +11,45 @@ export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
 export FUZZ_DIR="${FUZZ_DIR:-$here/work}"
 gradlew="${CREATE_DIR:-$here/../Create}/gradlew"
 run="$here/java/run"
+export FUZZ_COVERAGE_INCLUDES="${FUZZ_COVERAGE_INCLUDES:-com.simibubi.create.content.kinetics.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*}"
+export FUZZ_COVERAGE_CACHE="$here/work/jacoco"
+export FUZZ_CREATE_JAR="${FUZZ_CREATE_JAR:-$HOME/.m2/repository/com/simibubi/create/create-1.21.1/6.0.11/create-1.21.1-6.0.11.jar}"
+coverage_tools() {
+    mkdir -p "$FUZZ_COVERAGE_CACHE/classes"
+    local artifact expected url jar
+    export FUZZ_COVERAGE_CLASSPATH="$FUZZ_COVERAGE_CACHE/classes"
+    # SHA-1 values published by Maven Central at each pinned artifact's .jar.sha1 URL.
+    while read -r artifact expected; do
+        url="https://repo.maven.apache.org/maven2/$artifact.jar"
+        jar="$FUZZ_COVERAGE_CACHE/${artifact##*/}.jar"
+        if [ ! -f "$jar" ]; then
+            if ! curl -fsSL "$url" -o "$jar"; then
+                rm -f "$jar"
+                return 1
+            fi
+        fi
+        # Recheck cached jars too, before javac or a JVM can load any of them.
+        if ! printf '%s  %s\n' "$expected" "$jar" | sha1sum --check --status; then
+            echo "checksum mismatch: $jar (expected $expected); deleting" >&2
+            rm -f "$jar"
+            return 1
+        fi
+        FUZZ_COVERAGE_CLASSPATH="$FUZZ_COVERAGE_CLASSPATH:$jar"
+    done <<'CHECKSUMS'
+org/jacoco/org.jacoco.agent/0.8.14/org.jacoco.agent-0.8.14-runtime 4bb9b49d4e6c5b042fc7e6b4f1e3e808f7441dde
+org/jacoco/org.jacoco.core/0.8.14/org.jacoco.core-0.8.14 5d317827447ab203bb90ecc7597850baae9c8565
+org/ow2/asm/asm/9.9/asm-9.9 c29635c8a7afa03d74b33c1884df8abb2b3f3dcc
+org/ow2/asm/asm-tree/9.9/asm-tree-9.9 f8de6eead6d24dd0f45bd065bbe112b2cda6ea21
+org/ow2/asm/asm-commons/9.9/asm-commons-9.9 db9165a3bf908ded6b08612d583a15d1d0c7bda0
+CHECKSUMS
+    "$JAVA_HOME/bin/javac" -cp "$FUZZ_COVERAGE_CLASSPATH" -d "$FUZZ_COVERAGE_CACHE/classes" "$here/tools/coverage/CoverageReport.java"
+    export FUZZ_COVERAGE_TOOL="$here/tools/coverage/report.sh"
+}
 
 case "${1:-}" in
 server)
+    coverage_tools
+    export FUZZ_JACOCO="$FUZZ_COVERAGE_CACHE/org.jacoco.agent-0.8.14-runtime.jar=includes=$FUZZ_COVERAGE_INCLUDES,output=none,classdumpdir=$FUZZ_DIR/coverage-classes"
     mkdir -p "$run" "$FUZZ_DIR"
     # A local test server only: never public, no mobs, a flat world.
     echo "eula=true" > "$run/eula.txt"
@@ -31,8 +67,10 @@ view-distance=4
 simulation-distance=4
 max-tick-time=-1
 P
+    sed -i "s/^server-port=.*/server-port=${FUZZ_PORT:-25599}/" "$run/server.properties"
     rm -f "$FUZZ_DIR/ready"
-    (cd "$here/java" && nohup "$gradlew" --no-daemon -q runServer > "$FUZZ_DIR/server.log" 2>&1 & echo $! > "$FUZZ_DIR/server.pid")
+    (cd "$here/java"; exec setsid nohup "$gradlew" --no-daemon -q runServer </dev/null > "$FUZZ_DIR/server.log" 2>&1) &
+    echo $! > "$FUZZ_DIR/server.pid"
     for _ in $(seq 600); do
         [ -f "$FUZZ_DIR/ready" ] && { echo "server ready"; exit 0; }
         # Exited (a zombie counts: nothing here may reap it).
@@ -46,12 +84,14 @@ stop)
     if [ -f "$FUZZ_DIR/server.pid" ]; then
         pid="$(cat "$FUZZ_DIR/server.pid")"
         kids="$(pgrep -P "$pid" || true)"
-        kill $pid $kids 2>/dev/null || true
+        kill -- -"$pid" 2>/dev/null || kill $pid $kids 2>/dev/null || true
         for _ in $(seq 30); do kill -0 $pid $kids 2>/dev/null || break; sleep 1; done
         rm -f "$FUZZ_DIR/server.pid"
     fi ;;
 fuzz)
     shift
+    if [ "${1:-}" = cover ]; then coverage_tools; fi
+    export FUZZ_FOUND="${FUZZ_FOUND:-$here/found}"
     manifest="$here/rust/Cargo.toml"
     # CREATE_HORIZON=<checkout>: drive that checkout's engine instead of ../create-horizon. The driver is
     # copied beside it into its own folder (Cargo path dependencies are fixed in Cargo.toml).
