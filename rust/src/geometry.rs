@@ -428,43 +428,6 @@ fn network(seed: u64) -> Scenario {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn weighted_stress_boundary_keeps_equality_running() {
-        for (seed, stress, stopped) in [(0, 128.0, false), (8, 256.0, false), (16, 384.0, true)] {
-            let snapshot = crate::engine::run(&super::stress_boundary(seed));
-            let k = snapshot.blocks["0,8,0"].kinetic.as_ref().unwrap();
-            assert_eq!(k.capacity, 256.0);
-            assert_eq!(k.stress, stress);
-            assert_eq!(k.overstressed, stopped);
-        }
-    }
-    #[test]
-    fn complete_domains_and_valid_scenarios() {
-        let total: usize = crate::catalogue::entries()
-            .iter()
-            .filter(|e| e.excluded.is_none())
-            .map(|e| e.specifications().len())
-            .sum();
-        assert!(total < 2000);
-        for seed in 0..2000 {
-            crate::catalogue::scenario(&super::generate(seed));
-        }
-        let enc = crate::catalogue::entries()
-            .iter()
-            .find(|e| e.id == "create:andesite_encased_cogwheel")
-            .unwrap();
-        assert_eq!(
-            enc.specifications()
-                .iter()
-                .map(|s| s.shafts.len())
-                .sum::<usize>(),
-            12
-        );
-    }
-}
-
 /// RotationPropagator.getAxisModifier depends on the source face, not just the
 /// block axis. Drive both halves of split shafts and every gearbox input face.
 pub fn source_faces(seed: u64) -> Scenario {
@@ -574,5 +537,42 @@ pub fn cog_boundary(seed: u64) -> Scenario {
         blocks,
         events: vec![],
         checkpoints: vec![20, 70],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn weighted_stress_boundary_keeps_equality_running() {
+        for (seed, stress, stopped) in [(0, 128.0, false), (8, 256.0, false), (16, 384.0, true)] {
+            let snapshot = crate::engine::run(&super::stress_boundary(seed));
+            let k = snapshot.blocks["0,8,0"].kinetic.as_ref().unwrap();
+            assert_eq!(k.capacity, 256.0);
+            assert_eq!(k.stress, stress);
+            assert_eq!(k.overstressed, stopped);
+        }
+    }
+    #[test]
+    fn complete_domains_and_valid_scenarios() {
+        let total: usize = crate::catalogue::entries()
+            .iter()
+            .filter(|e| e.excluded.is_none())
+            .map(|e| e.specifications().len())
+            .sum();
+        assert!(total < 2000);
+        for seed in 0..2000 {
+            crate::catalogue::scenario(&super::generate(seed));
+        }
+        let enc = crate::catalogue::entries()
+            .iter()
+            .find(|e| e.id == "create:andesite_encased_cogwheel")
+            .unwrap();
+        assert_eq!(
+            enc.specifications()
+                .iter()
+                .map(|s| s.shafts.len())
+                .sum::<usize>(),
+            12
+        );
     }
 }

@@ -236,7 +236,7 @@ pub fn valve(seed: u64) -> Scenario {
             event["action"]["hit"][1] = serde_json::json!(0.5);
         }
     }
-    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":370,"checkpoints":(10..350).collect::<Vec<_>>(),"blocks":[
+    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":420,"checkpoints":(10..350).collect::<Vec<_>>(),"blocks":[
         {"pos":[0,7,0],"state":"create:shaft[axis=y,waterlogged=false]"},
         {"pos":[0,8,0],"state":"create:copper_valve_handle[facing=up,waterlogged=false]"},
         {"pos":[0,6,0],"state":"create:shaft[axis=y,waterlogged=false]"}],"events":events})).unwrap()
