@@ -209,6 +209,19 @@ impl Run {
         } else {
             self.world.insert(p, new);
         }
+        if self
+            .w
+            .table
+            .get(old)
+            .is_some_and(|(b, _)| b == create_engine::Block::Depot)
+            && !self
+                .w
+                .table
+                .get(new)
+                .is_some_and(|(b, _)| b == create_engine::Block::Depot)
+        {
+            self.depot_stacks.remove(&p);
+        }
         self.brackets.remove(&p);
         self.measured_trig.remove(&p);
         let valve = self

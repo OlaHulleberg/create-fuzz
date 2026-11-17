@@ -371,3 +371,37 @@ fn observing_pending_items_does_not_flush_the_transport_queue() {
     r.tick();
     assert_eq!(r.w.dims[0].belts[&[0, 8, 0]].items.items.len(), 1);
 }
+
+#[test]
+fn replacing_a_depot_drops_its_host_slot_state() {
+    use crate::{
+        actions::Face,
+        transport::{Input, Stack},
+    };
+    let sc:crate::scenario::Scenario=serde_json::from_value(serde_json::json!({"ticks":80,"blocks":[{"pos":[0,8,0],"state":"create:depot[waterlogged=false]"}]})).unwrap();
+    let mut r = super::Run::new(&sc);
+    r.place(&sc.blocks[0]);
+    r.item_input(
+        [0, 8, 0],
+        &Input::Use {
+            stack: Some(Stack {
+                item: "minecraft:diamond".into(),
+                count: 1,
+            }),
+            face: Face::Up,
+            yaw: 0.,
+            sneaking: false,
+        },
+    );
+    r.set([0, 8, 0], super::AIR);
+    r.place(&sc.blocks[0]);
+    assert!(r.depot_stacks.is_empty());
+    assert!(
+        r.snapshot(&sc).blocks["0,8,0"]
+            .transport
+            .as_ref()
+            .unwrap()
+            .items
+            .is_empty()
+    );
+}
