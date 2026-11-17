@@ -66,7 +66,7 @@ pub fn generate(seed: u64) -> Scenario {
     // Cancel a selected first shaft, then start the normal two-click connection.
     // Sneaking with the connector clears BELT_FIRST_SHAFT in Create's useOn.
     if n.is_multiple_of(3) {
-        for (tick, sneaking) in [(5, false), (7, true)] {
+        for (tick, sneaking) in [(3, false), (9, true)] {
             sc.events.push(Change {
                 tick,
                 pos: a,
