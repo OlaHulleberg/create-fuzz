@@ -230,11 +230,11 @@ fn placed(pos: Pos, state: String, motor: Option<i32>) -> Placed {
 /// Each seed visits a complete state; successive cycles rotate all faces, signs and orders.
 /// Eight independent probes share a case: six shaft faces plus two cog geometries.
 pub fn generate(seed: u64) -> Scenario {
+    if seed % 32 == 16 {
+        return network(seed);
+    }
     if seed.is_multiple_of(8) {
         return stress_boundary(seed);
-    }
-    if seed % 16 == 15 {
-        return network(seed);
     }
     let seed_index = seed - seed / 8 - seed / 16 - 1;
     let specs = specifications();
