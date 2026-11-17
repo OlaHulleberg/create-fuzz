@@ -136,19 +136,19 @@ pub fn generate(seed: u64) -> Scenario {
             }
         }
         sc.blocks.push(Placed {
-            pos: [3, 4, 1],
-            state: "create:gearshift[axis=z,powered=false]".into(),
+            pos: [3, 5, 0],
+            state: "create:gearshift[axis=y,powered=false]".into(),
             motor: None,
         });
         sc.blocks.push(Placed {
-            pos: [3, 4, 2],
-            state: "create:creative_motor[facing=north]".into(),
-            motor: Some(64),
+            pos: [3, 6, 0],
+            state: "create:creative_motor[facing=down]".into(),
+            motor: Some(-64),
         });
         for (tick, strength) in [(50, 15), (140, 0), (200, 15)] {
             sc.events.push(Change {
                 tick,
-                pos: [3, 5, 1],
+                pos: [4, 5, 0],
                 state: None,
                 motor: None,
                 turn: None,
@@ -262,4 +262,35 @@ pub fn generate(seed: u64) -> Scenario {
     sc.ticks = 360;
     sc.checkpoints = (15..=300).collect();
     sc
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn redstone_reverses_a_connected_fluid_valve() {
+        let mut sc = super::generate(211);
+        sc.blocks.retain(|b| !b.state.contains("cauldron"));
+        sc.events.retain(|e| !matches!(&e.action, Some(crate::actions::Action::Use { item, .. }) if item.ends_with("bucket")));
+        assert!(!crate::fluid_world::enabled(&sc));
+        let trace = crate::engine::run(&sc);
+        for (tick, enabled, sign) in [
+            (40, true, 1.),
+            (70, false, -1.),
+            (160, true, 1.),
+            (220, false, -1.),
+        ] {
+            let valve = &trace.checkpoints[&tick].blocks["3,4,0"];
+            assert!(
+                valve.state.contains(if enabled {
+                    "enabled=true"
+                } else {
+                    "enabled=false"
+                }),
+                "tick {tick}: {}",
+                valve.state
+            );
+            let speed = valve.kinetic.as_ref().unwrap().speed;
+            assert!(speed * sign > 0., "tick {tick}: {speed}");
+        }
+    }
 }

@@ -359,19 +359,19 @@
     {
       "pos": [
         3,
-        4,
-        1
+        5,
+        0
       ],
-      "state": "create:gearshift[axis=z,powered=false]"
+      "state": "create:gearshift[axis=y,powered=false]"
     },
     {
       "pos": [
         3,
-        4,
-        2
+        6,
+        0
       ],
-      "state": "create:creative_motor[facing=north]",
-      "motor": 64
+      "state": "create:creative_motor[facing=down]",
+      "motor": -64
     }
   ],
   "events": [
@@ -466,9 +466,9 @@
       },
       "tick": 50,
       "pos": [
-        3,
+        4,
         5,
-        1
+        0
       ]
     },
     {
@@ -499,9 +499,9 @@
       },
       "tick": 140,
       "pos": [
-        3,
+        4,
         5,
-        1
+        0
       ]
     },
     {
@@ -511,9 +511,9 @@
       },
       "tick": 200,
       "pos": [
-        3,
+        4,
         5,
-        1
+        0
       ]
     }
   ]
