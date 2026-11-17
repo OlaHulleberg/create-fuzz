@@ -1,4 +1,32 @@
-//! MIT glue codecs, expressed over a local NBT value tree (no host SDK dependency).
+//! MIT glue codecs over a local NBT value tree.
+pub fn handle_to_nbt(h: create_engine::valve::SavedHandle) -> Compound {
+    Compound::from([
+        ("InUse".into(), Tag::Int(i32::from(h.in_use))),
+        ("Backwards".into(), Tag::Byte(i8::from(h.backwards))),
+        ("ScrollValue".into(), Tag::Int(h.angle)),
+        (
+            "TotalUseTicks".into(),
+            Tag::Int(i32::from(h.total_use_ticks)),
+        ),
+        ("StartAngle".into(), Tag::Int(h.start_angle)),
+        ("TargetAngle".into(), Tag::Int(h.target_angle)),
+    ])
+}
+pub fn handle_from_nbt(data: &Compound) -> create_engine::valve::SavedHandle {
+    let int = |key: &str| match data.get(key) {
+        Some(Tag::Int(v)) => *v,
+        _ => 0,
+    };
+    create_engine::valve::SavedHandle {
+        in_use: int("InUse").clamp(0, 255) as u8,
+        backwards: matches!(data.get("Backwards"), Some(Tag::Byte(v)) if *v != 0),
+        angle: int("ScrollValue"),
+        total_use_ticks: int("TotalUseTicks").clamp(0, 255) as u8,
+        start_angle: int("StartAngle"),
+        target_angle: int("TargetAngle"),
+    }
+}
+
 use create_engine::kinetics::{Context, PartLocation, SavedKineticState, SavedNetwork};
 use serde::{Deserialize, Serialize};
 pub type Compound = std::collections::BTreeMap<String, Tag>;
@@ -371,5 +399,29 @@ mod tests {
         assert!(saved[0].1.items[0].locked);
         assert_eq!(saved[0].1.items[0].count, 4);
         assert_eq!(saved[0].1.items[0].inserted_at, 0);
+    }
+}
+
+#[cfg(test)]
+mod handle_tests {
+    use super::*;
+    #[test]
+    fn handle_round_trip_preserves_six_fields_without_cooldown() {
+        let saved = create_engine::valve::SavedHandle {
+            in_use: 6,
+            backwards: true,
+            angle: -45,
+            total_use_ticks: 7,
+            start_angle: 13,
+            target_angle: -90,
+        };
+        let tag = handle_to_nbt(saved);
+        assert_eq!(tag.len(), 6);
+        assert!(!tag.contains_key("Cooldown"));
+        let bytes = serde_json::to_vec(&tag).unwrap();
+        assert_eq!(
+            handle_from_nbt(&serde_json::from_slice(&bytes).unwrap()),
+            saved
+        );
     }
 }

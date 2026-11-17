@@ -21,7 +21,8 @@ value tree crosses a byte serialization boundary; engine objects do not survive
 by cloning. End-of-tick kinetic changes populate persisted records, and motor
 settings/belt inventories populate column attachments. Reload calls
 column_unloaded, loads column settings/items, scans with block_loaded, restores
-kinetic ports with restore_state and then loads sequencer instructions/run.
+handle use with restore_handle before kinetic ports with restore_state, then
+loads sequencer instructions/run.
 False restore_state returns are handled as the current glue handles them; no
 missing belt part is synthesized before the glue's normal settle_belts phase.
 Conveyor links use Chains::unload/add and set_far. Host slots and valve-use data
@@ -44,13 +45,13 @@ queues without mutating the live inventory; the actual reload uses write.
 
 Explicit boundaries:
 
-- The current glue has no persisted hand-crank countdown/direction restore
-  entry; its payload marker has no shared fields beyond saved kinetics.
+- Crank and valve HandleState changes are flushed every tick, including
+  countdown-only changes, and restored after block_loaded before kinetic ports. InUse and
+  Backwards are compared for both, and StartAngle for valves. Cooldown is
+  deliberately absent from the codec, matching Java's fresh-entity lifecycle.
 - Depot motion and processed output/incoming queues are not represented by the
   current glue's persisted host inventory. Generated inputs cover its held slot;
-  reload observations still compare the supported live transport fields.
-- Valve engine countdown/cooldown restoration is absent from the glue. The
-  driver retains host ValveUse/ScrollValue data and does not invent that restore.
+  reload observations still compare supported live transport fields.
 - Belt insertion context is absent from the Rust persisted payload. Controller
   formation still runs in the normal glue phase after load.
 - Old drawing-only legacy saves, corrupt saves, actual chunk ticket transitions,

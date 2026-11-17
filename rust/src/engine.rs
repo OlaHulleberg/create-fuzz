@@ -210,6 +210,19 @@ impl Run {
             self.persisted.kinetics.remove(&(p, 0));
             self.persisted.kinetics.remove(&(p, 1));
             self.persisted.sequences.remove(&p);
+            if !self
+                .w
+                .table
+                .get(old)
+                .is_some_and(|(b, _)| create_engine::dye::is_valve_handle(b))
+                || !self
+                    .w
+                    .table
+                    .get(new)
+                    .is_some_and(|(b, _)| create_engine::dye::is_valve_handle(b))
+            {
+                self.persisted.handles.remove(&p);
+            }
         }
         if old == new {
             return;

@@ -87,10 +87,11 @@ final class Persistence {
             out.addProperty("timer",data.getInt("Timer"));
             out.addProperty("powered",data.getBoolean("PrevPowered"));
         } else if(be instanceof com.simibubi.create.content.kinetics.crank.ValveHandleBlockEntity) {
+            out.addProperty("in_use",data.getInt("InUse"));out.addProperty("backwards",data.getBoolean("Backwards"));out.addProperty("start_angle",data.getInt("StartAngle"));
             out.addProperty("kind","valve");out.addProperty("selected",data.getInt("ScrollValue"));
             out.addProperty("total",data.getInt("TotalUseTicks"));out.addProperty("target",data.getInt("TargetAngle"));
         } else if(be instanceof com.simibubi.create.content.kinetics.crank.HandCrankBlockEntity) {
-            out.addProperty("kind","crank");
+            out.addProperty("kind","crank");out.addProperty("in_use",data.getInt("InUse"));out.addProperty("backwards",data.getBoolean("Backwards"));
         } else if(be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity belt) {
             out.addProperty("kind","belt");
             var controller=NbtUtils.readBlockPos(data,"Controller").orElseThrow().subtract(origin);

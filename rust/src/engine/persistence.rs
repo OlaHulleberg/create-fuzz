@@ -9,6 +9,7 @@ pub(super) struct Store {
     pub kinetics: HashMap<(Pos, u8), Compound>,
     pub sequences: HashMap<Pos, Compound>,
     pub columns: Compound,
+    pub handles: HashMap<Pos, Compound>,
 }
 type ReloadData = (
     Compound,
@@ -16,6 +17,7 @@ type ReloadData = (
     Vec<(Pos, Compound)>,
     Vec<(Pos, crate::transport::Stack)>,
     Vec<(Pos, crate::handles::Handle)>,
+    Vec<(Pos, Compound)>,
 );
 
 impl Run {
@@ -27,6 +29,16 @@ impl Run {
         }
     }
     pub(super) fn flush_persistence(&mut self) {
+        self.persisted
+            .handles
+            .retain(|p, _| self.w.saved_handle(0, *p).is_some());
+        for p in self.w.take_handle_changes(0) {
+            if let Some(saved) = self.w.saved_handle(0, p) {
+                self.persisted
+                    .handles
+                    .insert(p, codec::handle_to_nbt(saved));
+            }
+        }
         for p in self.w.dims[0].kinetics.take_saved_changes() {
             for sub in 0..2 {
                 if let Some(saved) = self.w.dims[0].kinetics.saved_state(p, sub) {
@@ -141,9 +153,10 @@ impl Run {
             sequences,
             self.depot_stacks.iter().collect::<Vec<_>>(),
             self.handles.iter().collect::<Vec<_>>(),
+            self.persisted.handles.iter().collect::<Vec<_>>(),
         ))
         .unwrap();
-        let (data, entities, sequences, slots, handles): ReloadData =
+        let (data, entities, sequences, slots, handles, saved_handles): ReloadData =
             serde_json::from_slice(&bytes).unwrap();
         self.depot_stacks = slots.into_iter().collect();
         self.handles = handles.into_iter().collect();
@@ -164,6 +177,17 @@ impl Run {
             .load_belt_items(0, codec::belts_from_nbt(&data).into_iter());
         for &(p, s) in &blocks {
             self.w.block_loaded(0, p, s);
+        }
+        for (p, data) in saved_handles {
+            self.w.restore_handle(0, p, codec::handle_from_nbt(&data));
+        }
+        for (&p, h) in &mut self.handles {
+            if let Some(saved) = self.w.saved_handle(0, p) {
+                h.remaining = saved.in_use;
+                h.total = saved.total_use_ticks;
+                h.back = saved.backwards;
+                h.target = saved.target_angle;
+            }
         }
         // block_entity_on_load: the scan may already have registered this block.
         for (p, sub, data) in entities {
@@ -192,9 +216,6 @@ impl Run {
                     .depot_put(0, p, Some(create_engine::depot::Held::new(180, false)));
             }
         }
-        // ValveUse/ScrollValue are host entity data; handles retain that serialized use
-        // record. Engine crank countdowns/cooldowns are deliberately not synthesized:
-        // block_entity_on_load has no restoration path for them in the current glue.
     }
 }
 
@@ -224,7 +245,18 @@ impl Run {
                     powered: run.powered_before,
                 }
             }
-            Block::HandCrank => Payload::Crank {},
+            Block::HandCrank => {
+                let h = self
+                    .persisted
+                    .handles
+                    .get(&p)
+                    .map(codec::handle_from_nbt)
+                    .unwrap_or_default();
+                Payload::Crank {
+                    in_use: h.in_use,
+                    backwards: h.backwards,
+                }
+            }
             Block::Depot => Payload::Depot {
                 held: self.depot_stacks.get(&p).cloned(),
             },
@@ -267,11 +299,19 @@ impl Run {
                 }
             }
             b if create_engine::dye::is_valve_handle(b) => {
-                let h = self.handles.get(&p)?;
+                let h = self
+                    .persisted
+                    .handles
+                    .get(&p)
+                    .map(codec::handle_from_nbt)
+                    .unwrap_or_default();
                 Payload::Valve {
-                    selected: h.selected,
-                    total: i32::from(h.total),
-                    target: h.target,
+                    selected: self.handles.get(&p)?.selected,
+                    total: i32::from(h.total_use_ticks),
+                    target: h.target_angle,
+                    in_use: h.in_use,
+                    backwards: h.backwards,
+                    start_angle: h.start_angle,
                 }
             }
             _ => return None,
@@ -283,23 +323,81 @@ impl Run {
 mod tests {
     use super::*;
     #[test]
-    fn cold_glue_load_does_not_restore_crank_countdown() {
+    fn crank_and_valve_use_round_trip_with_expiry_and_no_cooldown() {
+        for valve in [false, true] {
+            for back in [false, true] {
+                let state = if valve {
+                    "create:copper_valve_handle[facing=up]"
+                } else {
+                    "create:hand_crank[facing=up]"
+                };
+                let sc: Scenario = serde_json::from_value(
+                    serde_json::json!({"ticks":20,"blocks":[{"pos":[0,1,0],"state":state}]}),
+                )
+                .unwrap();
+                let mut r = Run::new(&sc);
+                let p = [0, 1, 0];
+                let id = r.id(state);
+                r.world.insert(p, id);
+                r.w.block_loaded(0, p, id);
+                if valve {
+                    assert!(r.w.use_valve(0, p, back, -45));
+                } else {
+                    assert!(r.w.turn_crank(0, p, back));
+                }
+                r.w.tick_cranks(0);
+                r.w.tick(0, &mut Vec::new());
+                r.flush_persistence();
+                let saved = r.w.saved_handle(0, p).unwrap();
+                assert_eq!(saved.in_use, if valve { 6 } else { 9 });
+                let rpm = if back ^ valve { -32. } else { 32. };
+                r.reload();
+                assert_eq!(r.w.saved_handle(0, p), Some(saved));
+                assert_eq!(r.w.dims[0].kinetics.generated(p, 0), Some(rpm));
+                r.w.tick(0, &mut Vec::new());
+                let net = r.w.dims[0]
+                    .kinetics
+                    .saved_state(p, 0)
+                    .unwrap()
+                    .network
+                    .unwrap();
+                assert_eq!((net.capacity, net.size), (256., 1));
+                for _ in 1..saved.in_use {
+                    r.w.tick_cranks(0);
+                    r.flush_persistence();
+                }
+                assert_eq!(r.w.dims[0].kinetics.generated(p, 0), Some(rpm));
+                r.w.tick_cranks(0);
+                r.w.tick(0, &mut Vec::new());
+                r.flush_persistence();
+                assert_eq!(r.w.saved_handle(0, p).unwrap().in_use, 0);
+                assert_eq!(r.w.dims[0].kinetics.generated(p, 0), Some(0.));
+                if valve {
+                    assert!(r.w.use_valve(0, p, false, 45));
+                }
+            }
+        }
+    }
+    #[test]
+    fn handle_records_follow_countdowns_and_replacement() {
         let sc:Scenario=serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,1,0],"state":"create:hand_crank[facing=up]"}]})).unwrap();
         let mut r = Run::new(&sc);
         let p = [0, 1, 0];
-        let state = r.id("create:hand_crank[facing=up]");
-        r.w.block_loaded(0, p, state);
-        assert!(r.w.turn_crank(0, p, false));
-        let mut events = Vec::new();
-        r.w.tick(0, &mut events);
-        let saved = r.w.dims[0].kinetics.saved_state(p, 0).unwrap();
-        assert_ne!(r.w.dims[0].kinetics.generated(p, 0), Some(0.));
-        r.w.column_unloaded(0, 0, 0);
-        r.w.block_loaded(0, p, state);
-        assert!(r.w.dims[0].kinetics.restore_state(p, 0, saved));
-        // This uses the engine directly, without Run::reload or its observation caches.
-        assert_eq!(r.w.dims[0].kinetics.generated(p, 0), Some(0.));
-        assert!(r.w.value_box_active(0, p));
+        r.place(&sc.blocks[0]);
+        r.w.turn_crank(0, p, false);
+        for remaining in (0..10).rev() {
+            r.tick();
+            assert_eq!(
+                codec::handle_from_nbt(&r.persisted.handles[&p]).in_use,
+                remaining
+            );
+        }
+        r.set(p, AIR);
+        assert!(!r.persisted.handles.contains_key(&p));
+        r.place(&sc.blocks[0]);
+        r.tick();
+        assert!(!r.persisted.handles.contains_key(&p));
+        assert_eq!(r.w.saved_handle(0, p).unwrap().in_use, 0);
     }
     #[test]
     fn cold_depot_glue_load_has_slots_but_no_saved_motion() {

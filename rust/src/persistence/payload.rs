@@ -13,11 +13,17 @@ pub enum Payload {
         powered: bool,
     },
     Valve {
+        in_use: u8,
+        backwards: bool,
+        start_angle: i32,
         selected: i32,
         total: i32,
         target: i32,
     },
-    Crank {},
+    Crank {
+        in_use: u8,
+        backwards: bool,
+    },
     Belt {
         controller: Pos,
         length: i32,
