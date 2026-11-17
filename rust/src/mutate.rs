@@ -42,7 +42,14 @@ pub fn mutate(parent: &Scenario, seed: u64) -> Scenario {
                 *sneaking = rng.chance(0.5);
                 let u = *rng.pick(&[0.1, 0.5, 0.9]);
                 let v = *rng.pick(&[0.1, 0.5, 0.9]);
+                let normal = face.dir().offset();
+                let depth = *hit;
                 *hit = face.point(u, v);
+                for axis in 0..3 {
+                    if normal[axis] != 0 {
+                        hit[axis] = depth[axis];
+                    }
+                }
             }
         }
         return sc;
@@ -93,6 +100,25 @@ pub fn mutate(parent: &Scenario, seed: u64) -> Scenario {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn use_mutations_preserve_partial_surface_depth() {
+        let sc = crate::transmission::valve(10);
+        let changed = super::mutate(&sc, 42);
+        for (before, after) in sc.events.iter().zip(&changed.events) {
+            if let (
+                Some(crate::actions::Action::Use { face, hit: a, .. }),
+                Some(crate::actions::Action::Use { hit: b, .. }),
+            ) = (&before.action, &after.action)
+            {
+                for axis in 0..3 {
+                    if face.dir().offset()[axis] != 0 {
+                        assert_eq!(a[axis], b[axis]);
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn mutations_stay_bounded_and_settle() {
         for seed in 0..1000 {

@@ -718,7 +718,7 @@
         ],
         "yaw": 0.0,
         "pitch": 0.0,
-        "sneaking": true
+        "sneaking": false
       },
       "tick": 222,
       "pos": [

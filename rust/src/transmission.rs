@@ -201,7 +201,14 @@ pub fn valve(seed: u64) -> Scenario {
             events.push(event);
         }
     }
-    events.push(use_block(222, [0, 8, 0], "minecraft:red_dye", 0., 0., true));
+    events.push(use_block(
+        222,
+        [0, 8, 0],
+        "minecraft:red_dye",
+        0.,
+        0.,
+        seed & 16 != 0,
+    ));
     for (i, color) in create_engine::dye::DyeColor::ALL.into_iter().enumerate() {
         let mut event = use_block(
             260 + i as u32 * 2,
