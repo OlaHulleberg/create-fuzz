@@ -31,6 +31,14 @@ impl Rng {
 pub const SETTLE: u32 = 70;
 
 pub fn generate(seed: u64) -> Scenario {
+    let mut sc = generate_base(seed);
+    if seed & 32 != 0 {
+        crate::persistence::schedule(&mut sc);
+    }
+    sc
+}
+
+fn generate_base(seed: u64) -> Scenario {
     if seed % 32 == 9 {
         return crate::transport::generate(seed);
     }

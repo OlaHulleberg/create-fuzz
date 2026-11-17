@@ -104,3 +104,32 @@ mod tests {
         assert!(!equal(&Some(a), &Some(b)));
     }
 }
+
+/// Reuse every existing scenario family; sample placement, action and settled boundaries.
+pub fn schedule(sc: &mut crate::scenario::Scenario) {
+    let mut phases = vec![
+        1,
+        (sc.blocks.len() / 2) as u32,
+        sc.blocks.len() as u32 + 1,
+        sc.ticks.saturating_sub(10),
+    ];
+    phases.extend(sc.events.iter().map(|e| e.tick.saturating_add(1)));
+    phases.retain(|t| *t < sc.ticks);
+    phases.sort_unstable();
+    phases.dedup();
+    let tick = phases[(sc.seed as usize / 64) % phases.len()];
+    sc.version = 3;
+    sc.events.push(crate::scenario::Change {
+        tick,
+        pos: sc.blocks.first().map_or([0, 1, 0], |b| b.pos),
+        action: Some(crate::actions::Action::Reload),
+        state: None,
+        motor: None,
+        turn: None,
+    });
+    for t in tick..=(tick + 5).min(sc.ticks) {
+        sc.checkpoints.push(t);
+    }
+    sc.checkpoints.sort_unstable();
+    sc.checkpoints.dedup();
+}
