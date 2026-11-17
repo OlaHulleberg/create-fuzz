@@ -55,6 +55,21 @@ final class Observations {
                     JsonObject snap = new JsonObject();
                     snap.addProperty("state", BlockStateParser.serialize(state));
                     BlockEntity be = level.getBlockEntity(pos);
+                    if (be instanceof com.simibubi.create.content.fluids.tank.FluidTankBlockEntity tank) {
+                        var cbe = tank.getControllerBE();
+                        if (cbe != null) {
+                            var t = new JsonObject();
+                            var cp = tank.getController().subtract(origin);
+                            t.add("controller", CreateFuzz.GSON.toJsonTree(new int[]{cp.getX(), cp.getY(), cp.getZ()}));
+                            t.addProperty("width", cbe.getWidth());
+                            t.addProperty("height", cbe.getHeight());
+                            var inv = cbe.getTankInventory();
+                            t.addProperty("capacity", inv.getCapacity());
+                            t.addProperty("amount", inv.getFluidAmount());
+                            if (!inv.getFluid().isEmpty()) t.addProperty("fluid", net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(inv.getFluid().getFluid()).toString());
+                            snap.add("fluid_tank", t);
+                        }
+                    }
                     if (be != null) {var transport=TransportObservations.observe(be);if(transport!=null) snap.add("transport",transport); }
                     if (be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity belt) {
                         JsonObject b = new JsonObject();

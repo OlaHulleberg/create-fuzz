@@ -30,6 +30,7 @@ pub struct BlockSnap {
     pub payload: Option<crate::persistence::payload::Payload>,
     #[serde(default)]
     pub saved: Option<crate::persistence::Saved>,
+    pub fluid_tank: Option<crate::fluids::Tank>,
     #[serde(default)]
     pub transport: Option<crate::transport::Contents>,
     #[serde(default)]

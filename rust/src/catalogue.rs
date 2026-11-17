@@ -39,6 +39,9 @@ pub fn validate(state: &str) -> Result<(), String> {
     if let Some(result) = crate::transport::validate_state(&id, &props) {
         return result;
     }
+    if let Some(result) = crate::fluids::validate_state(&id, &props) {
+        return result;
+    }
     let entry = entries()
         .iter()
         .find(|e| e.id == id)
@@ -125,6 +128,7 @@ pub fn scenario(sc: &Scenario) {
 }
 /// Counts submitted states separately from crank interaction targets; never claims full domains.
 pub fn report(manual: &[Scenario], generated: &[Scenario]) {
+    crate::fluids::report();
     let collect = |cases: &[Scenario]| -> BTreeMap<String, BTreeSet<String>> {
         let mut out: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         for sc in cases {

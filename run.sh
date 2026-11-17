@@ -8,12 +8,13 @@
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
+export FUZZ_FLUID_MANIFEST="$here/rust/src/fluids.json"
 export FUZZ_TRANSPORT_MANIFEST="$here/rust/src/transport.json"
 export FUZZ_MANIFEST="$here/rust/src/kinetics.json"
 export FUZZ_DIR="${FUZZ_DIR:-$here/work}"
 gradlew="${CREATE_DIR:-$here/../Create}/gradlew"
 run="$here/java/run"
-export FUZZ_COVERAGE_INCLUDES="${FUZZ_COVERAGE_INCLUDES:-com.simibubi.create.content.kinetics.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*}"
+export FUZZ_COVERAGE_INCLUDES="${FUZZ_COVERAGE_INCLUDES:-com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*}"
 export FUZZ_COVERAGE_CACHE="$here/work/jacoco"
 export FUZZ_CREATE_JAR="${FUZZ_CREATE_JAR:-$HOME/.m2/repository/com/simibubi/create/create-1.21.1/6.0.11/create-1.21.1-6.0.11.jar}"
 coverage_tools() {

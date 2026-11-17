@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 32 == 8 {
+        return crate::fluids::generate(seed);
+    }
     if seed % 32 == 9 {
         return crate::transport::generate(seed);
     }

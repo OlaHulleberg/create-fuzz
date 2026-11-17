@@ -7,6 +7,7 @@
 
 mod belts;
 mod conveyors;
+mod fluids;
 mod interaction;
 mod kinetics;
 mod observation;
@@ -62,6 +63,22 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     {
         for spec in entry.specifications() {
             push(spec.state);
+        }
+    }
+    for top in ["true", "false"] {
+        for bottom in ["true", "false"] {
+            for shape in [
+                "plain",
+                "window",
+                "window_nw",
+                "window_sw",
+                "window_ne",
+                "window_se",
+            ] {
+                push(normal(&format!(
+                    "create:fluid_tank[top={top},bottom={bottom},shape={shape}]"
+                )));
+            }
         }
     }
     push("create:depot[waterlogged=false]".into());

@@ -80,6 +80,9 @@ impl Run {
         if self.belt_use(p, item, face, hit, sneaking) {
             return;
         }
+        if self.fluid_use(p, item, sneaking) {
+            return;
+        }
         let state = self.at(p);
         let own = self.w.table.get(state).map(|(b, i)| (b, *i));
         if let Some((block, info)) = own.filter(|(b, _)| create_engine::dye::is_valve_handle(*b)) {
@@ -280,6 +283,13 @@ impl Run {
         face: create_engine::kinetics::Dir,
         sneaking: bool,
     ) {
+        if block == "create:fluid_tank" {
+            self.set(
+                p,
+                self.id("create:fluid_tank[bottom=true,shape=window,top=true]"),
+            );
+            return;
+        }
         if block == "create:brass_casing" || block == "create:andesite_casing" {
             self.set(p, self.id(block));
             return;

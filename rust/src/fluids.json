@@ -1,0 +1,19 @@
+{
+  "blocks": [{
+    "id": "create:fluid_tank",
+    "properties": {"top":["false","true"],"bottom":["false","true"],"shape":["plain","window","window_nw","window_sw","window_ne","window_se"]},
+    "source": "FluidTankBlock.createBlockStateDefinition; FluidTankBlockEntity; ConnectivityHandler",
+    "inputs": ["use placement", "wrench windows", "sneak wrench removal", "break"],
+    "observations": ["controller", "width", "height", "capacity", "fluid", "amount", "block shape"]
+  }],
+  "unimplemented": {
+    "pipes/pumps": "Harness lacks glue pipe cells, pump reach/transfer and transient flow phases; no differential fluid transfer claims.",
+    "buckets": "Regular tank's item exchange requires creative player; existing actor is survival. Creative tank adapter is not implemented.",
+    "open ends/world": "Host fluid-state and world mutation callbacks are absent; native fluid spread cannot be inferred from a static map.",
+    "smart pipes": "FilteringBehaviour input and filter observation adapter absent.",
+    "valves": "Moving pointer tick is installed, but dedicated fluid placement/drive histories and flow observations are absent. Redstone controls a clutch/gearshift, not FluidValveBlock directly.",
+    "spouts/drains": "Fluid recipes, item emptying/filling and tanks are not connected to harness fluid phase.",
+    "boilers": "Tank sensing, heat and water supply adapters absent.",
+    "hoses/interfaces/effects": "World/entity/contraption callbacks absent."
+  }
+}

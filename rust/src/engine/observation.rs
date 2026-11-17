@@ -30,6 +30,7 @@ impl Run {
                         .get(&(p, self.observed_sub(p)))
                         .and_then(crate::persistence::codec::saved_from_nbt)
                         .map(Into::into),
+                    fluid_tank: self.fluid_tank(p),
                     transport: self.transport_observation(p),
                     conveyor_links: self.chains.conveyors.get(&p).map(|c| {
                         let mut v = c.connections.clone();

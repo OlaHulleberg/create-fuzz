@@ -40,6 +40,12 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
             (Some(j), None) => out.push(format!("{k}: java has {}, rust has air", j.state)),
             (None, Some(r)) => out.push(format!("{k}: java has air, rust has {}", r.state)),
             (Some(j), Some(r)) => {
+                if j.fluid_tank != r.fluid_tank {
+                    out.push(format!(
+                        "{k}: fluid tank: java {:?} rust {:?}",
+                        j.fluid_tank, r.fluid_tank
+                    ));
+                }
                 if !transport_equal(j.transport.as_ref(), r.transport.as_ref()) {
                     out.push(format!(
                         "{k}: transport: java {:?} rust {:?}",

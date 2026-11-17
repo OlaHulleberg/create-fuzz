@@ -17,6 +17,20 @@ import java.util.HashSet;
  */
 final class Catalogue {
     static void audit() throws java.io.IOException {
+        var fluids = JsonParser.parseString(Files.readString(Path.of(System.getenv("FUZZ_FLUID_MANIFEST")))).getAsJsonObject();
+        for (var element : fluids.getAsJsonArray("blocks")) {
+            var entry = element.getAsJsonObject();
+            var block = BuiltInRegistries.BLOCK.get(net.minecraft.resources.ResourceLocation.parse(entry.get("id").getAsString()));
+            var properties = entry.getAsJsonObject("properties");
+            if (properties.size() != block.getStateDefinition().getProperties().size()) throw new IllegalStateException("fluid properties differ");
+            for (var property : block.getStateDefinition().getProperties()) {
+                var expected = new HashSet<String>();
+                for (var value : properties.getAsJsonArray(property.getName())) expected.add(value.getAsString());
+                var actual = new HashSet<String>();
+                for (var value : property.getPossibleValues()) actual.add(valueName(property,value));
+                if (!expected.equals(actual)) throw new IllegalStateException("fluid domain differs: " + property.getName());
+            }
+        }
         var entries =
                 JsonParser.parseString(Files.readString(Path.of(System.getenv("FUZZ_MANIFEST"))))
                         .getAsJsonArray();

@@ -73,6 +73,7 @@ impl Face {
     }
 }
 pub const BLOCKS: &[&str] = &[
+    "create:fluid_tank",
     "create:rotation_speed_controller",
     "create:encased_chain_drive",
     "create:adjustable_chain_gearshift",

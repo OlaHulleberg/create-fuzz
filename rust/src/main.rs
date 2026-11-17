@@ -7,6 +7,7 @@ mod corpus;
 mod coverage;
 mod defaults;
 mod engine;
+mod fluids;
 mod generate;
 mod geometry;
 mod guided;
