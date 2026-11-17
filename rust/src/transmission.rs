@@ -242,6 +242,20 @@ pub fn valve(seed: u64) -> Scenario {
         {"pos":[0,6,0],"state":"create:shaft[axis=y,waterlogged=false]"}],"events":events})).unwrap()
 }
 
+/// A redstone clock reverses a driven gearshift faster than its flicker tally
+/// decays (KineticBlockEntity.onSpeedChanged adds five; tick removes one).
+pub fn flicker(seed: u64) -> Scenario {
+    let events: Vec<_> = (20..100).map(|tick| serde_json::json!({
+        "tick":tick,"pos":[1,9,0],"action":{"kind":"signal","strength":if tick%2==0 {15} else {0}}
+    })).collect();
+    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":180,
+        "checkpoints":(19..105).collect::<Vec<_>>(),"blocks":[
+        {"pos":[0,8,0],"state":"create:creative_motor[facing=east]","motor":32},
+        {"pos":[1,8,0],"state":"create:gearshift[axis=x,powered=false]"},
+        {"pos":[2,8,0],"state":"create:shaft[axis=x,waterlogged=false]"}],"events":events}))
+    .unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

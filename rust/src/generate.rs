@@ -63,6 +63,9 @@ fn generate_base(seed: u64) -> Scenario {
     if seed % 16 == 14 {
         return crate::transmission::generate(seed);
     }
+    if seed % 64 == 2 {
+        return crate::transmission::flicker(seed);
+    }
     if seed % 64 == 34 {
         return crate::geometry::cog_boundary(seed);
     }
