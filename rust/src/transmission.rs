@@ -101,9 +101,10 @@ pub fn chain(seed: u64) -> Scenario {
         ));
     }
     blocks.push(serde_json::json!({"pos":[-1,8,0],"state":"create:creative_motor[facing=east]","motor":if seed&16==0 {32} else {-32}}));
+    let (left, right) = if seed & 32 == 0 { (1, 3) } else { (0, 4) };
     for (i, strength) in (0..16).chain([0, 1, 14, 15, 14, 1, 0]).enumerate() {
-        events.push(serde_json::json!({"tick":30+i*4,"pos":[0,9,1],"action":{"kind":"signal","strength":strength}}));
-        events.push(serde_json::json!({"tick":30+i*4,"pos":[0,9,3],"action":{"kind":"signal","strength":15-strength}}));
+        events.push(serde_json::json!({"tick":30+i*4,"pos":[0,9,left],"action":{"kind":"signal","strength":strength}}));
+        events.push(serde_json::json!({"tick":30+i*4,"pos":[0,9,right],"action":{"kind":"signal","strength":15-strength}}));
     }
     events.push(serde_json::json!({"tick":130,"pos":[0,8,2],"action":{"kind":"remove"}}));
     events.push(use_block(
@@ -132,8 +133,8 @@ pub fn chain(seed: u64) -> Scenario {
     } else if axis == 2 {
         for b in value["blocks"].as_array_mut().unwrap() {
             if b["state"].as_str().unwrap().contains("creative_motor") {
-                b["pos"] = serde_json::json!([0, 9, 0]);
-                b["state"] = serde_json::json!("create:creative_motor[facing=down]");
+                b["pos"] = serde_json::json!([0, 7, 0]);
+                b["state"] = serde_json::json!("create:creative_motor[facing=up]");
             }
         }
         for e in value["events"].as_array_mut().unwrap() {
@@ -242,5 +243,22 @@ mod tests {
                 .speed_setting,
             Some(1.)
         );
+    }
+}
+
+#[cfg(test)]
+mod chain_tests {
+    #[test]
+    fn every_signal_targets_a_placed_adjustable_gearshift() {
+        use crate::actions::Action;
+        for seed in (12..204).step_by(16) {
+            let sc = super::chain(seed);
+            for event in &sc.events {
+                if matches!(event.action, Some(Action::Signal { .. })) {
+                    assert!(sc.events.iter().any(|placed| matches!(&placed.action,Some(Action::Use {item,..}) if item=="create:adjustable_chain_gearshift")
+                        && event.pos==[placed.pos[0],placed.pos[1]+2,placed.pos[2]]));
+                }
+            }
+        }
     }
 }

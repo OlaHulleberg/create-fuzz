@@ -52,10 +52,10 @@
     {
       "pos": [
         0,
-        9,
+        7,
         0
       ],
-      "state": "create:creative_motor[facing=down]",
+      "state": "create:creative_motor[facing=up]",
       "motor": 32
     }
   ],
