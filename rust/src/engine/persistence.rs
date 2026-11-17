@@ -137,17 +137,25 @@ impl Run {
             self.save_sequence(p);
         }
     }
-    /// Interaction publication mirrors glue/persist.rs::publish; never runs on reload.
+    /// Same drain-before-publication boundary as glue/persist.rs, without a tick.
     pub(super) fn publish_interaction(&mut self) {
+        self.publish_after_effects(Vec::new());
+    }
+    /// Complete world callbacks and chain shapes before writing any saved record.
+    pub(super) fn publish_after_effects(
+        &mut self,
+        mut events: Vec<create_engine::kinetics::Event>,
+    ) {
         loop {
-            let events = self.w.dims[0].kinetics.take_pending_events();
-            if events.is_empty() {
-                break;
-            }
             for event in events {
                 if let create_engine::kinetics::Event::Break { pos } = event {
                     self.set(pos, AIR);
+                    self.apply_chain_shapes();
                 }
+            }
+            events = self.w.dims[0].kinetics.take_pending_events();
+            if events.is_empty() {
+                break;
             }
         }
         self.persisted.dirty_columns.extend(self.w.take_unsaved(0));
@@ -550,6 +558,54 @@ impl Run {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn kinetic_breaks_precede_interaction_and_tick_publication() {
+        let sc: Scenario = serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[
+            {"pos":[5,7,-3],"state":"create:creative_motor[facing=up]","motor":-32},
+            {"pos":[5,8,-3],"state":"create:creative_motor[facing=down]","motor":16}
+        ]}))
+        .unwrap();
+        for tick in [false, true] {
+            let mut r = Run::new(&sc);
+            let (a, b) = ([5, 7, -3], [5, 8, -3]);
+            r.place(&sc.blocks[0]);
+            r.tick();
+            r.set_motor(&sc.blocks[0]);
+            r.place(&sc.blocks[1]);
+            r.tick();
+            let setting = create_engine::board::Settings { row: 1, value: 32 };
+            r.w.board_motor(0, a, setting);
+            r.w.board_motor(0, b, setting);
+            assert!(!r.w.dims[0].kinetics.has_part(b, 0));
+            assert_ne!(r.at(b), AIR, "the host still owes the queued break");
+            if tick {
+                r.tick();
+            } else {
+                r.publish_interaction();
+            }
+            assert_eq!(r.at(b), AIR);
+            assert!(!r.persisted.kinetics.contains_key(&(b, 0)));
+            if let Some(Tag::IntArray(motors)) = r.persisted.columns.get("motors") {
+                assert!(
+                    !motors.chunks_exact(4).any(|m| m[..3] == b),
+                    "destroyed settings must be flushed after the break"
+                );
+            }
+            r.reload();
+            assert_eq!(r.at(b), AIR);
+            assert_eq!(
+                r.w.dims[0]
+                    .kinetics
+                    .saved_state(a, 0)
+                    .unwrap()
+                    .network
+                    .unwrap()
+                    .capacity,
+                524288.0
+            );
+        }
+    }
+
     #[test]
     fn broken_motor_settings_are_flushed_before_reload() {
         let sc: Scenario = serde_json::from_value(serde_json::json!({

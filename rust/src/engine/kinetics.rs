@@ -57,21 +57,12 @@ impl Run {
             self.sequencer_step(p, step);
         }
         self.w.dims[0].kinetics.take_removed();
-        for e in events {
-            if let create_engine::kinetics::Event::Break { pos } = e {
-                self.set(pos, AIR);
-                self.apply_chain_shapes();
-            }
-        }
-        // Break callbacks can remove column-owned settings after the solve.
-        self.persisted.dirty_columns.extend(self.w.take_unsaved(0));
         self.mark_package_columns();
-        self.publish_entities();
-        self.flush_persistence();
+        self.publish_after_effects(events);
     }
 
     /// Glue applies neighbour shapes in Inputs and immediately after each kinetic break.
-    fn apply_chain_shapes(&mut self) {
+    pub(super) fn apply_chain_shapes(&mut self) {
         for (p, drive) in self.w.take_chain_shapes(0) {
             let next = with_prop(
                 &self.name(self.at(p)),
