@@ -20,7 +20,7 @@ import java.util.List;
 
 /** Normalized semantic observations; saved NBT is diagnostic only. */
 final class Observations {
-    static JsonObject snapshot(ServerLevel level, BlockPos origin, JsonObject c) {
+    static JsonObject snapshot(ServerLevel level, BlockPos origin, JsonObject c, net.minecraft.server.level.ServerPlayer actor) {
         JsonObject blocks = new JsonObject();
         var networks = new java.util.TreeMap<Long, java.util.List<String>>();
         JsonObject sizes = new JsonObject();
@@ -55,6 +55,7 @@ final class Observations {
                     JsonObject snap = new JsonObject();
                     snap.addProperty("state", BlockStateParser.serialize(state));
                     BlockEntity be = level.getBlockEntity(pos);
+                    if (be != null) {var transport=TransportObservations.observe(be);if(transport!=null) snap.add("transport",transport); }
                     if (be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity belt) {
                         JsonObject b = new JsonObject();
                         BlockPos controller = belt.getController().subtract(origin);
@@ -89,13 +90,14 @@ final class Observations {
                         snap.addProperty(
                                 "bracket", BlockStateParser.serialize(bracket.getBracket()));
                     // For reading mismatches only; never compared.
-                    if (be != null)
+                    if (be != null && !(be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity))
                         snap.addProperty(
                                 "debug", be.saveWithoutMetadata(level.registryAccess()).toString());
                     blocks.add(key, snap);
                 }
         JsonObject out = new JsonObject();
         out.addProperty("side", "java");
+        out.add("item_outcomes",ItemInputs.outcomes(actor));
         out.add("blocks", blocks);
         var partitions = new ArrayList<java.util.List<String>>(networks.values());
         for (var group : partitions) java.util.Collections.sort(group);

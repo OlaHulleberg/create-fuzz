@@ -56,6 +56,7 @@ impl Run {
         }
         let mut events = Vec::new();
         self.belt_breaks();
+        self.tick_transport();
         self.w.settle_belts(0);
         // CreateWorld::tick: the solve, then sequencer instructions (committed after it).
         let (_, steps) = self.w.tick(0, &mut events);

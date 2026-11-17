@@ -4,6 +4,7 @@ impl Run {
     pub(super) fn action(&mut self, p: Pos, action: &crate::actions::Action) {
         use crate::actions::Action;
         match action {
+            Action::Item { input } => self.item_input(p, input),
             Action::SpeedSetting { row, value } => {
                 self.w.board_motor(
                     0,
@@ -66,6 +67,9 @@ impl Run {
         sneaking: bool,
     ) {
         use create_engine::{Block, board, place};
+        if item == "minecraft:air" && self.transport_empty_use(p, face, sneaking) {
+            return;
+        }
         if self.belt_use(p, item, face, hit, sneaking) {
             return;
         }

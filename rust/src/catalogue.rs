@@ -33,6 +33,9 @@ pub fn validate(state: &str) -> Result<(), String> {
             Err(format!("unrepresented external state {state}"))
         };
     }
+    if let Some(result) = crate::transport::validate_state(&id, &props) {
+        return result;
+    }
     let entry = entries()
         .iter()
         .find(|e| e.id == id)
@@ -60,6 +63,7 @@ pub fn validate(state: &str) -> Result<(), String> {
     Ok(())
 }
 pub fn scenario(sc: &Scenario) {
+    crate::transport::validate_scenario(sc);
     sc.region();
     assert!([1, 3].contains(&sc.version), "unsupported scenario version");
     for e in &sc.events {
@@ -170,6 +174,18 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
     }
     println!(
         "use limits: shaft casing/bracket; belts through persistent connector use, casing, pulley and slicer endpoints; conveyor chain_link screen packet; motor value-box geometry via board::motor_slot/hits_box; motor/controller speed boards, sequencer programs, valve angle/use/dye and chain topology enabled; other block-use overrides, fluid collision and inventories unsupported (cases retained with notes); ordinary ServerPlayer uses geometric value-box hit tests; no allowance for these gaps"
+    );
+    for block in &crate::transport::contract().blocks {
+        println!(
+            "transport block: {} {:?}; {}",
+            block.id, block.properties, block.source
+        );
+    }
+    for item in &crate::transport::contract().items {
+        println!("transport item: {} max_stack={}", item.id, item.max_stack);
+    }
+    println!(
+        "item transport: controlled player-drop landing, empty-hand belt pickup, depot use/swap, belt inventory tick and belt/depot end insertion; longitudinal position/stack/lock/pending/stall compared; no native item flight, components, machine processing, funnels or tunnels"
     );
     let m = collect(manual);
     let g = collect(generated);

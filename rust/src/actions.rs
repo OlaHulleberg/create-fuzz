@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
+    Item {
+        input: crate::transport::Input,
+    },
     Use {
         item: String,
         face: Face,
@@ -91,6 +94,7 @@ pub const ITEMS: &[&str] = &[
 impl Action {
     pub fn validate(&self) {
         match self {
+            Self::Item { input } => input.validate(),
             Self::ValveSetting { row, value } => {
                 assert!((0..=1).contains(row) && (0..=180).contains(value));
             }

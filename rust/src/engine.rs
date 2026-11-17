@@ -10,6 +10,7 @@ mod conveyors;
 mod interaction;
 mod kinetics;
 mod observation;
+mod transport;
 
 use crate::scenario::{
     BlockSnap, Kinetic, Placed, Pos, Scenario, Snapshot, key, parse_state, with_prop,
@@ -62,6 +63,7 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             push(spec.state);
         }
     }
+    push("create:depot[waterlogged=false]".into());
     push("create:brass_casing".into());
     push("create:andesite_casing".into());
     for axis in ["x", "y", "z"] {
@@ -107,6 +109,8 @@ pub struct Run {
     names: Vec<String>,
     world: HashMap<Pos, u32>,
     notes: Vec<String>,
+    depot_stacks: HashMap<Pos, crate::transport::Stack>,
+    item_outcomes: Vec<crate::transport::Outcome>,
     chains: create_engine::chain_conveyor::Chains<()>,
     connector: Option<Pos>,
     belt_casing: HashMap<Pos, String>,
@@ -145,6 +149,8 @@ impl Run {
             names,
             world: HashMap::new(),
             notes: Vec::new(),
+            depot_stacks: HashMap::new(),
+            item_outcomes: Vec::new(),
             chains: Default::default(),
             connector: None,
             belt_casing: HashMap::new(),

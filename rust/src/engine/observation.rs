@@ -23,6 +23,7 @@ impl Run {
             blocks.insert(
                 key(p),
                 BlockSnap {
+                    transport: self.transport_observation(p),
                     conveyor_links: self.chains.conveyors.get(&p).map(|c| {
                         let mut v = c.connections.clone();
                         v.sort();
@@ -51,6 +52,7 @@ impl Run {
         }
         partitions.sort();
         Snapshot {
+            item_outcomes: self.item_outcomes.clone(),
             side: "rust".into(),
             unavailable: Vec::new(),
             networks: Some(crate::observation::Networks { partitions, sizes }),

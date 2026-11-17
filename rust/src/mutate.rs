@@ -9,6 +9,16 @@ pub fn mutate(parent: &Scenario, seed: u64) -> Scenario {
     sc.seed = seed;
     if sc.version == 3 {
         for e in &mut sc.events {
+            if let Some(crate::actions::Action::Item { input }) = &mut e.action {
+                use crate::transport::Input;
+                let stack = match input {
+                    Input::DropOn { stack } => Some(stack),
+                    Input::Use { stack, .. } => stack.as_mut(),
+                };
+                if let Some(s) = stack {
+                    s.count = (1 + rng.below(u32::from(s.limit()))) as u8;
+                }
+            }
             if let Some(crate::actions::Action::ChainLink { connect, .. }) = &mut e.action {
                 *connect = rng.chance(0.5);
             }

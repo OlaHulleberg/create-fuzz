@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 /// What both sides write after the last tick.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Snapshot {
+    #[serde(default)]
+    pub item_outcomes: Vec<crate::transport::Outcome>,
     pub side: String,
     /// Adapter gaps are explicit metadata, never inferred from equal speed/stress.
     #[serde(default)]
@@ -22,6 +24,8 @@ pub struct Snapshot {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct BlockSnap {
+    #[serde(default)]
+    pub transport: Option<crate::transport::Contents>,
     #[serde(default)]
     pub conveyor_links: Option<Vec<crate::scenario::Pos>>,
     #[serde(default)]

@@ -228,3 +228,83 @@ fn player_chain_placement_keeps_declared_default_properties() {
         }
     }
 }
+
+#[test]
+fn item_driver_uses_glue_busy_belts_without_initializing_empty_order() {
+    let sc = crate::transport::generate(31);
+    let snap = super::run(&sc);
+    let t = &snap.checkpoints[&41].blocks["0,8,0"]
+        .transport
+        .as_ref()
+        .unwrap()
+        .items;
+    assert_eq!(t.len(), 1);
+    // glue put_on_from_above reads positive=false: +1/16. tick_belts then moves 32/480.
+    assert!((t[0].position - (1.5 + 1. / 16. + 32. / 480.)).abs() < 0.00001);
+    assert!(
+        snap.item_outcomes[1].remainder.is_some(),
+        "immediate second landing is refused"
+    );
+}
+
+#[test]
+fn depot_use_put_swap_and_take_are_glue_owned_motion_and_stacks() {
+    use crate::{
+        actions::Face,
+        transport::{Input, Stack},
+    };
+    let sc:crate::scenario::Scenario=serde_json::from_value(serde_json::json!({"ticks":80,"blocks":[{"pos":[0,8,0],"state":"create:depot[waterlogged=false]"}]})).unwrap();
+    let mut r = super::Run::new(&sc);
+    r.place(&sc.blocks[0]);
+    let stack = Stack {
+        item: "minecraft:iron_ingot".into(),
+        count: 16,
+    };
+    r.item_input(
+        [0, 8, 0],
+        &Input::Use {
+            stack: Some(stack.clone()),
+            face: Face::Up,
+            yaw: 0.,
+            sneaking: false,
+        },
+    );
+    assert_eq!(r.w.dims[0].depots[&[0, 8, 0]].unwrap().position, 0.25);
+    r.tick();
+    assert_eq!(r.w.dims[0].depots[&[0, 8, 0]].unwrap().position, 0.3125);
+    r.item_input(
+        [0, 8, 0],
+        &Input::Use {
+            stack: None,
+            face: Face::Up,
+            yaw: 0.,
+            sneaking: false,
+        },
+    );
+    assert_eq!(r.item_outcomes[1].taken, vec![stack]);
+    assert!(r.depot_stacks.is_empty());
+}
+
+#[test]
+fn transport_between_empty_belts_waits_for_next_busy_snapshot() {
+    let snap = super::run(&crate::transport::generate(95));
+    let second = snap
+        .checkpoints
+        .values()
+        .filter_map(|s| s.blocks["0,8,5"].transport.as_ref())
+        .find(|s| !s.items.is_empty())
+        .unwrap();
+    assert!(
+        second.items[0].pending,
+        "receiving empty belt was not in glue busy_belts snapshot"
+    );
+    assert!(
+        snap.blocks["0,8,5"]
+            .transport
+            .as_ref()
+            .unwrap()
+            .items
+            .iter()
+            .any(|i| i.stalled == Some(true))
+    );
+}

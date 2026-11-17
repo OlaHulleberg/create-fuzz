@@ -33,7 +33,14 @@ final class Actions {
         player.setShiftKeyDown(false);
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
         player.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        if(action.get("kind").getAsString().equals("use") && action.get("item").getAsString().equals("minecraft:air")
+            && (level.getBlockEntity(pos) instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity
+            || level.getBlockState(pos).getBlock() instanceof com.simibubi.create.content.logistics.depot.DepotBlock)) {
+            JsonObject input=action.deepCopy();input.remove("item");input.add("stack",com.google.gson.JsonNull.INSTANCE);
+            ItemInputs.apply(level,player,pos,origin,input);return;
+        }
         switch (action.get("kind").getAsString()) {
+            case "item" -> ItemInputs.apply(level,player,pos,origin,action.getAsJsonObject("input"));
             case "use" -> {
                 Direction face = Direction.byName(action.get("face").getAsString());
                 var local = action.getAsJsonArray("hit");

@@ -11,6 +11,12 @@ fn close(a: f32, b: f32) -> bool {
 
 pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
     let mut out = Vec::new();
+    if java.item_outcomes != rust.item_outcomes {
+        out.push(format!(
+            "item outcomes: java {:?} rust {:?}",
+            java.item_outcomes, rust.item_outcomes
+        ));
+    }
     if let (Some(j), Some(r)) = (&java.networks, &rust.networks) {
         let normalize = |groups: &[Vec<String>]| {
             let mut groups = groups.to_vec();
@@ -34,6 +40,12 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
             (Some(j), None) => out.push(format!("{k}: java has {}, rust has air", j.state)),
             (None, Some(r)) => out.push(format!("{k}: java has air, rust has {}", r.state)),
             (Some(j), Some(r)) => {
+                if !transport_equal(j.transport.as_ref(), r.transport.as_ref()) {
+                    out.push(format!(
+                        "{k}: transport: java {:?} rust {:?}",
+                        j.transport, r.transport
+                    ));
+                }
                 if j.conveyor_links != r.conveyor_links {
                     out.push(format!(
                         "{k}: conveyor links: java {:?} rust {:?}",
@@ -203,6 +215,27 @@ fn kinetic_diff(j: &Kinetic, r: &Kinetic) -> Vec<String> {
         ));
     }
     out
+}
+
+fn transport_equal(
+    a: Option<&crate::transport::Contents>,
+    b: Option<&crate::transport::Contents>,
+) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => {
+            a.kind == b.kind
+                && a.items.len() == b.items.len()
+                && a.items.iter().zip(&b.items).all(|(a, b)| {
+                    a.stack == b.stack
+                        && a.locked == b.locked
+                        && a.pending == b.pending
+                        && a.stalled == b.stalled
+                        && close(a.position, b.position)
+                })
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]

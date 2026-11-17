@@ -8,6 +8,7 @@
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
+export FUZZ_TRANSPORT_MANIFEST="$here/rust/src/transport.json"
 export FUZZ_MANIFEST="$here/rust/src/kinetics.json"
 export FUZZ_DIR="${FUZZ_DIR:-$here/work}"
 gradlew="${CREATE_DIR:-$here/../Create}/gradlew"

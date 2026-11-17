@@ -1,0 +1,11 @@
+{
+  "blocks": [
+    {"id":"create:depot", "properties":{"waterlogged":["false"]}, "source":"DepotBlock.createBlockStateDefinition/getStateForPlacement; dry scenarios"}
+  ],
+  "items": [
+    {"id":"minecraft:iron_ingot","max_stack":64},
+    {"id":"minecraft:gold_ingot","max_stack":64},
+    {"id":"minecraft:diamond","max_stack":64},
+    {"id":"minecraft:ender_pearl","max_stack":16}
+  ]
+}

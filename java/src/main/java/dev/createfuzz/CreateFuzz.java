@@ -70,6 +70,7 @@ public class CreateFuzz {
     void started(ServerStartedEvent e) {
         try {
             Catalogue.audit();
+            ItemInputs.audit();
             Files.createDirectories(dir);
             Files.writeString(
                     dir.resolve("actor-probe.json"),
@@ -259,9 +260,9 @@ public class CreateFuzz {
                             traces.get(i)
                                     .add(
                                             Integer.toString(tick),
-                                            Observations.snapshot(level, origins.get(i), c));
+                                            Observations.snapshot(level, origins.get(i), c, actors.get(i)));
                 if (tick == c.get("ticks").getAsInt()) {
-                    JsonObject result = Observations.snapshot(level, origins.get(i), c);
+                    JsonObject result = Observations.snapshot(level, origins.get(i), c, actors.get(i));
                     result.add("checkpoints", traces.get(i));
                     results.set(i, result);
                     continue;
