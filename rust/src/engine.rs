@@ -230,6 +230,7 @@ impl Run {
             self.persisted.sequences.remove(&p);
             self.persisted.depots.remove(&p);
             self.persisted.belts.remove(&p);
+            self.persisted.fluid_entities.remove(&p);
             if !self
                 .w
                 .table

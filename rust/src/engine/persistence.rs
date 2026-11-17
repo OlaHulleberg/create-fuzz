@@ -12,6 +12,8 @@ pub(super) struct Store {
     pub handles: HashMap<Pos, Compound>,
     pub depots: HashMap<Pos, Compound>,
     pub belts: HashMap<Pos, Compound>,
+    pub fluid_columns: BTreeMap<(i32, i32), Compound>,
+    pub fluid_entities: HashMap<Pos, Compound>,
     pub dirty_columns: std::collections::BTreeSet<(i32, i32)>,
     pub brackets: HashMap<Pos, create_engine::decor::Bracket>,
     pub conveyors: HashMap<Pos, Vec<Pos>>,
@@ -25,7 +27,14 @@ type ReloadData = (
     Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
+    FluidReload,
 );
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct FluidReload {
+    columns: Vec<((i32, i32), Compound)>,
+    entities: Vec<(Pos, Compound)>,
+}
 
 impl Run {
     pub(super) fn save_sequence(&mut self, p: Pos) {
@@ -149,6 +158,12 @@ impl Run {
         for (cx, cz) in columns {
             motors.extend(self.w.column_settings(0, cx, cz));
             belts.extend(self.w.column_belts(0, cx, cz));
+            let data = crate::persistence::fluids::save_column(&self.w, (cx, cz));
+            if data.is_empty() {
+                self.persisted.fluid_columns.remove(&(cx, cz));
+            } else {
+                self.persisted.fluid_columns.insert((cx, cz), data);
+            }
         }
         self.persisted.columns = Compound::new();
         if !motors.is_empty() {
@@ -255,9 +270,33 @@ impl Run {
             self.persisted.handles.iter().collect::<Vec<_>>(),
             self.persisted.depots.iter().collect::<Vec<_>>(),
             self.persisted.belts.iter().collect::<Vec<_>>(),
+            FluidReload {
+                columns: self
+                    .persisted
+                    .fluid_columns
+                    .iter()
+                    .map(|(&p, d)| (p, d.clone()))
+                    .collect(),
+                entities: self
+                    .persisted
+                    .fluid_entities
+                    .iter()
+                    .map(|(&p, d)| (p, d.clone()))
+                    .collect(),
+            },
         ))
         .unwrap();
-        let (data, entities, sequences, slots, handles, saved_handles, saved_depots, saved_belts): ReloadData = serde_json::from_slice(&bytes).unwrap();
+        let (
+            data,
+            entities,
+            sequences,
+            slots,
+            handles,
+            saved_handles,
+            saved_depots,
+            saved_belts,
+            fluids,
+        ): ReloadData = serde_json::from_slice(&bytes).unwrap();
         self.depot_stacks = slots.into_iter().collect();
         self.handles = handles.into_iter().collect();
         for &(cx, cz) in &columns {
@@ -275,6 +314,11 @@ impl Run {
         self.w.load_settings(0, motors.into_iter());
         self.w
             .load_belt_items(0, codec::belts_from_nbt(&data).into_iter());
+        // ensure_column runs every subsystem's chunk_load before the first entity callback.
+        for (_, data) in &fluids.columns {
+            crate::persistence::fluids::load_column(&mut self.w, data);
+        }
+        self.persisted.fluid_entities = fluids.entities.into_iter().collect();
         let saved_belts: HashMap<_, _> = saved_belts.into_iter().collect();
         let saved_depots: HashMap<_, _> = saved_depots.into_iter().collect();
         let saved_handles: HashMap<_, _> = saved_handles.into_iter().collect();
@@ -287,6 +331,8 @@ impl Run {
         // Complete one block_entity_on_load callback before starting the next one.
         for &(p, s) in &blocks {
             self.w.block_loaded(0, p, s);
+            // KineticEntity::block_entity_on_load does not consume Tank/Hose drawing NBT.
+            // Fluid state was staged by chunk_load and is consumed by block_loaded above.
             if let Some(saved) = saved_belts.get(&p).and_then(codec::belt_segment_from_nbt) {
                 self.w.restore_belt_segment(0, p, saved);
             }

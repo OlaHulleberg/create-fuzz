@@ -1,0 +1,371 @@
+//! Fluid column codecs from MIT glue/fluids/{mod,plumbing,machines,pipes}.rs.
+//! Called only by the marked-column flush and chunk-load phases, never at unload.
+use super::codec::{Compound, Tag};
+use crate::scenario::Pos;
+use create_engine::kinetics::Dir;
+use create_engine::tank::{Codes, Fluid, MAX_HEIGHT, MAX_WIDTH, Multi, Tank};
+use create_engine::world::CreateWorld;
+
+fn ints<'a>(data: &'a Compound, key: &str) -> &'a [i32] {
+    match data.get(key) {
+        Some(Tag::IntArray(v)) => v,
+        _ => &[],
+    }
+}
+fn keys(data: &Compound, key: &str) -> Vec<String> {
+    match data.get(&format!("{key}_fluids")) {
+        Some(Tag::List(v)) => v
+            .iter()
+            .map(|t| match t {
+                Tag::String(s) => s.clone(),
+                _ => String::new(),
+            })
+            .collect(),
+        _ => vec![],
+    }
+}
+fn put_keys(data: &mut Compound, key: &str, codes: Codes) {
+    if !codes.keys.is_empty() {
+        data.insert(
+            format!("{key}_fluids"),
+            Tag::List(codes.keys.into_iter().map(Tag::String).collect()),
+        );
+    }
+}
+pub fn shown_tank(m: Option<Multi>) -> Compound {
+    let mut codes = Codes::default();
+    let v = m.map_or_else(Vec::new, |m| {
+        vec![
+            codes.code(m.tank.fluid),
+            m.tank.amount as i32,
+            i32::from(m.width),
+            i32::from(m.height),
+            i32::from(m.window),
+        ]
+    });
+    Compound::from([
+        ("Tank".into(), Tag::IntArray(v)),
+        (
+            "Tank_fluids".into(),
+            Tag::List(codes.keys.into_iter().map(Tag::String).collect()),
+        ),
+    ])
+}
+pub fn save_column(w: &CreateWorld, column: (i32, i32)) -> Compound {
+    let here = |p: &Pos| (p[0] >> 4, p[2] >> 4) == column;
+    let mut data = Compound::new();
+    let tanks = w.column_tanks(0, column.0, column.1);
+    let mut codes = Codes::default();
+    let v: Vec<_> = tanks
+        .iter()
+        .flat_map(|(p, m)| {
+            [
+                p[0],
+                p[1],
+                p[2],
+                codes.code(m.tank.fluid),
+                m.tank.amount as i32,
+                i32::from(m.width),
+                i32::from(m.height),
+                i32::from(m.window),
+            ]
+        })
+        .collect();
+    if !v.is_empty() {
+        data.insert("tank_multis".into(), Tag::IntArray(v));
+        put_keys(&mut data, "tank_multis", codes);
+    }
+    let d = &w.dims[0];
+    let p = &d.plumbing;
+    let mut filters: Vec<_> = p.filters.iter().filter(|(p, _)| here(p)).collect();
+    filters.sort_by_key(|(p, _)| **p);
+    let mut hoses: Vec<_> = p
+        .hoses
+        .iter()
+        .filter(|(p, _)| here(p))
+        .map(|(p, h)| (*p, h.offset, h.tank))
+        .chain(
+            p.hose_saved
+                .iter()
+                .filter(|(p, _)| here(p))
+                .map(|(p, (o, t))| (*p, *o, *t)),
+        )
+        .collect();
+    hoses.sort_by_key(|v| v.0);
+    let mut creative: Vec<_> = p
+        .creative
+        .iter()
+        .chain(p.creative_saved.iter())
+        .filter(|(p, _)| here(p))
+        .collect();
+    creative.sort_by_key(|(p, _)| **p);
+    // Match the glue's guard, including its treatment of a column with only pending multis.
+    if !filters.is_empty() || !hoses.is_empty() || !creative.is_empty() {
+        let mut own = Compound::new();
+        let mut codes = Codes::default();
+        own.insert(
+            "filters".into(),
+            Tag::IntArray(
+                filters
+                    .iter()
+                    .flat_map(|(p, f)| [p[0], p[1], p[2], codes.code(f.fluid)])
+                    .collect(),
+            ),
+        );
+        own.insert(
+            "filter_items".into(),
+            Tag::List(
+                filters
+                    .iter()
+                    .map(|(_, f)| Tag::String(f.item.clone()))
+                    .collect(),
+            ),
+        );
+        own.insert(
+            "hoses".into(),
+            Tag::IntArray(
+                hoses
+                    .iter()
+                    .flat_map(|(p, o, t)| {
+                        [
+                            p[0],
+                            p[1],
+                            p[2],
+                            (o * 1000.) as i32,
+                            codes.code(t.fluid),
+                            t.amount as i32,
+                        ]
+                    })
+                    .collect(),
+            ),
+        );
+        own.insert(
+            "creative_tanks".into(),
+            Tag::IntArray(
+                creative
+                    .iter()
+                    .flat_map(|(p, f)| [p[0], p[1], p[2], codes.code(**f)])
+                    .collect(),
+            ),
+        );
+        own.insert(
+            "creative_multis".into(),
+            Tag::IntArray(
+                w.column_creative_tanks(0, column.0, column.1)
+                    .iter()
+                    .flat_map(|(p, m)| {
+                        [
+                            p[0],
+                            p[1],
+                            p[2],
+                            i32::from(m.width),
+                            i32::from(m.height),
+                            i32::from(m.window),
+                        ]
+                    })
+                    .collect(),
+            ),
+        );
+        put_keys(&mut own, "create_fluids", codes);
+        data.insert("create_fluids".into(), Tag::Compound(own));
+    }
+    let mut spouts: Vec<_> = d.spouts.iter().filter(|(p, _)| here(p)).collect();
+    spouts.sort_by_key(|(p, _)| **p);
+    let mut drains: Vec<_> = d.drains.iter().filter(|(p, _)| here(p)).collect();
+    drains.sort_by_key(|(p, _)| **p);
+    if !spouts.is_empty() || !drains.is_empty() {
+        let mut codes = Codes::default();
+        let mut tank = |p: &Pos, f: Option<(Fluid, u32)>| {
+            [
+                p[0],
+                p[1],
+                p[2],
+                codes.code(f.map(|v| v.0)),
+                f.map_or(0, |v| v.1 as i32),
+            ]
+        };
+        let spouts = spouts.iter().flat_map(|(p, s)| tank(p, s.fluid)).collect();
+        let fluids = drains.iter().flat_map(|(p, s)| tank(p, s.fluid)).collect();
+        let items = drains
+            .iter()
+            .filter_map(|(p, d)| {
+                let h = d.held.as_ref()?;
+                Some(Tag::Compound(Compound::from([
+                    ("Pos".into(), Tag::IntArray(p.to_vec())),
+                    ("Item".into(), Tag::String(h.item.clone())),
+                    ("Count".into(), Tag::Int(i32::from(h.count))),
+                    ("BeltPosition".into(), Tag::Float(h.position.to_bits())),
+                    ("From".into(), Tag::Int(h.from as i32)),
+                    ("ProcessingTicks".into(), Tag::Int(d.processing)),
+                ])))
+            })
+            .collect();
+        let mut own = Compound::from([
+            ("spouts".into(), Tag::IntArray(spouts)),
+            ("drains".into(), Tag::IntArray(fluids)),
+            ("drain_items".into(), Tag::List(items)),
+        ]);
+        put_keys(&mut own, "create_machines", codes);
+        data.insert("create_machines".into(), Tag::Compound(own));
+    }
+    let mut ends: Vec<_> = d.open_ends.iter().filter(|((p, _), _)| here(p)).collect();
+    ends.sort_by_key(|((p, d), _)| (*p, Dir::ALL.iter().position(|x| x == d)));
+    if !ends.is_empty() {
+        let mut codes = Codes::default();
+        let v = ends
+            .iter()
+            .flat_map(|((p, d), e)| {
+                [
+                    p[0],
+                    p[1],
+                    p[2],
+                    Dir::ALL.iter().position(|x| x == d).unwrap_or(0) as i32,
+                    codes.code(e.tank.map(|t| t.0)),
+                    e.tank.map_or(0, |t| t.1 as i32),
+                    i32::from(e.pulling),
+                ]
+            })
+            .collect();
+        data.insert("open_ends".into(), Tag::IntArray(v));
+        put_keys(&mut data, "open_ends", codes);
+    }
+    data
+}
+
+pub fn load_column(w: &mut CreateWorld, data: &Compound) {
+    let k = keys(data, "tank_multis");
+    let tank = |c: &[i32]| Tank {
+        fluid: Codes::fluid(&k, c[3]),
+        amount: c[4].max(0) as u32,
+    };
+    let saved: Vec<_> = ints(data, "tank_multis")
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .map(|c| {
+            (
+                [c[0], c[1], c[2]],
+                Multi {
+                    tank: tank(c),
+                    width: c[5].clamp(1, MAX_WIDTH) as u8,
+                    height: c[6].clamp(1, MAX_HEIGHT) as u8,
+                    window: c[7] != 0,
+                },
+            )
+        })
+        .chain(ints(data, "tanks").as_chunks::<5>().0.iter().map(|c| {
+            (
+                [c[0], c[1], c[2]],
+                Multi {
+                    tank: tank(c),
+                    ..Default::default()
+                },
+            )
+        }))
+        .collect();
+    w.load_tanks(0, saved.into_iter());
+    if let Some(Tag::Compound(own)) = data.get("create_fluids") {
+        let k = keys(own, "create_fluids");
+        let p = &mut w.dims[0].plumbing;
+        let items = match own.get("filter_items") {
+            Some(Tag::List(v)) => v.as_slice(),
+            _ => &[],
+        };
+        for (i, c) in ints(own, "filters").as_chunks::<4>().0.iter().enumerate() {
+            let fluid = Codes::fluid(&k, c[3]);
+            let item = match items.get(i) {
+                Some(Tag::String(s)) => s.clone(),
+                Some(_) => String::new(),
+                None => fluid.and_then(Fluid::bucket).unwrap_or_default().into(),
+            };
+            let pos = [c[0], c[1], c[2]];
+            p.filters
+                .insert(pos, create_engine::fluids::SmartFilter { item, fluid });
+            p.filter_changes.push(pos);
+        }
+        for c in ints(own, "hoses").as_chunks::<6>().0 {
+            p.hose_saved.insert(
+                [c[0], c[1], c[2]],
+                (
+                    c[3].max(0) as f32 / 1000.,
+                    Tank {
+                        fluid: Codes::fluid(&k, c[4]),
+                        amount: c[5].clamp(0, create_engine::hose::CAPACITY as i32) as u32,
+                    },
+                ),
+            );
+        }
+        for c in ints(own, "creative_tanks").as_chunks::<4>().0 {
+            p.creative_saved
+                .insert([c[0], c[1], c[2]], Codes::fluid(&k, c[3]));
+        }
+        w.load_creative_tanks(
+            0,
+            ints(own, "creative_multis")
+                .as_chunks::<6>()
+                .0
+                .iter()
+                .map(|c| {
+                    (
+                        [c[0], c[1], c[2]],
+                        Multi {
+                            width: c[3].clamp(1, MAX_WIDTH) as u8,
+                            height: c[4].clamp(1, MAX_HEIGHT) as u8,
+                            window: c[5] != 0,
+                            tank: Tank::default(),
+                        },
+                    )
+                }),
+        );
+    }
+    if let Some(Tag::Compound(own)) = data.get("create_machines") {
+        let k = keys(own, "create_machines");
+        let fluid = |c: &[i32]| Codes::fluid(&k, c[3]).map(|f| (f, c[4].max(0) as u32));
+        let d = &mut w.dims[0];
+        for c in ints(own, "spouts").as_chunks::<5>().0 {
+            d.spouts.entry([c[0], c[1], c[2]]).or_default().fluid = fluid(c);
+        }
+        for c in ints(own, "drains").as_chunks::<5>().0 {
+            d.drains.entry([c[0], c[1], c[2]]).or_default().fluid = fluid(c);
+        }
+        if let Some(Tag::List(items)) = own.get("drain_items") {
+            for t in items {
+                let Tag::Compound(c) = t else { continue };
+                let (p, Some(Tag::String(item))) = (ints(c, "Pos"), c.get("Item")) else {
+                    continue;
+                };
+                let &[x, y, z] = p else { continue };
+                let int = |key: &str| match c.get(key) {
+                    Some(Tag::Int(i)) => *i,
+                    _ => 0,
+                };
+                let position = match c.get("BeltPosition") {
+                    Some(Tag::Float(v)) => f32::from_bits(*v),
+                    _ => 0.,
+                };
+                let dr = d.drains.entry([x, y, z]).or_default();
+                dr.processing = int("ProcessingTicks");
+                dr.held = Some(create_engine::drain::Held {
+                    item: item.clone(),
+                    count: int("Count").clamp(1, 64) as u8,
+                    position,
+                    prev: position,
+                    from: Dir::ALL[int("From").clamp(0, 5) as usize],
+                });
+            }
+        }
+    }
+    let k = keys(data, "open_ends");
+    for c in ints(data, "open_ends").as_chunks::<7>().0 {
+        let tank = Codes::fluid(&k, c[4])
+            .map(|f| (f, c[5].max(0) as u32))
+            .filter(|t| t.1 > 0);
+        w.dims[0].open_ends.insert(
+            ([c[0], c[1], c[2]], Dir::ALL[c[3].clamp(0, 5) as usize]),
+            create_engine::open_end::OpenEnd {
+                tank,
+                pulling: c[6] != 0,
+            },
+        );
+    }
+}

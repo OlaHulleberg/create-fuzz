@@ -20,7 +20,7 @@ Rust uses the MIT glue codecs over a local typed NBT value tree. The encoded
 value tree crosses a byte serialization boundary; engine objects do not survive
 by cloning. End-of-tick kinetic changes populate persisted records, and motor
 settings/belt inventories populate column attachments. Reload calls
-column_unloaded, loads column settings/items, scans with block_loaded, restores
+column_unloaded, loads column settings/items/fluid records, scans with block_loaded, restores
 handle use with restore_handle before kinetic ports with restore_state, then
 loads sequencer instructions/run.
 Saved BeltState membership restores immediately after each block_loaded, before
@@ -111,6 +111,8 @@ must not refresh an earlier entity record or serialize an unmarked column.
 | Sequencer run | Actual instruction transitions plus post-subsystem write_entities; save_run writes only its five run fields |
 | Sequencer instructions | Immediately in an accepted program message, independently of run saves |
 | Motor settings and belt inventories | End-of-level persist::flush, only marked columns; collect engine unsaved columns at the solve's actual drain point |
+| Fluid tank/plumbing/machine/open-end column records | Same marked column flush, using glue/fluids codecs; an empty replacement removes stale fluid records |
+| Tank entity Tank/Tank_fluids | fluids::Tanks changed-position journal after logistics/tools/arms and before Solve, including empty data for former controllers |
 | Brackets and conveyor topology | Same marked column flush; bracket mutations and the packages changed/gone journal mark their columns |
 | Host slots, belt casing and valve selection/use metadata | Their existing immediate host writes; reload round-trips those host records without refreshing engine state |
 
@@ -138,3 +140,24 @@ that entity's sequencer instructions/run. It does not restore all entities'
 kinetic ports first and defer all sequencer callbacks to a later pass. The
 sequencer reload fixture compares this path with an independent per-entity
 reference using the same public engine entries. Publication remains unchanged.
+
+Fluid columns stage `tank_multis` (and legacy `tanks`) through `load_tanks`
+before any block is scanned. The controller's saved fluid, amount, width, height
+and window flag therefore exist when `block_loaded` calls `Tanks::load`.
+The entity's `Tank` drawing record crosses the encoding boundary too, but the
+glue's `KineticEntity::block_entity_on_load` does not read it as authoritative
+fluid state. A newer drawing record must not refresh an older column attachment.
+No fluid getter is called to refresh the save at the reload boundary.
+
+The fluid codecs also retain the glue's `create_fluids` filter items/fluids,
+quantized hose offsets/tanks, creative tank fluids/sizes, `create_machines`
+spout/drain tanks and held drain items, and open-end tanks/pulling flags.
+They load before entity scans, in the glue's tank/plumbing/machine/pipe order.
+Pump routes/flows and fluid-valve pointer progress have no authoritative save
+record in the glue; they follow its ordinary fresh-load path, without an extra
+driver-only restore. In particular, spout processing is not in its column codec,
+while a drain's processing counter is. Round-trip fixtures exercise these
+distinctions; they do not add the host-fluid/recipe/world adapters still excluded
+by `fluids.json`. Tank reload histories cover controller removal, changed windows,
+repeated loads and per-tick checkpoints; filled and cross-column records also
+have Rust-only regressions.
