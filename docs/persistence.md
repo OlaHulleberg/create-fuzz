@@ -165,11 +165,9 @@ The fluid codecs also retain the glue's `create_fluids` filter items/fluids,
 quantized hose offsets/tanks, creative tank fluids/sizes, `create_machines`
 spout/drain tanks and held drain items, and open-end tanks/pulling flags.
 They load before entity scans, in the glue's tank/plumbing/machine/pipe order.
-Pump routes/flows and fluid-valve pointer progress have no authoritative save
-record in the glue; they follow its ordinary fresh-load path, without an extra
-driver-only restore. In particular, spout processing is not in its column codec,
+Pump routes/flows follow the glue's ordinary fresh-load path. Fluid-valve pointer records use the owning entity's Pointer Value/Target/Speed codec and restore before attachment. In particular, spout processing is not in its column codec,
 while a drain's processing counter is. Round-trip fixtures exercise these
-distinctions; they do not add the host-fluid/recipe/world adapters still excluded
-by `fluids.json`. Tank reload histories cover controller removal, changed windows,
+distinctions. The fluid driver also supplies contained native-world callbacks and
+a startup-audited component-free recipe subset; remaining boundaries are listed in `fluids.json`. Tank reload histories cover controller removal, changed windows,
 repeated loads and per-tick checkpoints; filled and cross-column records also
 have Rust-only regressions.

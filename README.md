@@ -188,7 +188,7 @@ them. Chain part and connection coordinate are committed and fully compared.
 Display up/down and girder top/bottom belong to shape updates, gantry part/carriage axis to
 their updateShape methods, and large-wheel extension to LargeWaterWheelBlock.updateShape.
 Placement-selected facing/axis/shaft flags remain compared: state injection supplies
-those inputs, rather than invoking player placement. Fluid valve enabled state, kinetic observations and pointer are compared through the fluids phase.
+those inputs, rather than invoking player placement. Fluid valve enabled state and kinetic observations are compared through the fluids phase; pointer records are persisted and tested across reload.
 
 Kinetic generation remains dry. Contained fluid-world cases can use waterlogged states:
 the Rust adapter reads and changes the native environment through the private server's

@@ -35,12 +35,12 @@ PulleyBlock's waterlogged updateShape is on its nested rope class. Other kinetic
 classes have no additional state-changing updateShape override. Placement methods
 select facing, axis, ceiling, crafter pointing and shaft flags as input choices;
 direct state injection supplies these, so those properties stay compared.
-Waterlogging selected during placement remains prohibited for this dry phase.
+Kinetic generation remains dry; dedicated fluid cases observe contained native waterlogging.
 
 FluidValveBlockEntity.onSpeedChanged chases its pointer toward 1 for positive speed
-and toward 0 otherwise; tick changes enabled at those endpoints. This driver runs
-the kinetic solver, not the valve pointer/fluid subsystem. The manifest's
-state_phase records that separation. Valve kinetic observations remain required.
+and toward 0 otherwise; tick changes enabled at those endpoints. The fluid driver now runs
+the valve phase through tick_fluid_entities and compares enabled state as well as
+kinetic observations. Pointer entity records cross the reload boundary.
 
 Network counts read TorquePropagator.networks[level][entity.network].getSize().
 KineticNetwork.getSize adds unloadedMembers to members.size. Reflection is confined
