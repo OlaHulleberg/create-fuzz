@@ -595,7 +595,7 @@ mod tests {
             assert!(!r.persisted.kinetics.contains_key(&(b, 0)));
             if let Some(Tag::IntArray(motors)) = r.persisted.columns.get("motors") {
                 assert!(
-                    !motors.chunks_exact(4).any(|m| m[..3] == b),
+                    !motors.as_chunks::<4>().0.iter().any(|m| m[..3] == b),
                     "destroyed settings must be flushed after the break"
                 );
             }

@@ -1,21 +1,27 @@
 # Kinetics campaign inputs
 
-These files reproduce the generated kinetics report independently of a running server:
+These archived inputs reproduce the generated report independently of a running server:
 
 ```
 ./run.sh fuzz gaps kinetics --input docs/coverage/kinetics-input/never-reached.tsv --provenance docs/coverage/kinetics-input/campaign.json
 ```
 
-`initial-corpus.txt` selects the 115 starting scenarios from `../replay-corpus/`; their names and contents reproduce the campaign's recorded corpus SHA-256. Copy only those files into a fresh `FUZZ_CORPUS` before replaying `./run.sh fuzz cover 100`.
+`initial-corpus.txt` selects the 115 starting scenarios from `../replay-corpus/`; their names and contents reproduce the campaign's recorded corpus SHA-256. The generated reports are retained as the pre-isolation coverage baseline, not represented as coverage of the later isolation changes.
 
-The campaign was extended in consecutive fresh 100-round runs after warming the replay corpus. The last two ended at 2230/14674 covered branch outcomes. The final extension left every core missed class/method/line/count record identical to `plateau-before.tsv`, establishing the observed core plateau. One non-core outcome was recovered during the last 100 mutations; it did not increase the final aggregate coverage.
+The archived core index contains 1552 remaining harness-gap branches in 774 groups. Its final two campaigns had identical core missed class/method/line/count records (`plateau-before.tsv`). The scope and every remaining explanation are in `../kinetics-core.md`.
 
-The core scope and all 774 remaining harness-gap groups (1552 branches) are indexed in `../kinetics-core.md`. Those gaps are still open. The reason map separately identifies missing chunk lifecycle, mirror and environmental source adapters; it does not claim the remaining reachable placement, belt, lifecycle or configuration work is complete.
+## Checked case namespaces
 
-Final validation against create-horizon main `018563314d21c0a8d0353a6edd75d7871c26d5ef`. The coverage campaign records its parent `9dfc3cb`; the intervening commit changes only `VALIDATION.md`, so the engine source is identical:
+The Java harness now runs cases serially, including cases submitted together. Each case retains its requested physical slot but receives a fresh network namespace and player identity. Disposal clears blocks, non-player entities across the level (including fallen/escaped items), owned scheduled ticks and block events. Two settling ticks precede checks for leaked blocks, entities, tickers or ticks. Frozen ticks, changed gamerules and failed namespace resets stop the request with an error.
 
-- Formatting and Clippy with `-D warnings` passed; 73 Rust tests passed.
-- All three `create-data` committed-asset tests passed.
-- 75 of 76 case files matched. Only `actions-placement-power-gap.json` differed (known #7); `reload-kinetic.json` matched.
-- `fuzz 0 2000`: 1990 matched, nine differed, one Java-unstable. Six differing seeds belong to known issues #55/#56; two reproducible unfiled observations remain. A valve-capacity discrepancy matched on attempted reduction and remains inconclusive. The earlier valve-membership candidates did not differ in this refreshed sweep. Details are in `../findings/kinetics-gen.md`.
-- Shrinks ran under a 3,000,000,000-byte address-space cap. No engine, comparison or allowance changes were made. The shared server was used throughout; no private server was started.
+Reload preserves the existing native entity ticking order. The Rust host adapter tracks and restores the same registration order; it does not alter the port engine. Network-key pruning trials were discarded, and comparisons and allowances remain unchanged.
+
+New servers disable dynamic agent loading. The driver checks the Java source hash and boot ID, so a stale server build or a restart during a campaign fails loudly. The server owner must build and restart matching reviewed Java code; do not hot-redefine a shared test JVM.
+
+`repeat-java 4 <seed|case>...` compares Java snapshots alone and in the original 128-case request groups, with shifted slots and requested save phases. `fuzz` checks alternate contexts even when its first Java snapshot matches the port. Repeated coverage corpus inputs also receive full Java-vs-Java comparisons.
+
+## Verification status
+
+The guarded private reference passed a coverage replay containing baseline reload fixtures, all eight suspicious inputs four times, and the baseline fixtures again: 42 matches and 30 matching Java-vs-Java replay comparisons on one unchanged server boot, against engine `cc43ad7`. Startup fault-injection tests rejected escaped entities, pending scheduled ticks, changed gamerules and leaked blocks before restoring the empty environment. A negative build-stamp test failed before any case executed.
+
+The requested final guarded-build sweep against `0185633` remains to be run after the private test-scope or shared deployment approval. Earlier prototype sweeps are not final validation of these namespace changes. Existing port differences belong in issues, including #7, #55, #59 and #60; findings files and case records are not stored here.
