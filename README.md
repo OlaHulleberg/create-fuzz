@@ -208,3 +208,9 @@ ConfigureSequencedGearshiftPacket.handle; Rust calls the corresponding world
 APIs and runs their input ticks. See docs/player-actions.md for payloads and
 accessor limitations. Per-tick traces observe sequencer runs, valve use/angle and
 context; controller targets and chain modifiers are also compared.
+
+`shrink <case.json> [witness]` can retain a particular difference substring while
+reducing a case with several findings. Every accepted candidate still has only
+original differences, and at least one original difference containing the witness
+must survive. Omitting the witness retains the original shrink policy. Coverage
+reports can reside on a different filesystem from the server's work directory.

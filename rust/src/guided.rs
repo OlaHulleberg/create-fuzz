@@ -44,7 +44,9 @@ pub fn run(rounds: u64) {
             corpus.keep(sc.clone());
         }
         covered = now;
-        std::fs::rename(exec, report.join("cases").join(format!("{round}.exec"))).unwrap();
+        // Reports may be on another filesystem from the server inbox/outbox.
+        std::fs::copy(&exec, report.join("cases").join(format!("{round}.exec"))).unwrap();
+        std::fs::remove_file(exec).unwrap();
         crate::record(&sc, &snapshot, &mut counts);
     }
     std::fs::write(report.join("seeds.tsv"), history).unwrap();

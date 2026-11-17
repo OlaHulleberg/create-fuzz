@@ -81,7 +81,7 @@ pub fn diffs(dir: &Path, cases: &[Scenario]) -> Vec<Vec<String>> {
         .collect()
 }
 
-pub fn shrink(dir: &Path, mut sc: Scenario) -> (Scenario, Vec<String>) {
+pub fn shrink(dir: &Path, mut sc: Scenario, required: Option<&str>) -> (Scenario, Vec<String>) {
     let mut last = diffs(dir, std::slice::from_ref(&sc)).remove(0);
     if last.is_empty() {
         eprintln!("seed {}: matches now, nothing to shrink", sc.seed);
@@ -90,6 +90,15 @@ pub fn shrink(dir: &Path, mut sc: Scenario) -> (Scenario, Vec<String>) {
     // Keep a witness from the original observation: reduction must not replace a
     // network finding with an unrelated state-injection discrepancy.
     let witness = last.clone();
+    let required_witness: Vec<_> = witness
+        .iter()
+        .filter(|d| required.is_none_or(|text| d.contains(text)))
+        .cloned()
+        .collect();
+    assert!(
+        !required_witness.is_empty(),
+        "requested shrink witness is absent"
+    );
     loop {
         let cands = candidates(&sc);
         if cands.is_empty() {
@@ -100,11 +109,11 @@ pub fn shrink(dir: &Path, mut sc: Scenario) -> (Scenario, Vec<String>) {
         let mut hit = None;
         for chunk in cands.chunks(16) {
             let results = diffs(dir, chunk);
-            if let Some((c, d)) = chunk
-                .iter()
-                .zip(results)
-                .find(|(_, d)| !d.is_empty() && d.iter().all(|item| witness.contains(item)))
-            {
+            if let Some((c, d)) = chunk.iter().zip(results).find(|(_, d)| {
+                !d.is_empty()
+                    && d.iter().all(|item| witness.contains(item))
+                    && d.iter().any(|item| required_witness.contains(item))
+            }) {
                 hit = Some((c.clone(), d));
                 break;
             }

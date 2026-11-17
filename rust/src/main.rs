@@ -29,7 +29,7 @@ create-fuzz <command>
   fuzz <first-seed> <count> [batch]  generate, run and compare; mismatches go to $FUZZ_FOUND (found/)
   manifest <case.json>...        report 73-id domains and generated/manual/interaction coverage
   cover <rounds>                coverage-guided cases, corpus/ and work/coverage reports
-  shrink <case.json>             shrink a mismatch; writes <case>.min.json
+  shrink <case.json> [witness]   shrink preserving a difference substring; writes <case>.min.json
 ";
 
 fn main() {
@@ -58,7 +58,8 @@ fn main() {
             fuzz(first, count, batch);
         }
         "shrink" => {
-            let (sc, d) = shrink::shrink(&fuzz_dir(), load(&args[1]));
+            let (sc, d) =
+                shrink::shrink(&fuzz_dir(), load(&args[1]), args.get(2).map(String::as_str));
             let out = args[1].trim_end_matches(".json").to_string() + ".min.json";
             let record = serde_json::json!({"scenario": sc, "diffs": d});
             std::fs::write(&out, serde_json::to_string_pretty(&record).unwrap()).unwrap();
