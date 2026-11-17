@@ -64,6 +64,11 @@ impl Run {
         let Some((block, info)) = self.w.table.get(self.at(p)).map(|(b, i)| (b, *i)) else {
             return false;
         };
+        // Native secondary use skips nonempty block-use callbacks; the item/wrench
+        // path still runs. Verified with the ordinary creative tank bucket raycast.
+        if sneaking && item != "minecraft:air" && item != "create:wrench" {
+            return false;
+        }
         if block == Block::SmartFluidPipe
             && !sneaking
             && item != "create:wrench"
@@ -407,6 +412,42 @@ mod tests {
         );
         assert!(matches!(data.get("create_fluids"), Some(Tag::Compound(_))));
     }
+    #[test]
+    fn secondary_use_bypasses_the_tank_container_handler() {
+        let mut sc = crate::fluid_inputs::generate(19);
+        sc.blocks.clear();
+        sc.events.clear();
+        let mut run = Run::new(&sc);
+        let p = [0, 4, 0];
+        run.set(
+            p,
+            run.id("create:fluid_tank[bottom=true,shape=window,top=true]"),
+        );
+        run.creative = true;
+        run.w
+            .fill_tank(0, p, create_engine::tank::Fluid::Water, 2000);
+        run.use_item(
+            p,
+            "minecraft:bucket",
+            create_engine::kinetics::Dir::Up,
+            [0.5, 1., 0.5],
+            0.,
+            0.,
+            true,
+        );
+        assert_eq!(run.w.tank(0, p).unwrap().1.tank.amount, 2000);
+        run.use_item(
+            p,
+            "minecraft:bucket",
+            create_engine::kinetics::Dir::Up,
+            [0.5, 1., 0.5],
+            0.,
+            0.,
+            false,
+        );
+        assert_eq!(run.w.tank(0, p).unwrap().1.tank.amount, 1000);
+    }
+
     #[test]
     fn fluid_click_waits_for_the_glues_column_publication() {
         let mut sc = crate::fluid_inputs::generate(19);

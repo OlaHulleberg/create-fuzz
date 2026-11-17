@@ -11,6 +11,21 @@ impl Run {
             Input::DropOn { stack } => Some(stack.clone()),
             Input::Use { stack, .. } => stack.clone(),
         };
+        if matches!(
+            input,
+            Input::Use {
+                stack: Some(_),
+                sneaking: true,
+                ..
+            }
+        ) {
+            return Some(Outcome {
+                pos: p,
+                offered: offered.clone(),
+                remainder: offered,
+                taken: Vec::new(),
+            });
+        }
         let mut remainder = offered.clone();
         let mut taken = Vec::new();
         match input {
