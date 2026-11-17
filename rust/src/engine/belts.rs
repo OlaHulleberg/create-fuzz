@@ -43,7 +43,7 @@ impl Run {
             }
             if item == "create:shaft" && seg.part == belt::Part::Middle {
                 let s = with_prop(&self.name(self.at(p)), "part", "pulley");
-                self.set(p, self.id(&s));
+                self.switch(p, self.id(&s));
                 return true;
             }
             if item == "create:andesite_casing" || item == "create:brass_casing" {
@@ -57,17 +57,17 @@ impl Run {
                     .into(),
                 );
                 let s = with_prop(&self.name(self.at(p)), "casing", "true");
-                self.set(p, self.id(&s));
+                self.switch(p, self.id(&s));
                 return true;
             }
             if item == "create:wrench" && face != Dir::Up && self.belt_casing.remove(&p).is_some() {
                 let s = with_prop(&self.name(self.at(p)), "casing", "false");
-                self.set(p, self.id(&s));
+                self.switch(p, self.id(&s));
                 return true;
             }
             if item == "create:wrench" && seg.part == belt::Part::Pulley && face.axis() != Axis::Y {
                 let s = with_prop(&self.name(self.at(p)), "part", "middle");
-                self.set(p, self.id(&s));
+                self.switch(p, self.id(&s));
                 return true;
             }
         }
@@ -90,7 +90,7 @@ impl Run {
                         bc::slope_name(seg.slope),
                         bc::part_name(seg.part)
                     );
-                    self.set(p, self.id(&s));
+                    self.switch(p, self.id(&s));
                 }
                 self.connector = None;
             }
@@ -135,14 +135,22 @@ impl Run {
     fn segment(&self, p: Pos) -> Option<belt::Segment> {
         self.w.table.get(self.at(p))?.1.belt
     }
-    fn set_segment(&mut self, p: Pos, seg: belt::Segment, cased: bool) {
+    fn segment_state(&self, seg: belt::Segment, cased: bool) -> u32 {
         let s = format!(
             "create:belt[facing={},slope={},part={},casing={cased},waterlogged=false]",
             format!("{:?}", seg.facing).to_lowercase(),
             seg.slope.name(),
             seg.part.name()
         );
-        self.set(p, self.id(&s));
+        self.id(&s)
+    }
+    fn set_segment(&mut self, p: Pos, seg: belt::Segment, cased: bool) {
+        let id = self.segment_state(seg, cased);
+        self.switch(p, id);
+    }
+    fn set_segment_direct(&mut self, p: Pos, seg: belt::Segment, cased: bool) {
+        let id = self.segment_state(seg, cased);
+        self.set(p, id);
     }
     fn slice_belt(
         &mut self,
@@ -224,7 +232,7 @@ impl Run {
             if flip {
                 for q in &chain {
                     if let Some(s) = self.segment(*q) {
-                        self.set_segment(*q, s.flipped(), self.belt_casing.contains_key(q));
+                        self.set_segment_direct(*q, s.flipped(), self.belt_casing.contains_key(q));
                     }
                 }
                 chain.reverse();
@@ -265,7 +273,7 @@ impl Run {
             },
             self.belt_casing.contains_key(&p),
         );
-        self.set_segment(next, seg, false);
+        self.set_segment_direct(next, seg, false);
         let mut chain = taken.chain;
         if seg.part == belt::Part::Start {
             chain.insert(0, next);

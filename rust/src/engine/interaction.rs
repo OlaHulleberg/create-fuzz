@@ -255,6 +255,9 @@ impl Run {
     }
 
     pub(super) fn switch(&mut self, p: Pos, id: u32) {
+        if self.at(p) == id {
+            return;
+        }
         self.w.switching_block_state(0, p, id);
         self.set(p, id);
     }

@@ -180,7 +180,7 @@ fn belt_break_effects_follow_one_glue_batch_per_tick() {
     assert!(snap.blocks["0,8,2"].state.starts_with("create:shaft"));
 }
 #[test]
-fn pulley_change_exposes_engine_network_capacity() {
+fn pulley_switch_preserves_engine_network_capacity() {
     let sc:crate::scenario::Scenario=serde_json::from_str(r#"{"version":3,"ticks":80,"checkpoints":[51],"blocks":[{"pos":[-1,8,0],"state":"create:creative_motor[facing=east]","motor":32},{"pos":[0,8,0],"state":"create:shaft[axis=x,waterlogged=false]"},{"pos":[0,8,2],"state":"create:shaft[axis=x,waterlogged=false]"}],"events":[{"tick":10,"pos":[0,8,0],"action":{"kind":"use","item":"create:belt_connector","face":"up","hit":[0.5,1,0.5],"yaw":0,"pitch":0,"sneaking":false}},{"tick":20,"pos":[0,8,2],"action":{"kind":"use","item":"create:belt_connector","face":"up","hit":[0.5,1,0.5],"yaw":0,"pitch":0,"sneaking":false}},{"tick":50,"pos":[0,8,1],"action":{"kind":"use","item":"create:shaft","face":"up","hit":[0.5,1,0.5],"yaw":0,"pitch":0,"sneaking":false}}]}"#).unwrap();
     let snap = super::run(&sc);
     assert_eq!(
@@ -189,7 +189,7 @@ fn pulley_change_exposes_engine_network_capacity() {
             .as_ref()
             .unwrap()
             .capacity,
-        0.
+        524288.
     );
     assert_eq!(
         snap.checkpoints[&51].blocks["0,8,1"]
