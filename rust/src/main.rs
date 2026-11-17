@@ -1,8 +1,12 @@
 mod allow;
 mod compare;
+mod corpus;
+mod coverage;
 mod engine;
 mod generate;
+mod guided;
 mod java;
+mod mutate;
 mod scenario;
 mod shrink;
 
@@ -16,6 +20,7 @@ create-fuzz <command>
   check <case.json>...           run cases on both sides and compare them
   gen <seed>                     print the generated case for a seed
   fuzz <first-seed> <count> [batch]  generate, run and compare; mismatches go to $FUZZ_FOUND (found/)
+  cover <rounds>                coverage-guided cases, corpus/ and work/coverage reports
   shrink <case.json>             shrink a mismatch; writes <case>.min.json
 ";
 
@@ -28,7 +33,11 @@ fn main() {
     match cmd.as_str() {
         "rust" => print(&engine::run(&load(&args[1]))),
         "java" => print(&java::run(&fuzz_dir(), &[load(&args[1])]).remove(0)),
-        "gen" => println!("{}", serde_json::to_string_pretty(&generate::generate(args[1].parse().unwrap())).unwrap()),
+        "gen" => println!(
+            "{}",
+            serde_json::to_string_pretty(&generate::generate(args[1].parse().unwrap())).unwrap()
+        ),
+        "cover" => guided::run(args[1].parse().unwrap()),
         "fuzz" => {
             let first: u64 = args[1].parse().unwrap();
             let count: u64 = args[2].parse().unwrap();
@@ -81,39 +90,16 @@ fn check(cases: &[Scenario], names: &[String]) -> usize {
 /// Seeds `first..first + count`, in batches the Java side runs side by side. Each mismatch is
 /// saved as `found/<seed>.json`: the case, both snapshots and the differences.
 fn fuzz(first: u64, count: u64, batch: usize) {
-    let found = std::env::var_os("FUZZ_FOUND")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../found"));
-    std::fs::create_dir_all(&found).unwrap();
     let seeds: Vec<u64> = (first..first + count).collect();
-    let (mut matched, mut differed, mut unstable) = (0, 0, 0);
+    let mut counts = Counts::default();
     for chunk in seeds.chunks(batch) {
         let cases: Vec<Scenario> = chunk.iter().map(|&s| generate::generate(s)).collect();
         let java = java::run(&fuzz_dir(), &cases);
         for (sc, j) in cases.iter().zip(&java) {
-            let r = engine::run(sc);
-            let diffs = compare::diff(j, &r);
-            if diffs.is_empty() {
-                matched += 1;
-                continue;
-            }
-            // Java can settle differently run to run (its networks iterate identity-hashed maps):
-            // three more runs; a case Java disagrees with itself on is unstable, not a mismatch.
-            let again = java::run(&fuzz_dir(), &[sc.clone(), sc.clone(), sc.clone()]);
-            if again.iter().any(|a| !compare::diff(j, a).is_empty()) {
-                unstable += 1;
-                let record = serde_json::json!({"scenario": sc, "java": j, "java_again": again});
-                std::fs::write(found.join(format!("unstable-{}.json", sc.seed)), serde_json::to_string_pretty(&record).unwrap()).unwrap();
-                println!("seed {}: java unstable", sc.seed);
-                continue;
-            }
-            differed += 1;
-            let record = serde_json::json!({"scenario": sc, "java": j, "rust": r, "diffs": diffs});
-            std::fs::write(found.join(format!("{}.json", sc.seed)), serde_json::to_string_pretty(&record).unwrap()).unwrap();
-            println!("seed {}: {} differences, first: {}", sc.seed, diffs.len(), diffs[0]);
+            record(sc, j, &mut counts);
         }
     }
-    println!("{matched} matched, {differed} differed, {unstable} java-unstable");
+    counts.print();
 }
 
 pub fn fuzz_dir() -> PathBuf {
@@ -124,7 +110,8 @@ pub fn fuzz_dir() -> PathBuf {
 
 fn load(path: &str) -> Scenario {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
-    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let mut value: serde_json::Value =
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
     // A saved mismatch (`found/<seed>.json`) holds its case under `scenario`.
     if let Some(sc) = value.get_mut("scenario") {
         value = sc.take();
@@ -134,4 +121,58 @@ fn load(path: &str) -> Scenario {
 
 fn print(s: &Snapshot) {
     println!("{}", serde_json::to_string_pretty(s).unwrap());
+}
+
+#[derive(Default)]
+struct Counts {
+    matched: usize,
+    differed: usize,
+    unstable: usize,
+}
+impl Counts {
+    fn print(&self) {
+        println!(
+            "{} matched, {} differed, {} java-unstable",
+            self.matched, self.differed, self.unstable
+        );
+    }
+}
+fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) {
+    let found = std::env::var_os("FUZZ_FOUND")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../found"));
+    std::fs::create_dir_all(&found).unwrap();
+    let r = engine::run(sc);
+    let diffs = compare::diff(j, &r);
+    if diffs.is_empty() {
+        counts.matched += 1;
+        return;
+    }
+    // Java can settle differently run to run (its networks iterate identity-hashed maps):
+    // three more runs; a case Java disagrees with itself on is unstable, not a mismatch.
+    let again = java::run(&fuzz_dir(), &[sc.clone(), sc.clone(), sc.clone()]);
+    if again.iter().any(|a| !compare::diff(j, a).is_empty()) {
+        counts.unstable += 1;
+        let record = serde_json::json!({"scenario": sc, "java": j, "java_again": again});
+        std::fs::write(
+            found.join(format!("unstable-{}.json", sc.seed)),
+            serde_json::to_string_pretty(&record).unwrap(),
+        )
+        .unwrap();
+        println!("seed {}: java unstable", sc.seed);
+        return;
+    }
+    counts.differed += 1;
+    let record = serde_json::json!({"scenario": sc, "java": j, "rust": r, "diffs": diffs});
+    std::fs::write(
+        found.join(format!("{}.json", sc.seed)),
+        serde_json::to_string_pretty(&record).unwrap(),
+    )
+    .unwrap();
+    println!(
+        "seed {}: {} differences, first: {}",
+        sc.seed,
+        diffs.len(),
+        diffs[0]
+    );
 }

@@ -11,7 +11,8 @@ fn close(a: f32, b: f32) -> bool {
 
 pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
     let mut out = Vec::new();
-    let keys: std::collections::BTreeSet<&String> = java.blocks.keys().chain(rust.blocks.keys()).collect();
+    let keys: std::collections::BTreeSet<&String> =
+        java.blocks.keys().chain(rust.blocks.keys()).collect();
     for k in keys {
         match (java.blocks.get(k), rust.blocks.get(k)) {
             (Some(j), None) => out.push(format!("{k}: java has {}, rust has air", j.state)),
@@ -23,13 +24,19 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
                 match (&j.kinetic, &r.kinetic) {
                     (Some(a), Some(b)) => {
                         let mut b = b.clone();
-                        if crate::allow::gearbox_frame(&j.state, a, &b) || crate::allow::split_shaft_frame(a, &b) {
+                        if crate::allow::gearbox_frame(&j.state, a, &b)
+                            || crate::allow::split_shaft_frame(a, &b)
+                        {
                             (b.speed, b.theoretical) = (a.speed, a.theoretical);
                         }
                         out.extend(kinetic_diff(a, &b).into_iter().map(|d| format!("{k}: {d}")))
                     }
-                    (Some(_), None) => out.push(format!("{k}: java kinetic, rust not ({})", j.state)),
-                    (None, Some(_)) => out.push(format!("{k}: rust kinetic, java not ({})", j.state)),
+                    (Some(_), None) => {
+                        out.push(format!("{k}: java kinetic, rust not ({})", j.state))
+                    }
+                    (None, Some(_)) => {
+                        out.push(format!("{k}: rust kinetic, java not ({})", j.state))
+                    }
                     (None, None) => {}
                 }
             }
@@ -82,7 +89,10 @@ fn kinetic_diff(j: &Kinetic, r: &Kinetic) -> Vec<String> {
         }
     }
     if j.overstressed != r.overstressed {
-        out.push(format!("overstressed: java {} rust {}", j.overstressed, r.overstressed));
+        out.push(format!(
+            "overstressed: java {} rust {}",
+            j.overstressed, r.overstressed
+        ));
     }
     out
 }

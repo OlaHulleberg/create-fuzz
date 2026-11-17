@@ -29,7 +29,13 @@ fn candidates(sc: &Scenario) -> Vec<Scenario> {
         out.push(c);
     }
     // Fewer ticks: settled past the last change (blocks are placed one per tick).
-    let last = sc.events.iter().map(|e| e.tick).max().unwrap_or(0).max(sc.blocks.len() as u32);
+    let last = sc
+        .events
+        .iter()
+        .map(|e| e.tick)
+        .max()
+        .unwrap_or(0)
+        .max(sc.blocks.len() as u32);
     let settled = last + crate::generate::SETTLE;
     if sc.ticks > settled {
         let mut c = sc.clone();
@@ -43,7 +49,11 @@ fn candidates(sc: &Scenario) -> Vec<Scenario> {
 /// The differences a case shows now (empty when it matches).
 pub fn diffs(dir: &Path, cases: &[Scenario]) -> Vec<Vec<String>> {
     let java = java::run(dir, cases);
-    cases.iter().zip(&java).map(|(sc, j)| compare::diff(j, &engine::run(sc))).collect()
+    cases
+        .iter()
+        .zip(&java)
+        .map(|(sc, j)| compare::diff(j, &engine::run(sc)))
+        .collect()
 }
 
 pub fn shrink(dir: &Path, mut sc: Scenario) -> (Scenario, Vec<String>) {
@@ -68,7 +78,12 @@ pub fn shrink(dir: &Path, mut sc: Scenario) -> (Scenario, Vec<String>) {
         }
         match hit {
             Some((c, d)) => {
-                eprintln!("  {} blocks, {} events: {} differences", c.blocks.len(), c.events.len(), d.len());
+                eprintln!(
+                    "  {} blocks, {} events: {} differences",
+                    c.blocks.len(),
+                    c.events.len(),
+                    d.len()
+                );
                 sc = c;
                 last = d;
             }

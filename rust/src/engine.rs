@@ -5,7 +5,9 @@
 //! The world outside the engine is a map of positions to state strings. Redstone is only what
 //! the scenarios use: a `minecraft:redstone_block` powers the blocks beside it.
 
-use crate::scenario::{BlockSnap, Kinetic, Placed, Pos, Scenario, Snapshot, key, parse_state, with_prop};
+use crate::scenario::{
+    BlockSnap, Kinetic, Placed, Pos, Scenario, Snapshot, key, parse_state, with_prop,
+};
 use create_engine::parts::{Settings, StateInfo, parts};
 use create_engine::states;
 use create_engine::world::{CreateWorld, StateTable};
@@ -17,7 +19,14 @@ const AIR: u32 = 0;
 const REDSTONE_BLOCK: u32 = 1;
 const OTHER: u32 = 2;
 
-const DIRS: [Pos; 6] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+const DIRS: [Pos; 6] = [
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 1, 0],
+    [0, -1, 0],
+    [0, 0, 1],
+    [0, 0, -1],
+];
 
 fn add(a: Pos, b: Pos) -> Pos {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
@@ -32,7 +41,12 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             out.push(s);
         }
     };
-    let all: Vec<Placed> = sc.blocks.iter().cloned().chain(sc.events.iter().filter_map(|e| e.placed())).collect();
+    let all: Vec<Placed> = sc
+        .blocks
+        .iter()
+        .cloned()
+        .chain(sc.events.iter().filter_map(|e| e.placed()))
+        .collect();
     for b in &all {
         if !b.state.starts_with("create:") {
             continue;
@@ -69,7 +83,8 @@ impl Run {
     pub fn new(sc: &Scenario) -> Run {
         let guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let names = create_states(sc);
-        let parsed: Vec<(String, Vec<(String, String)>)> = names.iter().map(|s| parse_state(s)).collect();
+        let parsed: Vec<(String, Vec<(String, String)>)> =
+            names.iter().map(|s| parse_state(s)).collect();
         states::set_range(FIRST, names.len() as u32);
         let table = StateTable::new(
             FIRST,
@@ -201,7 +216,11 @@ impl Run {
             };
             let now = self.powered_by_neighbour(p);
             if now != was {
-                let next = with_prop(&self.name(state), "powered", if now { "true" } else { "false" });
+                let next = with_prop(
+                    &self.name(state),
+                    "powered",
+                    if now { "true" } else { "false" },
+                );
                 let id = self.id(&next);
                 self.set(p, id);
             }
@@ -211,7 +230,8 @@ impl Run {
         }
         let shapes = self.w.take_chain_shapes(0);
         if !shapes.is_empty() {
-            self.notes.push(format!("chain shapes not applied: {}", shapes.len()));
+            self.notes
+                .push(format!("chain shapes not applied: {}", shapes.len()));
         }
         let mut events = Vec::new();
         self.w.settle_belts(0);
@@ -226,7 +246,11 @@ impl Run {
 
     pub fn snapshot(&self, sc: &Scenario) -> Snapshot {
         let mut blocks = BTreeMap::new();
-        let positions = sc.blocks.iter().map(|b| b.pos).chain(sc.events.iter().map(|e| e.pos));
+        let positions = sc
+            .blocks
+            .iter()
+            .map(|b| b.pos)
+            .chain(sc.events.iter().map(|e| e.pos));
         for p in positions {
             if blocks.contains_key(&key(p)) {
                 continue;
@@ -237,7 +261,14 @@ impl Run {
             }
             let state = self.name(id);
             let kinetic = self.kinetic(p, id);
-            blocks.insert(key(p), BlockSnap { state, kinetic, debug: None });
+            blocks.insert(
+                key(p),
+                BlockSnap {
+                    state,
+                    kinetic,
+                    debug: None,
+                },
+            );
         }
         Snapshot {
             side: "rust".into(),
@@ -252,7 +283,10 @@ impl Run {
         let both = parts(block, info, &Settings::default());
         // A split shaft is one block entity in Create, holding the figures of the half its
         // source drives: here, the half whose network has a generator.
-        let sub = if both[1].is_some() && k.network(p, 0).is_some_and(|n| n.2 == 0.0) && k.network(p, 1).is_some_and(|n| n.2 > 0.0) {
+        let sub = if both[1].is_some()
+            && k.network(p, 0).is_some_and(|n| n.2 == 0.0)
+            && k.network(p, 1).is_some_and(|n| n.2 > 0.0)
+        {
             1
         } else {
             0
@@ -266,7 +300,10 @@ impl Run {
             for d in create_engine::kinetics::Dir::ALL {
                 for (s, half) in both.iter().enumerate() {
                     if half.is_some_and(|h| h.shafts & d.bit() != 0) {
-                        m.insert(format!("{d:?}").to_lowercase(), k.speed(p, s as u8).unwrap_or(0.0));
+                        m.insert(
+                            format!("{d:?}").to_lowercase(),
+                            k.speed(p, s as u8).unwrap_or(0.0),
+                        );
                     }
                 }
             }

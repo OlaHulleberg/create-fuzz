@@ -127,8 +127,14 @@ fn block(kind: &str, a: Axis, facing: Dir, powered: bool) -> (String, Info) {
     };
     let ax = a.name();
     match kind {
-        "shaft" => (format!("create:shaft[axis={ax}]"), info(shafts_along(a), None)),
-        "cogwheel" => (format!("create:cogwheel[axis={ax}]"), info(shafts_along(a), Some((a, false)))),
+        "shaft" => (
+            format!("create:shaft[axis={ax}]"),
+            info(shafts_along(a), None),
+        ),
+        "cogwheel" => (
+            format!("create:cogwheel[axis={ax}]"),
+            info(shafts_along(a), Some((a, false))),
+        ),
         "large_cogwheel" => (
             format!("create:large_cogwheel[axis={ax}]"),
             info(shafts_along(a), Some((a, true))),
@@ -160,9 +166,18 @@ fn block(kind: &str, a: Axis, facing: Dir, powered: bool) -> (String, Info) {
             format!("create:mechanical_press[facing={}]", facing.name()),
             info(shafts_along(facing.0), None),
         ),
-        "millstone" => ("create:millstone".into(), info(vec![Dir(Axis::Y, false)], Some((Axis::Y, false)))),
-        "mechanical_mixer" => ("create:mechanical_mixer".into(), info(vec![], Some((Axis::Y, false)))),
-        "turntable" => ("create:turntable".into(), info(vec![Dir(Axis::Y, false)], None)),
+        "millstone" => (
+            "create:millstone".into(),
+            info(vec![Dir(Axis::Y, false)], Some((Axis::Y, false))),
+        ),
+        "mechanical_mixer" => (
+            "create:mechanical_mixer".into(),
+            info(vec![], Some((Axis::Y, false))),
+        ),
+        "turntable" => (
+            "create:turntable".into(),
+            info(vec![Dir(Axis::Y, false)], None),
+        ),
         "speedometer" | "stressometer" => {
             // DirectionalAxisKineticBlock: its axis is one of the two off its facing.
             let along_first = powered;
@@ -178,7 +193,14 @@ fn block(kind: &str, a: Axis, facing: Dir, powered: bool) -> (String, Info) {
     }
 }
 
-const RELAYS: [&str; 6] = ["shaft", "shaft", "cogwheel", "large_cogwheel", "gearbox", "clutch"];
+const RELAYS: [&str; 6] = [
+    "shaft",
+    "shaft",
+    "cogwheel",
+    "large_cogwheel",
+    "gearbox",
+    "clutch",
+];
 const CONSUMERS: [&str; 6] = [
     "mechanical_press",
     "encased_fan",
@@ -189,7 +211,9 @@ const CONSUMERS: [&str; 6] = [
 ];
 
 /// Speeds a motor is set to: the edges more often than the middle.
-const SPEEDS: [i32; 16] = [256, -256, 255, -255, 1, -1, 16, -16, 32, 64, -64, 128, 200, 2, 3, -100];
+const SPEEDS: [i32; 16] = [
+    256, -256, 255, -255, 1, -1, 16, -16, 32, 64, -64, 128, 200, 2, 3, -100,
+];
 
 /// Ticks a case runs after its last change: past Create's kinetic validation (60 ticks).
 pub const SETTLE: u32 = 70;
@@ -213,7 +237,11 @@ impl Gen {
         if !inside(p) || self.at.contains_key(&p) {
             return false;
         }
-        self.blocks.push(Placed { pos: p, state, motor });
+        self.blocks.push(Placed {
+            pos: p,
+            state,
+            motor,
+        });
         self.at.insert(p, info);
         true
     }
@@ -234,10 +262,18 @@ impl Gen {
     /// A source at `p`, its shaft towards `toward`.
     fn source(&mut self, p: Pos, toward: Dir) -> bool {
         if self.rng.chance(0.25) {
-            self.put(p, block("hand_crank", toward.0, toward.opposite(), false), None)
+            self.put(
+                p,
+                block("hand_crank", toward.0, toward.opposite(), false),
+                None,
+            )
         } else {
             let speed = self.motor_speed();
-            self.put(p, block("creative_motor", toward.0, toward, false), Some(speed))
+            self.put(
+                p,
+                block("creative_motor", toward.0, toward, false),
+                Some(speed),
+            )
         }
     }
 
@@ -247,7 +283,11 @@ impl Gen {
         let r = self.rng.below(100);
         let (kind, facing) = if r < 50 {
             let k = *self.rng.pick(&RELAYS);
-            let k = if k == "clutch" && self.rng.chance(0.5) { "gearshift" } else { k };
+            let k = if k == "clutch" && self.rng.chance(0.5) {
+                "gearshift"
+            } else {
+                k
+            };
             (k, from)
         } else if r < 85 {
             let k = *self.rng.pick(&CONSUMERS);
@@ -265,7 +305,11 @@ impl Gen {
                 if a == Axis::Y {
                     return false;
                 }
-                let f = if self.rng.chance(0.5) { from } else { from.opposite() };
+                let f = if self.rng.chance(0.5) {
+                    from
+                } else {
+                    from.opposite()
+                };
                 block(kind, a, f, false)
             }
             // Its shaft faces its facing's opposite: facing away from what drives it.
@@ -313,13 +357,25 @@ impl Gen {
         } else if large && r < 95 {
             // Large to large at right angles: offset on both axes, none on the third.
             let other = *self.rng.pick(&[u, v]);
-            let third = AXES.iter().copied().find(|a| *a != axis && *a != other).unwrap();
+            let third = AXES
+                .iter()
+                .copied()
+                .find(|a| *a != axis && *a != other)
+                .unwrap();
             let _ = third;
-            (add(scale(axis, su), scale(other, sv)), "large_cogwheel", other)
+            (
+                add(scale(axis, su), scale(other, sv)),
+                "large_cogwheel",
+                other,
+            )
         } else {
             // One step off: touches, does not mesh (or meshes wrongly).
             let d = self.random_dir();
-            (d.offset(), *self.rng.pick(&["cogwheel", "large_cogwheel"]), *self.rng.pick(&AXES))
+            (
+                d.offset(),
+                *self.rng.pick(&["cogwheel", "large_cogwheel"]),
+                *self.rng.pick(&AXES),
+            )
         };
         let q = add(p, offset);
         self.put(q, block(kind, new_axis, Dir(new_axis, true), false), None)
@@ -340,7 +396,14 @@ impl Gen {
             // Anything beside anything, any way round.
             let d = self.random_dir();
             let q = add(p, d.offset());
-            let kind = *self.rng.pick(&["shaft", "cogwheel", "large_cogwheel", "gearbox", "clutch", "gearshift"]);
+            let kind = *self.rng.pick(&[
+                "shaft",
+                "cogwheel",
+                "large_cogwheel",
+                "gearbox",
+                "clutch",
+                "gearshift",
+            ]);
             let a = *self.rng.pick(&AXES);
             let state = block(kind, a, d, false);
             self.put(q, state, None);
@@ -374,7 +437,11 @@ pub fn generate(seed: u64) -> Scenario {
     // Cranks are turned: held for a while, maybe let go, maybe backwards.
     for b in g.blocks.clone() {
         if g.at[&b.pos].crank {
-            let until = if g.rng.chance(0.7) { ticks } else { placed + g.rng.below(ticks - placed) };
+            let until = if g.rng.chance(0.7) {
+                ticks
+            } else {
+                placed + g.rng.below(ticks - placed)
+            };
             let back = g.rng.chance(0.3);
             for t in (placed..until).step_by(4) {
                 events.push(Change::turn(t, b.pos, back));
@@ -382,7 +449,12 @@ pub fn generate(seed: u64) -> Scenario {
         }
     }
     // Redstone beside a clutch or gearshift, placed and maybe taken away.
-    let splits: Vec<Pos> = g.blocks.iter().map(|b| b.pos).filter(|p| g.at[p].redstone).collect();
+    let splits: Vec<Pos> = g
+        .blocks
+        .iter()
+        .map(|b| b.pos)
+        .filter(|p| g.at[p].redstone)
+        .collect();
     for p in splits {
         if !g.rng.chance(0.5) {
             continue;
@@ -395,14 +467,30 @@ pub fn generate(seed: u64) -> Scenario {
         let on = placed + g.rng.below((ticks - placed) / 2);
         events.push(Change::set(on, q, "minecraft:redstone_block"));
         if g.rng.chance(0.5) {
-            events.push(Change::set(on + 1 + g.rng.below((ticks - placed) / 2), q, "minecraft:air"));
+            events.push(Change::set(
+                on + 1 + g.rng.below((ticks - placed) / 2),
+                q,
+                "minecraft:air",
+            ));
         }
-        g.at.insert(q, Info { shafts: vec![], cog: None, redstone: false, crank: false });
+        g.at.insert(
+            q,
+            Info {
+                shafts: vec![],
+                cog: None,
+                redstone: false,
+                crank: false,
+            },
+        );
     }
     // A block broken mid-run.
     if g.blocks.len() > 2 && g.rng.chance(0.25) {
         let b = g.rng.pick(&g.blocks).clone();
-        events.push(Change::set(placed + g.rng.below(ticks - placed - 10), b.pos, "minecraft:air"));
+        events.push(Change::set(
+            placed + g.rng.below(ticks - placed - 10),
+            b.pos,
+            "minecraft:air",
+        ));
     }
     // A block added mid-run (grown, then moved out of the start).
     if g.rng.chance(0.25) {
@@ -411,7 +499,13 @@ pub fn generate(seed: u64) -> Scenario {
         if g.blocks.len() > before {
             let b = g.blocks.pop().unwrap();
             let t = placed + g.rng.below(ticks - placed - 10);
-            events.push(Change { tick: t, pos: b.pos, state: Some(b.state), motor: b.motor, turn: None });
+            events.push(Change {
+                tick: t,
+                pos: b.pos,
+                state: Some(b.state),
+                motor: b.motor,
+                turn: None,
+            });
         }
     }
     events.sort_by_key(|e| e.tick);

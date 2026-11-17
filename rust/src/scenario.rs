@@ -44,13 +44,29 @@ pub struct Change {
 
 impl Change {
     pub fn set(tick: u32, pos: Pos, state: &str) -> Change {
-        Change { tick, pos, state: Some(state.into()), motor: None, turn: None }
+        Change {
+            tick,
+            pos,
+            state: Some(state.into()),
+            motor: None,
+            turn: None,
+        }
     }
     pub fn turn(tick: u32, pos: Pos, back: bool) -> Change {
-        Change { tick, pos, state: None, motor: None, turn: Some(back) }
+        Change {
+            tick,
+            pos,
+            state: None,
+            motor: None,
+            turn: Some(back),
+        }
     }
     pub fn placed(&self) -> Option<Placed> {
-        Some(Placed { pos: self.pos, state: self.state.clone()?, motor: self.motor })
+        Some(Placed {
+            pos: self.pos,
+            state: self.state.clone()?,
+            motor: self.motor,
+        })
     }
 }
 
