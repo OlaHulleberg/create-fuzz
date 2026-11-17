@@ -176,6 +176,11 @@ impl Run {
 
     /// A committed block change, then its neighbours told (`neighborChanged`).
     fn set(&mut self, p: Pos, new: u32) {
+        self.commit(p, new, true);
+    }
+
+    /// UPDATE_CLIENTS changes the state without notifying neighbours; UPDATE_ALL does both.
+    fn commit(&mut self, p: Pos, new: u32, notify: bool) {
         let old = self.at(p);
         if old == new {
             return;
@@ -198,6 +203,9 @@ impl Run {
             self.handles.remove(&p);
         }
         self.w.block_changed(0, p, old, new);
+        if !notify {
+            return;
+        }
         let mut fallen = Vec::new();
         for d in DIRS {
             let q = add(p, d);
@@ -611,7 +619,7 @@ impl Run {
                 let id = self.id(&next);
                 // The glue's `tick_inputs`: GearshiftBlock.neighborChanged detaches first.
                 self.w.transmission_power_changing(0, p);
-                self.set(p, id);
+                self.commit(p, id, false);
             }
             if self.w.reads_signal(state) {
                 let signal = i32::from(self.signal(p));
@@ -870,6 +878,29 @@ pub fn run(sc: &Scenario) -> Snapshot {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn client_only_power_commit_does_not_enqueue_neighbour_inputs() {
+        let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({
+            "ticks":80,"blocks":[
+            {"pos":[0,8,0],"state":"create:adjustable_chain_gearshift[axis=x,axis_along_first=false,part=none,powered=false]"},
+            {"pos":[0,8,1],"state":"create:adjustable_chain_gearshift[axis=x,axis_along_first=false,part=none,powered=false]"}]})).unwrap();
+        let mut r = super::Run::new(&sc);
+        for b in &sc.blocks {
+            r.place(b);
+        }
+        r.w.take_redstone(0);
+        let p = [0, 8, 0];
+        let powered = r.id(&crate::scenario::with_prop(
+            &sc.blocks[0].state,
+            "powered",
+            "true",
+        ));
+        r.commit(p, powered, false);
+        assert!(r.w.take_redstone(0).is_empty());
+        r.set(p, r.id(&sc.blocks[0].state));
+        assert_eq!(r.w.take_redstone(0), vec![[0, 8, 1]]);
+    }
+
     #[test]
     fn network_observation_uses_driven_positive_split_half() {
         let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({

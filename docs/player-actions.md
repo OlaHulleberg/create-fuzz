@@ -205,3 +205,8 @@ Their topology properties are compared without exclusions. Sequencer context
 normalization reads the engine's outgoing half at the driven half's speed to
 match Java's single block entity. A present zero context remains distinct from
 absence, so stale contexts after expiry/end are findings.
+
+The driver distinguishes committed state changes with neighbour notifications
+(`UPDATE_ALL`) from the glue's client-only powered-property updates
+(`UPDATE_CLIENTS`). Both call block_changed; only the former call neighbour
+callbacks. Shape and sequencer-state commits continue to notify neighbours.
