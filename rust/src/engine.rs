@@ -117,7 +117,8 @@ pub struct Run {
     handles: HashMap<Pos, crate::handles::Handle>,
     chain_signals: HashMap<Pos, i32>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
-    measured_trig: HashMap<Pos, crate::allow::MeasuredTrigState>,
+    measured_trig: HashMap<Pos, String>,
+    java_ties: bool,
     _guard: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -158,6 +159,7 @@ impl Run {
             chain_signals: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
+            java_ties: false,
             _guard: guard,
         }
     }
@@ -223,7 +225,9 @@ impl Run {
             self.depot_stacks.remove(&p);
         }
         self.brackets.remove(&p);
-        self.measured_trig.remove(&p);
+        if self.w.table.get(old).map(|(b, _)| b) != self.w.table.get(new).map(|(b, _)| b) {
+            self.measured_trig.remove(&p);
+        }
         let valve = self
             .w
             .table
@@ -286,6 +290,7 @@ impl Run {
     }
 
     fn place(&mut self, b: &Placed) {
+        self.measured_trig.remove(&b.pos);
         let id = self.id(&b.state);
         if id == OTHER && b.state.starts_with("create:") {
             self.notes.push(format!("unknown state {}", b.state));
@@ -323,7 +328,12 @@ impl Run {
 }
 
 pub fn run(sc: &Scenario) -> Snapshot {
+    crate::trig::run(sc)
+}
+
+pub(crate) fn run_trace(sc: &Scenario, java_ties: bool) -> Snapshot {
     let mut r = Run::new(sc);
+    r.java_ties = java_ties;
     let mut checkpoints = BTreeMap::new();
     for t in 0..sc.ticks {
         if sc.checkpoints.contains(&t) {

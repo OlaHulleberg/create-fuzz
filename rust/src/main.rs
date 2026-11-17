@@ -19,6 +19,7 @@ mod scenario;
 mod shrink;
 mod transmission;
 mod transport;
+mod trig;
 
 use scenario::{Scenario, Snapshot};
 use std::path::{Path, PathBuf};

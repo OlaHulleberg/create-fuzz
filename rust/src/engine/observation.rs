@@ -30,7 +30,14 @@ impl Run {
                         v
                     }),
                     belt: self.belt_observation(p),
-                    measured_trig: self.measured_trig.get(&p).cloned(),
+                    measured_trig: self.measured_trig.get(&p).map(|property| {
+                        crate::allow::MeasuredTrigState {
+                            tie: Some(crate::allow::NearestTie::Yaw45Pitch0),
+                            java: state.clone(),
+                            port: state.clone(),
+                            properties: vec![property.clone()],
+                        }
+                    }),
                     bracket: self.brackets.get(&p).map(|b| {
                         format!(
                             "{}[axis_along_first={},facing={},type={}]",

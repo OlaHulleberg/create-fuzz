@@ -220,26 +220,10 @@ impl Run {
                 ));
                 return;
             }
-            let measured = self.measured_trig.get(&p).cloned();
             let rotated = create_engine::wrench::rotated(&props.into_iter().collect(), false, face);
             let next =
                 crate::scenario::format_state(&name, &rotated.into_iter().collect::<Vec<_>>());
             self.switch(p, self.id(&next));
-            if let Some(m) = measured {
-                let (name, props) = parse_state(&m.java);
-                let rotated =
-                    create_engine::wrench::rotated(&props.into_iter().collect(), false, face);
-                self.measured_trig.insert(
-                    p,
-                    crate::allow::MeasuredTrigState {
-                        java: crate::scenario::format_state(
-                            &name,
-                            &rotated.into_iter().collect::<Vec<_>>(),
-                        ),
-                        port: normal(&next),
-                    },
-                );
-            }
             return;
         }
         if item == "minecraft:air" || create_engine::dye::DyeColor::of_item(item).is_some() {
@@ -261,8 +245,17 @@ impl Run {
         if self.at(p) == id {
             return;
         }
+        let inherited = self.measured_trig.get(&p).cloned().filter(|property| {
+            let old = parse_state(&self.name(self.at(p))).1;
+            let new = parse_state(&self.name(id)).1;
+            old.iter().find(|(k, _)| k == property) == new.iter().find(|(k, _)| k == property)
+                && new.iter().any(|(k, _)| k == property)
+        });
         self.w.switching_block_state(0, p, id);
         self.set(p, id);
+        if let Some(property) = inherited {
+            self.measured_trig.insert(p, property);
+        }
     }
     pub(super) fn place_player(
         &mut self,
@@ -329,19 +322,21 @@ impl Run {
                 );
             }
         }
-        let measured = block == "create:shaft"
-            && yaw == 45.0
-            && pitch == 0.0
-            && create_engine::place::preferred(false, shaft).is_none();
+        let near = create_engine::place::Nearby {
+            large_cog_above: self.w.large_cog_axis(0, add(p, [0, 1, 0])),
+            ..Default::default()
+        };
+        let measured = crate::trig::exact_tie(yaw, pitch)
+            .then(|| crate::trig::nearest_property(b, ctx, shaft, near))
+            .flatten();
+        if self.java_ties
+            && let Some(property) = measured
+        {
+            next = crate::trig::java_choice(&next, property);
+        }
         self.set(p, self.id(&next));
-        if measured {
-            self.measured_trig.insert(
-                p,
-                crate::allow::MeasuredTrigState {
-                    java: normal(&with_prop(&next, "axis", "z")),
-                    port: normal(&next),
-                },
-            );
+        if let Some(property) = measured {
+            self.measured_trig.insert(p, property.into());
         }
     }
 }

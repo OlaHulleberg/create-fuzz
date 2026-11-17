@@ -28,17 +28,25 @@ pub fn split_shaft_frame(j: &Kinetic, r: &Kinetic) -> bool {
     j.faces.is_some() && r.faces.is_some()
 }
 
-/// Measured game-version difference, restricted to an isolated shaft placed at yaw 45,
-/// pitch 0, without a preferred neighbouring shaft, and subsequent default wrench turns.
-/// Binary probe (Java 1.21.1): radians -0.7853982, sin bits 3207922931,
-/// cos bits 1060439283, nearest SOUTH => axis z. The port's actual place.rs functions
-/// (26.3 double-index table): same sin, cos bits 1060438146, nearest West => axis x.
-/// Probe evidence lives outside the repo in the actions rework report's trig-java.json and
-/// trig-port.json. No network, kinetic, bracket or arbitrary orientation difference is allowed.
+/// Exact nearest-direction tie evidence, propagated only through placement/wrench
+/// orientation and the tied chain component's computed shape properties.
+/// Java 1.21.1: yaw 45, pitch 0, radians -0.7853982, sin bits 3207922931,
+/// cos bits 1060439283 (equal magnitudes), nearest SOUTH. Port cosine bits
+/// 1060438146 select WEST. No approximate angles or horizontal-direction APIs qualify.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum NearestTie {
+    Yaw45Pitch0,
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct MeasuredTrigState {
+    #[serde(default)]
+    pub tie: Option<NearestTie>,
     pub java: String,
     pub port: String,
+    #[serde(default)]
+    pub properties: Vec<String>,
 }
 
 pub fn trig_state(java: &str, port: &str, measured: Option<&MeasuredTrigState>) -> bool {
@@ -47,10 +55,21 @@ pub fn trig_state(java: &str, port: &str, measured: Option<&MeasuredTrigState>) 
         crate::scenario::format_state(&name, &props)
     };
     measured.is_some_and(|m| {
-        m.java.starts_with("create:shaft[")
-            && m.port.starts_with("create:shaft[")
-            && normalize(java) == m.java
-            && normalize(port) == m.port
+        let (jn, jp) = crate::scenario::parse_state(&m.java);
+        let (rn, rp) = crate::scenario::parse_state(&m.port);
+        m.tie == Some(NearestTie::Yaw45Pitch0)
+            && jn == rn
+            && !m.properties.is_empty()
+            && m.properties
+                .iter()
+                .all(|p| ["axis", "facing", "part", "axis_along_first"].contains(&p.as_str()))
+            && jp.len() == rp.len()
+            && jp.iter().all(|(k, v)| {
+                rp.iter()
+                    .any(|(rk, rv)| rk == k && (rv == v || m.properties.contains(k)))
+            })
+            && normalize(java) == normalize(&m.java)
+            && normalize(port) == normalize(&m.port)
     })
 }
 
@@ -59,6 +78,8 @@ mod measured_tests {
     #[test]
     fn only_measured_state_pair_is_allowed() {
         let m = super::MeasuredTrigState {
+            tie: Some(super::NearestTie::Yaw45Pitch0),
+            properties: vec!["axis".into()],
             java: "create:shaft[axis=z,waterlogged=false]".into(),
             port: "create:shaft[axis=x,waterlogged=false]".into(),
         };

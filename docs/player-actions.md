@@ -141,13 +141,23 @@ set_chain_signal. Redstone blocks supply 15. Strength sweeps remain unchanged.
 Placement beside power retains the documented API_GAPS note for unavailable
 placement-time redstone; no persistent kinetic difference is suppressed.
 
-At yaw 45°, pitch 0°, Java 1.21.1's measured Mth.cos differs from the port's
-26.3 double-index table and selects the other horizontal axis. `allow.rs` records
-the measured bits and restricts the allowance to that isolated-shaft placement's
-tracked state pair and subsequent wrench rotations. Exact angles remain generated
-and mutated, raw states remain visible, and all kinetic/network/bracket figures
-remain compared. `RuntimeProbe.java` writes binary measurements at server startup;
-the port probe includes the MIT place.rs module in a separate ignored test binary.
+At the measured exact yaw 45°, pitch 0° tie, Java 1.21.1 has equal absolute
+sin/cos bits (1060439283), whereas the port's cosine is 1060438146 and selects
+WEST instead of SOUTH. `trig.rs` gates on this exact input and placement API
+provenance: getNearestLookingDirection must select the axis/facing, with no
+preferred-neighbour or clicked-face rule deciding it. Horizontal-direction APIs
+are excluded. Adjacent floating-point angles do not qualify.
+
+The ordinary engine trace always supplies the compared kinetic, network, item,
+bracket and other observations. For qualifying placements a separate state trace
+uses the measured Java choice to derive the expected orientation, subsequent
+wrench/casing state and the connected chain component's part/axis_along_first.
+Only these proven properties can differ in an allowed state pair; all other
+properties remain exact. Unrelated chain components are excluded. Raw port states
+remain visible, with an exact-tie tag and the allowed property names in diagnostic
+metadata. `RuntimeProbe.java` records the binary measurements at startup. Tests
+retain non-tie, preferred-neighbour, unrelated-state, speed, capacity and network
+membership-size differences. The comparison allowance is not keyed to a block id.
 
 ### Kinetic speed board submissions
 
