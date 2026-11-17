@@ -18,8 +18,14 @@ First observation at tick 14, tank `0,4,0`: Java reports height 2 and capacity 1
 
 Create's `FluidTankBlockEntity.read` restores `updateConnectivity = compound.contains("Uninitialized")`, then reads `Size` and `Height`; its `tick` invokes `updateConnectivity()` when pending. That method calls `ConnectivityHandler.formMulti(this)` for a server-side controller. The case places the upper tank and reloads at tick 13, exercising persistence of pending connectivity work.
 
-## Java repeatability
+## Inconclusive valve membership candidate
 
-Extended valve traces also exposed Java-dependent network membership after external power and reload. Seed 1578's reduction differed in two checks and matched in a third; seed 378's reduction matched. These are not established port findings. The sweep saved its unstable observations under `/mnt/lanes/agent-kgen/current-found/`.
+Case: [valve-membership-candidate.json](valve-membership-candidate.json), reduced from seed 1578. In the original sweep Java reported three network members and the port six after adding external power to a previously reloaded handle. The reduction retained the network-size witness but differed in two checks and matched in a third.
+
+Original seeds 1578, 1642 and 1898 also alternated between matches and differences in repeated comparisons. Seed 1770 differed in three comparisons, then matched when reduction was attempted; four subsequent standalone Java/port snapshot pairs all reported three members on both sides, including a pair at the original recorded save phase. These observations do not establish which side or shared process state causes the variation. This remains a candidate, not a confirmed port finding.
+
+The relevant Java bookkeeping is `KineticNetwork.getSize`, which returns `members.size() + unloadedMembers`; `addSilently` decrements and clamps `unloadedMembers` while admitting a restored entity. `KineticBlockEntity.initialize` supplies the saved network size. The independent angle-loss symptom is already filed as #56.
+
+The final sweep separately detected genuine Java snapshot variation for seeds 1338 and 1466. Its unstable records are retained under `/mnt/lanes/agent-kgen/final-sweep-found/`.
 
 Existing issues #7 and #55–#58 were checked separately and are not presented here as new findings.
