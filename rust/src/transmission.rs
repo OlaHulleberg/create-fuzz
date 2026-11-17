@@ -70,3 +70,49 @@ mod tests {
         );
     }
 }
+
+fn use_block(
+    tick: u32,
+    pos: [i32; 3],
+    item: &str,
+    yaw: f32,
+    pitch: f32,
+    sneaking: bool,
+) -> serde_json::Value {
+    serde_json::json!({"tick":tick,"pos":pos,"action":{"kind":"use","item":item,"face":"up","hit":[0.5,1,0.5],"yaw":yaw,"pitch":pitch,"sneaking":sneaking}})
+}
+
+pub fn chain(seed: u64) -> Scenario {
+    let mut blocks = Vec::new();
+    let mut events = Vec::new();
+    for z in 0..5 {
+        blocks.push(serde_json::json!({"pos":[0,7,z],"state":"minecraft:stone"}));
+        events.push(use_block(
+            10 + z as u32 * 2,
+            [0, 7, z],
+            if z % 2 == 0 {
+                "create:encased_chain_drive"
+            } else {
+                "create:adjustable_chain_gearshift"
+            },
+            90.,
+            0.,
+            true,
+        ));
+    }
+    blocks.push(serde_json::json!({"pos":[-1,8,0],"state":"create:creative_motor[facing=east]","motor":if seed&16==0 {32} else {-32}}));
+    for (i, strength) in (0..16).chain([0, 1, 14, 15, 14, 1, 0]).enumerate() {
+        events.push(serde_json::json!({"tick":30+i*4,"pos":[0,9,1],"action":{"kind":"signal","strength":strength}}));
+        events.push(serde_json::json!({"tick":30+i*4,"pos":[0,9,3],"action":{"kind":"signal","strength":15-strength}}));
+    }
+    events.push(serde_json::json!({"tick":130,"pos":[0,8,2],"action":{"kind":"remove"}}));
+    events.push(use_block(
+        140,
+        [0, 7, 2],
+        "create:encased_chain_drive",
+        90.,
+        0.,
+        true,
+    ));
+    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":220,"checkpoints":[25,125,135,150],"blocks":blocks,"events":events})).unwrap()
+}

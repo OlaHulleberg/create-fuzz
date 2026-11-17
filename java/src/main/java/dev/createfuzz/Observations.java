@@ -120,6 +120,8 @@ final class Observations {
     static JsonObject kinetic(KineticBlockEntity k) {
         JsonObject o = new JsonObject();
         o.addProperty("speed", k.getSpeed());
+        if (k instanceof com.simibubi.create.content.kinetics.chainDrive.ChainGearshiftBlockEntity chain)
+            o.addProperty("chain_modifier", chain.getModifier());
         if (k instanceof com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity motor)
             o.addProperty("speed_setting", motor.generatedSpeed.getValue());
         if (k instanceof com.simibubi.create.content.kinetics.speedController.SpeedControllerBlockEntity controller)

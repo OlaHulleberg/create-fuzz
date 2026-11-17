@@ -145,6 +145,7 @@ fn kinetic_diff(j: &Kinetic, r: &Kinetic) -> Vec<String> {
     }
     for (name, a, b) in [
         ("speed_setting", j.speed_setting, r.speed_setting),
+        ("chain_modifier", j.chain_modifier, r.chain_modifier),
         ("sequence_angle", j.sequence_angle, r.sequence_angle),
         (
             "sequence_distance",

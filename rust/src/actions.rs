@@ -57,6 +57,8 @@ impl Face {
     }
 }
 pub const BLOCKS: &[&str] = &[
+    "create:encased_chain_drive",
+    "create:adjustable_chain_gearshift",
     "create:shaft",
     "create:creative_motor",
     "create:clutch",

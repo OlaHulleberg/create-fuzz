@@ -48,9 +48,17 @@ fn create_states(sc: &Scenario) -> Vec<String> {
         .chain(sc.events.iter().filter_map(|e| e.placed()))
         .collect();
     // Register the full reachable orientation closure for supported player blocks.
+    for entry in crate::catalogue::entries()
+        .iter()
+        .filter(|e| crate::actions::BLOCKS.contains(&e.id.as_str()))
+    {
+        for spec in entry.specifications() {
+            push(spec.state);
+        }
+    }
     for block in crate::actions::BLOCKS {
         for axis in ["x", "y", "z"] {
-            if *block == "create:creative_motor" {
+            if *block == "create:creative_motor" || block.contains("chain") {
                 continue;
             }
             if *block == "create:clutch" || *block == "create:gearshift" {
@@ -105,6 +113,7 @@ pub struct Run {
     names: Vec<String>,
     world: HashMap<Pos, u32>,
     notes: Vec<String>,
+    chain_signals: HashMap<Pos, i32>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, crate::allow::MeasuredTrigState>,
     _guard: std::sync::MutexGuard<'static, ()>,
@@ -138,6 +147,7 @@ impl Run {
             names,
             world: HashMap::new(),
             notes: Vec::new(),
+            chain_signals: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
             _guard: guard,
@@ -494,10 +504,17 @@ impl Run {
                 .expect("placement axis");
             format!("{block}[axis={}]", format!("{a:?}").to_lowercase())
         };
+        if block.contains("chain") {
+            next = with_prop(&next, "part", "none");
+            next = with_prop(&next, "axis_along_first", "false");
+        }
         if block == "create:shaft" {
             next = with_prop(&next, "waterlogged", "false");
         }
-        if block == "create:clutch" || block == "create:gearshift" {
+        if block == "create:clutch"
+            || block == "create:gearshift"
+            || block == "create:adjustable_chain_gearshift"
+        {
             next = with_prop(&next, "powered", "false");
             if self.signal(p) > 0 {
                 self.notes.push(
@@ -543,13 +560,20 @@ impl Run {
                 self.set(p, id);
             }
             if self.w.reads_signal(state) {
-                self.w.set_chain_signal(0, p, i32::from(self.signal(p)));
+                let signal = i32::from(self.signal(p));
+                self.w.set_chain_signal(0, p, signal);
+                self.chain_signals.insert(p, signal);
             }
         }
-        let shapes = self.w.take_chain_shapes(0);
-        if !shapes.is_empty() {
-            self.notes
-                .push(format!("chain shapes not applied: {}", shapes.len()));
+        for (p, drive) in self.w.take_chain_shapes(0) {
+            let next = with_prop(
+                &self.name(self.at(p)),
+                "axis_along_first",
+                if drive.along_first { "true" } else { "false" },
+            );
+            self.set(p, self.id(&next));
+            let next = with_prop(&self.name(self.at(p)), "part", drive.part.name());
+            self.set(p, self.id(&next));
         }
         let mut events = Vec::new();
         self.w.settle_belts(0);
@@ -677,6 +701,11 @@ impl Run {
                 .map(|g| create_engine::gauge::analog_output(g.shown.dial)),
             sequence_angle: k.sequence_limit(p, sub, false),
             sequence_distance: k.sequence_limit(p, sub, true),
+            chain_modifier: (block == create_engine::Block::AdjustableChainGearshift).then(|| {
+                create_engine::chain::modifier_for_signal(
+                    self.chain_signals.get(&p).copied().unwrap_or(0),
+                )
+            }),
             speed_setting: self.w.motor_setting(0, p),
             faces,
         })

@@ -292,11 +292,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required",
-    "observation_scope": {
-      "part": "ChainDriveBlock.updateShape",
-      "axis_along_first": "ChainDriveBlock.updateShape: CONNECTED_ALONG_FIRST_COORDINATE"
-    }
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:adjustable_chain_gearshift",
@@ -327,11 +324,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required",
-    "observation_scope": {
-      "part": "ChainDriveBlock.updateShape",
-      "axis_along_first": "ChainDriveBlock.updateShape: CONNECTED_ALONG_FIRST_COORDINATE"
-    }
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:belt",

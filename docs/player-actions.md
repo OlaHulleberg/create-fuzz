@@ -163,3 +163,11 @@ before expiry, refresh at expiry, release, and reversal with per-tick checkpoint
 These additions do not implement sequencer programming, valve settings/use/dye,
 chain shape commits or player placement of controllers and transmission blocks.
 Those remain explicit unimplemented transmission scope.
+
+Chain drives and adjustable chain gearshifts now accept ordinary `use` placement.
+The Rust adapter applies both properties returned by `take_chain_shapes` through
+committed world updates, in glue order. Chain part and connection-coordinate
+outputs are compared. Chain traces contain two adjustable gearshifts, an analog
+0..15 sweep and boundary transitions, middle removal/replacement and both motor
+signs. `chain_modifier` reads Java's getModifier; Rust reports the modifier of the
+last signal submitted to set_chain_signal (the engine has no public setting getter).
