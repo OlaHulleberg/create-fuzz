@@ -17,6 +17,9 @@ pub fn covered(dir: &Path, case: &Scenario) -> (Snapshot, std::path::PathBuf) {
 }
 
 fn exchange(dir: &Path, cases: &[Scenario], coverage: bool) -> (Vec<Snapshot>, std::path::PathBuf) {
+    for sc in cases {
+        crate::catalogue::scenario(sc);
+    }
     let name = format!(
         "{}{}-{}-{}.json",
         if coverage { "cover-" } else { "" },

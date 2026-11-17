@@ -81,6 +81,7 @@ static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 impl Run {
     pub fn new(sc: &Scenario) -> Run {
+        crate::catalogue::scenario(sc);
         let guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let names = create_states(sc);
         let parsed: Vec<(String, Vec<(String, String)>)> =
@@ -246,19 +247,8 @@ impl Run {
 
     pub fn snapshot(&self, sc: &Scenario) -> Snapshot {
         let mut blocks = BTreeMap::new();
-        let positions = sc
-            .blocks
-            .iter()
-            .map(|b| b.pos)
-            .chain(sc.events.iter().map(|e| e.pos));
-        for p in positions {
-            if blocks.contains_key(&key(p)) {
-                continue;
-            }
+        for p in sc.region() {
             let id = self.at(p);
-            if id == AIR {
-                continue;
-            }
             let state = self.name(id);
             let kinetic = self.kinetic(p, id);
             blocks.insert(
@@ -272,15 +262,29 @@ impl Run {
         }
         Snapshot {
             side: "rust".into(),
+            unavailable: vec!["networks: engine Kinetics exposes totals but no membership or network size accessor".into()],
+            networks: None,
             blocks,
             notes: self.notes.clone(),
+            checkpoints: BTreeMap::new(),
         }
     }
 
     fn kinetic(&self, p: Pos, id: u32) -> Option<Kinetic> {
         let k = &self.w.dims[0].kinetics;
         let (block, info): (create_engine::Block, &StateInfo) = self.w.table.get(id)?;
-        let both = parts(block, info, &Settings::default());
+        let motor_rpm = self
+            .w
+            .column_settings(0, p[0] >> 4, p[2] >> 4)
+            .into_iter()
+            .find(|(q, _)| *q == p)
+            .map_or(16.0, |(_, rpm)| rpm as f32);
+        let settings = Settings {
+            motor_rpm,
+            steam: self.w.shaft_steam(0, p),
+            ..Settings::default()
+        };
+        let both = parts(block, info, &settings);
         // A split shaft is one block entity in Create, holding the figures of the half its
         // source drives: here, the half whose network has a generator.
         let sub = if both[1].is_some()
@@ -318,6 +322,13 @@ impl Run {
             impact: part.impact,
             added_capacity: part.capacity,
             generated,
+            has_source: k.driven_elsewhere(p, sub),
+            comparator: self.w.dims[0]
+                .gauges
+                .get(&p)
+                .map(|g| create_engine::gauge::analog_output(g.shown.dial)),
+            sequence_angle: k.sequence_limit(p, sub, false),
+            sequence_distance: k.sequence_limit(p, sub, true),
             faces,
         })
     }
@@ -325,7 +336,11 @@ impl Run {
 
 pub fn run(sc: &Scenario) -> Snapshot {
     let mut r = Run::new(sc);
+    let mut checkpoints = BTreeMap::new();
     for t in 0..sc.ticks {
+        if sc.checkpoints.contains(&t) {
+            checkpoints.insert(t, r.snapshot(sc));
+        }
         // A player places the blocks, one each tick.
         if let Some(b) = sc.blocks.get(t as usize) {
             r.place(b);
@@ -350,5 +365,10 @@ pub fn run(sc: &Scenario) -> Snapshot {
         }
         r.tick();
     }
-    r.snapshot(sc)
+    if sc.checkpoints.contains(&sc.ticks) {
+        checkpoints.insert(sc.ticks, r.snapshot(sc));
+    }
+    let mut out = r.snapshot(sc);
+    out.checkpoints = checkpoints;
+    out
 }

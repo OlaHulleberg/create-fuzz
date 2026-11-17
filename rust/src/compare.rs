@@ -11,6 +11,22 @@ fn close(a: f32, b: f32) -> bool {
 
 pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
     let mut out = Vec::new();
+    if let (Some(j), Some(r)) = (&java.networks, &rust.networks) {
+        let normalize = |groups: &[Vec<String>]| {
+            let mut groups = groups.to_vec();
+            for g in &mut groups {
+                g.sort();
+            }
+            groups.sort();
+            groups
+        };
+        if normalize(&j.partitions) != normalize(&r.partitions) {
+            out.push("network partitions differ".into());
+        }
+        if j.sizes != r.sizes {
+            out.push("network sizes differ".into());
+        }
+    }
     let keys: std::collections::BTreeSet<&String> =
         java.blocks.keys().chain(rust.blocks.keys()).collect();
     for k in keys {
@@ -41,6 +57,19 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
                 }
             }
             (None, None) => {}
+        }
+    }
+    let ticks: std::collections::BTreeSet<_> = java
+        .checkpoints
+        .keys()
+        .chain(rust.checkpoints.keys())
+        .collect();
+    for t in ticks {
+        match (java.checkpoints.get(t), rust.checkpoints.get(t)) {
+            (Some(j), Some(r)) => {
+                out.extend(diff(j, r).into_iter().map(|d| format!("tick {t}: {d}")))
+            }
+            _ => out.push(format!("tick {t}: missing checkpoint")),
         }
     }
     for n in &rust.notes {
@@ -88,6 +117,32 @@ fn kinetic_diff(j: &Kinetic, r: &Kinetic) -> Vec<String> {
             }
         }
     }
+    if j.has_source != r.has_source {
+        out.push(format!(
+            "has_source: java {} rust {}",
+            j.has_source, r.has_source
+        ));
+    }
+    if j.comparator != r.comparator {
+        out.push(format!(
+            "comparator: java {:?} rust {:?}",
+            j.comparator, r.comparator
+        ));
+    }
+    for (name, a, b) in [
+        ("sequence_angle", j.sequence_angle, r.sequence_angle),
+        (
+            "sequence_distance",
+            j.sequence_distance,
+            r.sequence_distance,
+        ),
+    ] {
+        match (a, b) {
+            (Some(a), Some(b)) if close(a, b) => {}
+            (None, None) => {}
+            _ => out.push(format!("{name}: java {a:?} rust {b:?}")),
+        }
+    }
     if j.overstressed != r.overstressed {
         out.push(format!(
             "overstressed: java {} rust {}",
@@ -95,4 +150,52 @@ fn kinetic_diff(j: &Kinetic, r: &Kinetic) -> Vec<String> {
         ));
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::observation::Networks;
+    #[test]
+    fn partitions_compare_membership_independently_of_order() {
+        let mut j = Snapshot {
+            networks: Some(Networks {
+                partitions: vec![vec!["a".into(), "b".into()], vec!["c".into()]],
+                ..Networks::default()
+            }),
+            ..Snapshot::default()
+        };
+        let r = Snapshot {
+            networks: Some(Networks {
+                partitions: vec![vec!["c".into()], vec!["b".into(), "a".into()]],
+                ..Networks::default()
+            }),
+            ..Snapshot::default()
+        };
+        assert!(diff(&j, &r).is_empty());
+        j.networks.as_mut().unwrap().partitions =
+            vec![vec!["a".into(), "c".into()], vec!["b".into()]];
+        assert_eq!(diff(&j, &r), ["network partitions differ"]);
+    }
+    #[test]
+    fn checkpoints_and_air_positions_are_compared() {
+        let mut j = Snapshot::default();
+        let mut r = Snapshot::default();
+        j.checkpoints.insert(1, Snapshot::default());
+        r.checkpoints.insert(
+            1,
+            Snapshot {
+                blocks: [(
+                    "2,8,0".into(),
+                    crate::scenario::BlockSnap {
+                        state: "create:shaft[axis=x]".into(),
+                        ..Default::default()
+                    },
+                )]
+                .into(),
+                ..Default::default()
+            },
+        );
+        assert!(diff(&j, &r)[0].starts_with("tick 1: 2,8,0:"));
+    }
 }

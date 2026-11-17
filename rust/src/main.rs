@@ -1,4 +1,5 @@
 mod allow;
+mod catalogue;
 mod compare;
 mod corpus;
 mod coverage;
@@ -7,6 +8,7 @@ mod generate;
 mod guided;
 mod java;
 mod mutate;
+mod observation;
 mod scenario;
 mod shrink;
 
@@ -20,6 +22,7 @@ create-fuzz <command>
   check <case.json>...           run cases on both sides and compare them
   gen <seed>                     print the generated case for a seed
   fuzz <first-seed> <count> [batch]  generate, run and compare; mismatches go to $FUZZ_FOUND (found/)
+  manifest <case.json>...        report 73-id domains and generated/manual/interaction coverage
   cover <rounds>                coverage-guided cases, corpus/ and work/coverage reports
   shrink <case.json>             shrink a mismatch; writes <case>.min.json
 ";
@@ -31,6 +34,11 @@ fn main() {
         std::process::exit(2);
     };
     match cmd.as_str() {
+        "manifest" => {
+            let manual: Vec<_> = args[1..].iter().map(|p| load(p)).collect();
+            let generated: Vec<_> = (0..2000).map(generate::generate).collect();
+            catalogue::report(&manual, &generated);
+        }
         "rust" => print(&engine::run(&load(&args[1]))),
         "java" => print(&java::run(&fuzz_dir(), &[load(&args[1])]).remove(0)),
         "gen" => println!(

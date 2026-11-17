@@ -101,3 +101,52 @@ class/method/line and the number of missed branch edges there, `summary.txt` tot
 edges: the missed list groups edges by method and line. The union `.exec` and retained scenarios allow
 further analysis; `cases/` in the report keeps every scenario and its isolated `.exec` probes. Coverage includes background execution in the measured interval; it describes the
 whole server's Create kinetics, including classes unsupported by the current scenario grammar.
+
+## Coverage contract and observations
+
+`./run.sh fuzz manifest cases/*.json` reports all 73 kinetic ids, Cartesian state-domain
+sizes, distinct generated specifications (seeds 0–1999), manual specifications and supported
+interactions. Specifications may omit properties and use Java defaults; these counts are not
+exhaustive state coverage. `rust/src/kinetics.json` is the explicit MIT source-derived contract.
+The Java adapter audits every id/property/value against the loaded Create binary at startup,
+including detecting additional kinetic registrations. The audit corrected the research table:
+`rope_pulley` has only `axis`; waterlogging belongs to its nested rope/magnet blocks.
+Unknown ids, properties, values and external inputs fail before either adapter runs.
+Direct state placement is manual solver coverage, not player interaction coverage. Only motor
+settings and hand-crank turns currently have interaction adapters. The manifest does not claim
+execution of any omitted subsystem or player-reachable state closure.
+
+Scenarios additionally accept `checkpoints: [0, 1, 2, ...]`, measured after that many completed
+ticks and before the next actions. The extension is backward compatible. Checkpoints are opt-in:
+transient propagation may depend on Java block-entity iteration order; the usual repeated Java
+runs still classify instability. A checkpoint at `ticks` duplicates the final semantic observation.
+At tick t both adapters first place initial block t, then set initial block t−1's motor, then
+apply all delayed event motor settings in array order, then execute tick-t events in array order,
+then run the level/engine tick. Final observations occur before any further actions. In particular,
+a same-tick place followed by air removes the block. Ambiguous events and out-of-range checkpoint
+schedules are rejected. Shrinking retains checkpoint history.
+
+Snapshots include **every position**, including air, in the closed bounding box of all initial
+and event positions expanded by one block on each side. The box must fit the isolated Java slot
+(x/z −24..24, y 0..24). This observes neighbour-created blocks and surviving blocks outside the
+submitted positions. Empty scenarios observe an empty region. Gauge comparator output is read
+from the actual Java gauge and Rust gauge state; it is compared along with source presence and
+sequence angle/distance effective limits. Rust part reconstruction uses saved motor settings and
+actual steam output for dynamic capacity, rather than an unconditional default settings object.
+Java continues to call the actual impact/capacity methods. Steam sensing/programming itself is
+outside this group's action grammar and is not covered by these observations.
+
+Java also records network membership as sorted position partitions and per-position stored
+network sizes, without exposing raw ids. The comparison supports normalized partitions and sizes
+when both adapters provide them. **Current explicit API gap:** the read-only engine's public
+`Kinetics` API exposes network totals and source presence, but no network membership, network size,
+or actual stored Part accessor. Rust records this in `unavailable` and emits `networks: null`;
+network partition/size comparisons cannot yet run. They are not inferred from matching totals.
+Dynamic settings other than the currently driven motor/crank inputs and readable steam output,
+sequencer/valve programs, environment sensing, belt/conveyor links, player placement and machine
+work remain outside differential coverage until their action adapters and required accessors exist.
+
+The shrinker tries contiguous block/event chunks before individual removals so long checkpoint
+histories remain practical to minimize. It still finishes with the individual candidates; reducing
+case duration never drops a requested checkpoint. Submission counts in `manifest` distinguish
+crank-turn and motor-setting actions from state specifications.

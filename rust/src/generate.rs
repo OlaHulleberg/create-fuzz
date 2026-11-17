@@ -514,6 +514,7 @@ pub fn generate(seed: u64) -> Scenario {
     let last = events.iter().map(|e| e.tick).max().unwrap_or(0).max(placed);
     let ticks = ticks.max(last + SETTLE);
     Scenario {
+        checkpoints: Vec::new(),
         seed,
         ticks,
         blocks: g.blocks,

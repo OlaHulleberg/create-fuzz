@@ -1,7 +1,6 @@
 package dev.createfuzz;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,9 +15,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.simibubi.create.content.kinetics.base.IRotate;
-import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
-import com.simibubi.create.content.kinetics.transmission.SplitShaftBlockEntity;
 import com.simibubi.create.content.kinetics.crank.HandCrankBlockEntity;
 import com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity;
 
@@ -29,7 +25,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -70,7 +65,8 @@ public class CreateFuzz {
 
 	void started(ServerStartedEvent e) {
 		try {
-			Files.createDirectories(dir.resolve("inbox"));
+			Catalogue.audit();
+            Files.createDirectories(dir.resolve("inbox"));
 			Files.createDirectories(dir.resolve("outbox"));
 			ServerLevel level = e.getServer().overworld();
 			for (int i = 0; i < SLOTS; i++) {
@@ -184,6 +180,7 @@ public class CreateFuzz {
 		final List<JsonObject> cases = new ArrayList<>();
 		final List<BlockPos> origins = new ArrayList<>();
 		final JsonArray results = new JsonArray();
+        final List<JsonObject> traces = new ArrayList<>();
 		int tick, maxTicks;
 
 		Batch(String name, JsonArray in, ServerLevel level) {
@@ -195,6 +192,7 @@ public class CreateFuzz {
 				origins.add(slot(i));
 				maxTicks = Math.max(maxTicks, in.get(i).getAsJsonObject().get("ticks").getAsInt());
 				results.add(new JsonObject());
+                traces.add(new JsonObject());
 			}
 		}
 
@@ -205,7 +203,14 @@ public class CreateFuzz {
 		/** One tick of every case; true when all are done. */
 		boolean step(ServerLevel level) {
 			for (int i = 0; i < cases.size(); i++) {
-				JsonObject c = cases.get(i);
+                JsonObject c = cases.get(i);
+                if (tick > c.get("ticks").getAsInt()) continue;
+                if (c.has("checkpoints")) for (JsonElement t : c.getAsJsonArray("checkpoints"))
+                    if (t.getAsInt() == tick) traces.get(i).add(Integer.toString(tick), Observations.snapshot(level, origins.get(i), c));
+                if (tick == c.get("ticks").getAsInt()) {
+                    JsonObject result = Observations.snapshot(level, origins.get(i), c);
+                    result.add("checkpoints", traces.get(i)); results.set(i, result); continue;
+                }
 				// A player places the blocks, one each tick.
 				JsonArray blocks = c.getAsJsonArray("blocks");
 				if (tick < blocks.size())
@@ -220,6 +225,9 @@ public class CreateFuzz {
 					// A motor placed the tick before gets its speed now.
 					if (o.get("tick").getAsInt() + 1 == tick && o.has("state"))
 						setMotor(level, origins.get(i), o);
+                }
+                for (JsonElement ev : c.getAsJsonArray("events")) {
+                    JsonObject o = ev.getAsJsonObject();
 					if (o.get("tick").getAsInt() != tick)
 						continue;
 					if (o.has("state"))
@@ -231,9 +239,7 @@ public class CreateFuzz {
 			}
 			// What is placed here acts from the next level tick: a case's tick t is level tick start + t + 1,
 			// so it is read here once its last tick, `ticks`, has run.
-			for (int i = 0; i < cases.size(); i++)
-				if (cases.get(i).get("ticks").getAsInt() == tick)
-					results.set(i, snapshot(level, origins.get(i), cases.get(i)));
+
 			tick++;
 			return tick > maxTicks;
 		}
@@ -265,73 +271,13 @@ public class CreateFuzz {
 		}
 
 		static void setMotor(ServerLevel level, BlockPos origin, JsonObject b) {
-			if (b.has("motor") && level.getBlockEntity(at(origin, b)) instanceof CreativeMotorBlockEntity m)
-				m.generatedSpeed.setValue(b.get("motor").getAsInt());
+            if (!b.has("motor") || !(level.getBlockEntity(at(origin,b)) instanceof CreativeMotorBlockEntity m)) return;
+            try {
+                BlockState expected = BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK.asLookup(), b.get("state").getAsString(), false).blockState();
+                if (level.getBlockState(at(origin,b)) == expected) m.generatedSpeed.setValue(b.get("motor").getAsInt());
+            } catch (Exception ex) { throw new IllegalArgumentException("bad motor placement state",ex); }
 		}
 
-		static JsonObject snapshot(ServerLevel level, BlockPos origin, JsonObject c) {
-			JsonObject blocks = new JsonObject();
-			List<JsonObject> all = new ArrayList<>();
-			for (JsonElement b : c.getAsJsonArray("blocks"))
-				all.add(b.getAsJsonObject());
-			if (c.has("events"))
-				for (JsonElement b : c.getAsJsonArray("events"))
-					all.add(b.getAsJsonObject());
-			for (JsonObject b : all) {
-				JsonArray rel = b.getAsJsonArray("pos");
-				String key = rel.get(0).getAsInt() + "," + rel.get(1).getAsInt() + "," + rel.get(2).getAsInt();
-				if (blocks.has(key))
-					continue;
-				BlockPos pos = at(origin, b);
-				BlockState state = level.getBlockState(pos);
-				if (state.isAir())
-					continue;
-				JsonObject snap = new JsonObject();
-				snap.addProperty("state", BlockStateParser.serialize(state));
-				BlockEntity be = level.getBlockEntity(pos);
-				if (be instanceof KineticBlockEntity k)
-					snap.add("kinetic", kinetic(k));
-				// For reading mismatches only; never compared.
-				if (be != null)
-					snap.addProperty("debug", be.saveWithoutMetadata(level.registryAccess()).toString());
-				blocks.add(key, snap);
-			}
-			JsonObject out = new JsonObject();
-			out.addProperty("side", "java");
-			out.add("blocks", blocks);
-			return out;
-		}
 
-		static JsonObject kinetic(KineticBlockEntity k) {
-			JsonObject o = new JsonObject();
-			o.addProperty("speed", k.getSpeed());
-			o.addProperty("theoretical", k.getTheoreticalSpeed());
-			o.addProperty("overstressed", k.isOverStressed());
-			o.addProperty("stress", field(k, "stress"));
-			o.addProperty("capacity", field(k, "capacity"));
-			o.addProperty("impact", k.calculateStressApplied());
-			o.addProperty("added_capacity", k.calculateAddedStressCapacity());
-			o.addProperty("generated", k.getGeneratedSpeed());
-			// A clutch's or gearshift's halves: the speed each shaft face turns at.
-			if (k instanceof SplitShaftBlockEntity s && k.getBlockState().getBlock() instanceof IRotate r) {
-				JsonObject faces = new JsonObject();
-				Direction.Axis axis = r.getRotationAxis(k.getBlockState());
-				for (Direction d : Direction.values())
-					if (d.getAxis() == axis)
-						faces.addProperty(d.getSerializedName(), s.getSpeed() == 0 ? 0f : s.getSpeed() * s.getRotationSpeedModifier(d));
-				o.add("faces", faces);
-			}
-			return o;
-		}
-
-		static float field(KineticBlockEntity k, String name) {
-			try {
-				Field f = KineticBlockEntity.class.getDeclaredField(name);
-				f.setAccessible(true);
-				return f.getFloat(k);
-			} catch (ReflectiveOperationException ex) {
-				throw new RuntimeException(ex);
-			}
-		}
 	}
 }

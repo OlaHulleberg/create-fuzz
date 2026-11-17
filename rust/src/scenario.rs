@@ -1,7 +1,6 @@
 //! The scenario and snapshot formats, shared with the Java side (`java/`).
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 pub type Pos = [i32; 3];
 
@@ -12,6 +11,9 @@ pub type Pos = [i32; 3];
 pub struct Scenario {
     #[serde(default)]
     pub seed: u64,
+    /// Completed tick counts to observe before the next tick's actions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checkpoints: Vec<u32>,
     pub ticks: u32,
     pub blocks: Vec<Placed>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -70,48 +72,7 @@ impl Change {
     }
 }
 
-/// What both sides write after the last tick.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub struct Snapshot {
-    pub side: String,
-    /// Every non-air block at a scenario position, keyed `x,y,z`.
-    pub blocks: BTreeMap<String, BlockSnap>,
-    /// Notes from the side that ran it (errors, skipped parts).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub struct BlockSnap {
-    pub state: String,
-    /// Present for kinetic blocks only.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kinetic: Option<Kinetic>,
-    /// The Java block entity's saved data, to read mismatches by; not compared.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub debug: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub struct Kinetic {
-    /// `getSpeed()`: 0 when overstressed.
-    pub speed: f32,
-    /// `getTheoreticalSpeed()`.
-    pub theoretical: f32,
-    pub overstressed: bool,
-    /// The network's stress and capacity as the block holds them (`stress`, `capacity`).
-    pub stress: f32,
-    pub capacity: f32,
-    /// Its own stress impact and capacity per rpm (`calculateStressApplied`,
-    /// `calculateAddedStressCapacity`).
-    pub impact: f32,
-    pub added_capacity: f32,
-    /// `getGeneratedSpeed()`.
-    pub generated: f32,
-    /// A clutch's or gearshift's halves: the speed each shaft face turns at.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub faces: Option<BTreeMap<String, f32>>,
-}
+pub use crate::observation::{BlockSnap, Kinetic, Snapshot};
 
 pub fn key(p: Pos) -> String {
     format!("{},{},{}", p[0], p[1], p[2])
@@ -152,4 +113,44 @@ pub fn with_prop(state: &str, key: &str, value: &str) -> String {
         None => props.push((key.to_string(), value.to_string())),
     }
     format_state(&name, &props)
+}
+
+impl Scenario {
+    /// Closed bounding region around every action, including one block of neighbours.
+    pub fn region(&self) -> Vec<Pos> {
+        let positions: Vec<_> = self
+            .blocks
+            .iter()
+            .map(|b| b.pos)
+            .chain(self.events.iter().map(|e| e.pos))
+            .collect();
+        if positions.is_empty() {
+            return Vec::new();
+        }
+        let mut lo = positions[0];
+        let mut hi = lo;
+        for p in positions {
+            for a in 0..3 {
+                lo[a] = lo[a].min(p[a]);
+                hi[a] = hi[a].max(p[a]);
+            }
+        }
+        for a in 0..3 {
+            lo[a] -= 1;
+            hi[a] += 1;
+        }
+        assert!(
+            lo[0] >= -24 && lo[2] >= -24 && lo[1] >= 0 && hi[0] <= 24 && hi[2] <= 24 && hi[1] <= 24,
+            "region exceeds isolated server slot"
+        );
+        let mut out = Vec::new();
+        for x in lo[0]..=hi[0] {
+            for y in lo[1]..=hi[1] {
+                for z in lo[2]..=hi[2] {
+                    out.push([x, y, z]);
+                }
+            }
+        }
+        out
+    }
 }
