@@ -650,27 +650,35 @@ impl Run {
                 steps.push((p, step));
             }
         }
-        steps.extend(self.w.tick_sequencers(0));
         for (p, step) in steps {
-            use create_engine::sequencer::Step;
-            let n = match step {
-                Step::Run(n) => n,
-                Step::Idle => 0,
-                Step::Ended if self.signal(p) > 0 => continue,
-                Step::Ended => 0,
-            };
-            let next = with_prop(&self.name(self.at(p)), "state", &n.to_string());
-            self.set(p, self.id(&next));
+            self.sequencer_step(p, step);
         }
         let mut events = Vec::new();
         self.w.settle_belts(0);
-        self.w.tick(0, &mut events);
+        // CreateWorld::tick: the solve, then sequencer instructions (committed after it).
+        let (_, steps) = self.w.tick(0, &mut events);
+        for (p, step) in steps {
+            self.sequencer_step(p, step);
+        }
         self.w.dims[0].kinetics.take_removed();
         for e in events {
             if let create_engine::kinetics::Event::Break { pos } = e {
                 self.set(pos, AIR);
             }
         }
+    }
+
+    /// The glue's commit of a sequencer step: its `state` (kept while powered at the end).
+    fn sequencer_step(&mut self, p: [i32; 3], step: create_engine::sequencer::Step) {
+        use create_engine::sequencer::Step;
+        let n = match step {
+            Step::Run(n) => n,
+            Step::Idle => 0,
+            Step::Ended if self.signal(p) > 0 => return,
+            Step::Ended => 0,
+        };
+        let next = with_prop(&self.name(self.at(p)), "state", &n.to_string());
+        self.set(p, self.id(&next));
     }
 
     pub fn snapshot(&self, sc: &Scenario) -> Snapshot {
