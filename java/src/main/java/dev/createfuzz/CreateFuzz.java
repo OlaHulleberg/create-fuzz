@@ -158,6 +158,7 @@ public class CreateFuzz {
                 throw new RuntimeException(ex);
             }
             batch.clear(level);
+            batch.releaseActors(level);
             batch = null;
         }
     }
@@ -205,7 +206,10 @@ public class CreateFuzz {
             Files.writeString(dir.resolve("outbox").resolve(name), GSON.toJson(o));
         } catch (IOException ignored) {
         }
-        if (batch != null) batch.clear(level);
+        if (batch != null) {
+            batch.clear(level);
+            batch.releaseActors(level);
+        }
         batch = null;
     }
 
@@ -235,7 +239,7 @@ public class CreateFuzz {
                 if (i >= SLOTS)
                     throw new IllegalArgumentException("a batch holds at most " + SLOTS + " cases");
                 origins.add(slot(i));
-                actors.add(PlayerActor.create(level, i));
+                actors.add(null);
                 results.add(new JsonObject());
                 traces.add(new JsonObject());
             }
@@ -254,6 +258,7 @@ public class CreateFuzz {
                 if (--settling == 0) {
                     CaseIsolation.begin(level);
                     if (activeCase == cases.size()) return true;
+                    actors.set(activeCase, PlayerActor.create(level, activeCase));
                     var next = cases.get(activeCase);
                     level.setDayTime(next.has("day_time") ? next.get("day_time").getAsLong() : 0);
                     if (name.startsWith("cover-")) coverage(null);
@@ -289,6 +294,7 @@ public class CreateFuzz {
                         coverageCaptured = true;
                     }
                     CaseIsolation.clear(level, origins.get(i));
+                    PlayerActor.release(level, actors.set(i, null));
                     activeCase++;
                     tick = 0;
                     settling = 2;
@@ -338,6 +344,11 @@ public class CreateFuzz {
 
         void clear(ServerLevel level) {
             for (BlockPos origin : origins) CaseIsolation.clear(level, origin);
+        }
+
+        void releaseActors(ServerLevel level) {
+            for (var actor : actors) if (actor != null) PlayerActor.release(level, actor);
+            actors.replaceAll(ignored -> null);
         }
 
         static BlockPos at(BlockPos origin, JsonObject b) {

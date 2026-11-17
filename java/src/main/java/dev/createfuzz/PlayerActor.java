@@ -35,6 +35,11 @@ final class PlayerActor {
         return player;
     }
 
+    static void release(ServerLevel level, ServerPlayer player) {
+        // A fresh UUID must not leave PlayerList's statistics/advancement caches behind.
+        level.getServer().getPlayerList().remove(player);
+    }
+
     static JsonObject probe(ServerLevel level) {
         var player = create(level, -1);
         player.displayClientMessage(Component.literal("create-fuzz transport probe"), false);
@@ -45,6 +50,7 @@ final class PlayerActor {
         result.addProperty("actor_class", player.getClass().getName());
         result.addProperty("listener_class", player.connection.getClass().getName());
         result.addProperty("discarded_packets", sink.discarded);
+        release(level, player);
         return result;
     }
 
