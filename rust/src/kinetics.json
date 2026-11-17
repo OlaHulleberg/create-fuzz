@@ -731,10 +731,8 @@
       "cog": null
     },
     "excluded": null,
-    "observation_scope": {
-      "enabled": "FluidValveBlockEntity.tick: fluids phase; pointer endpoints change enabled; driver runs kinetics only"
-    },
-    "state_phase": "fluids: FluidValveBlockEntity.tick; kinetic observations remain in kinetics"
+    "observation_scope": {},
+    "state_phase": "fluids: moving pointer tick installed; enabled is compared"
   },
   {
     "id": "create:copper_valve_handle",
