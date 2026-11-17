@@ -23,7 +23,9 @@ impl Default for Handle {
 pub struct Observation {
     pub selected: i32,
     pub in_use: i32,
-    pub angle: f32,
+    pub angle: Option<f32>,
+    #[serde(default)]
+    pub angle_unavailable: Option<String>,
 }
 impl Handle {
     pub fn started(&mut self, back: bool) {
@@ -36,13 +38,14 @@ impl Handle {
         Observation {
             selected: self.selected,
             in_use: i32::from(self.remaining),
-            angle: create_engine::valve::drawn_angle(
+            angle_unavailable: None,
+            angle: Some(create_engine::valve::drawn_angle(
                 self.target,
                 self.total,
                 f32::from(self.total - self.remaining),
                 self.back,
                 positive,
-            ),
+            )),
         }
     }
 }

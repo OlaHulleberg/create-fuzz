@@ -16,7 +16,6 @@ raw observations retain all values. It never removes kinetic fields.
 |---|---|---|
 | display_board | up, down | FlapDisplayBlock.updateShape -> updatedShapeInner, updateColumn |
 | metal_girder_encased_shaft | top, bottom | GirderEncasedShaftBlock.updateShape -> GirderBlock.updateVerticalProperty |
-| encased_chain_drive, adjustable_chain_gearshift | part, axis_along_first | ChainDriveBlock.updateShape (inherited by ChainGearshiftBlock) |
 | gantry_shaft | part | GantryShaftBlock.updateShape |
 | gantry_carriage | axis_along_first | GantryCarriageBlock.updateShape -> cycleAxisIfNecessary |
 | large_water_wheel | extension | LargeWaterWheelBlock.updateShape |
@@ -24,8 +23,8 @@ raw observations retain all values. It never removes kinetic fields.
 
 ChainDriveBlock's CONNECTED_ALONG_FIRST_COORDINATE is serialized axis_along_first.
 GantryCarriageBlock cycles the same serialized property. These shape outputs can
-affect topology; chain/gantry/wheel generation remains excluded pending the relevant
-subsystem adapters. Masking properties does not make their missing topology
+affect topology. Chain outputs now remain fully compared after committing
+take_chain_shapes; gantry/wheel shape generation still requires its adapters. Masking properties does not make their missing topology
 adapters supported, nor excuse speed/source/network discrepancies.
 
 The remaining manifest-block updateShape overrides either return the state after
@@ -51,5 +50,23 @@ differences remain findings: Java owns one KineticBlockEntity per split shaft.
 
 Motor and controller kinetic-board selections now appear as `kinetic.speed_setting`
 in both snapshots and are compared with the ordinary numeric tolerance, including
-presence versus absence. No transmission state exclusions were removed: chain
-shape, sequencer execution and valve observations still require their adapters.
+presence versus absence. Chain part and axis_along_first exclusions are removed.
+Sequencer execution compares current/duration/progress/timer/previous-power and
+block state. Valves compare selected angle, in-use ticks and handle angle.
+Context is normalized as optional angle/distance effective limits; absence differs
+from a present zero limit. For a sequencer's single Java entity, the outgoing
+engine-half limit is scaled to the driven-half theoretical speed. No stale
+context is suppressed when a run ends.
+
+The engine has no public getters for its private chain signal or crank countdown.
+Rust's chain_modifier is the engine formula applied to the last submitted signal;
+valve in-use/angle comes from the glue-owned accepted-use record. Speed, generated
+speed, networks and propagated context independently observe the engine output.
+An independently readable private timer/setting would require an engine API
+addition, outside this task's read-only engine boundary.
+
+A valve externally driven while not in use delegates getIndependentAngle to a
+client renderer. Calling that branch on a dedicated server fails class loading.
+Both adapters explicitly emit angle_unavailable for that branch; they still
+compare selected angle, in-use, every kinetic/network field and context. Active
+player-use and resting undriven angles remain compared. No renderer is simulated.

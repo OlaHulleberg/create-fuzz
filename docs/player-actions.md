@@ -44,13 +44,14 @@ before committing, exactly as `items/wrench.rs::switch_state` does. The
 end-shaft rotation. The earlier 1511/#14 finding was a missing driver call, and
 has no allowance. Network partitions and counts remain compared in full.
 
-The supported item set is shaft, creative motor, clutch, gearshift, gearbox,
-flywheel, wrench, both shaft casings and both bracket items. Shaft bracket state
+The supported item set includes shaft, creative motor, clutch, gearshift, gearbox,
+flywheel, chain drives, adjustable chain gearshifts, controllers, wrench, both shaft
+casings, both bracket items, empty hand and vanilla dyes. Shaft bracket state
 is separately compared. Casing items that are not consumed by an encasing handler fall through to normal
 block placement, including when sneaking. Unsupported targeted block overrides
 produce explicit notes, keeping the case and comparison. Other value
 boxes, cog/pipe brackets, cog casing/toggles, fluid placement, world collision,
-lever/wire/conductor simulation, sequencer programs and chain-shape processing
+lever/wire/conductor simulation and arbitrary machine block overrides
 remain outside this driver's supported transactions; the manifest names these
 limits. The standalone binary cannot instantiate the SDK host glue itself.
 
@@ -160,9 +161,6 @@ unpowered controllers. Mutation changes both board coordinates.
 `minecraft:air` is accepted as an empty hand use; the Rust adapter dispatches it
 to `turn_crank` on hand cranks. `transmission-crank-expiry.json` checks refresh
 before expiry, refresh at expiry, release, and reversal with per-tick checkpoints.
-These additions do not implement sequencer programming, valve settings/use/dye,
-chain shape commits or player placement of controllers and transmission blocks.
-Those remain explicit unimplemented transmission scope.
 
 Chain drives and adjustable chain gearshifts now accept ordinary `use` placement.
 The Rust adapter applies both properties returned by `take_chain_shapes` through

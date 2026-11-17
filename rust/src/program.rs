@@ -57,3 +57,33 @@ impl Instruction {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn packet_rows_validate_and_keep_modifiers() {
+        for modifier in [
+            super::Modifier::ForwardFast,
+            super::Modifier::Forward,
+            super::Modifier::Back,
+            super::Modifier::BackFast,
+        ] {
+            let i = super::Instruction {
+                instruction: super::Kind::TurnDistance,
+                modifier,
+                value: 128,
+            };
+            i.validate();
+            assert_eq!(i.engine().value, 128);
+            let copy: super::Instruction =
+                serde_json::from_str(&serde_json::to_string(&i).unwrap()).unwrap();
+            assert_eq!(copy, i);
+        }
+        assert!(
+            serde_json::from_str::<super::Instruction>(
+                r#"{"instruction":"TYPO","modifier":"FORWARD","value":1}"#
+            )
+            .is_err()
+        );
+    }
+}

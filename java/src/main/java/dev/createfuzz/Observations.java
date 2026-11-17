@@ -124,7 +124,10 @@ final class Observations {
             JsonObject v=new JsonObject();
             v.addProperty("selected",valve.angleInput.getValue());
             v.addProperty("in_use",valve.inUse);
-            v.addProperty("angle",valve.getIndependentAngle(0));
+            // The externally driven branch calls a client renderer, unavailable on a server.
+            if (!(valve.inUse == 0 && valve.hasSource() && valve.getSpeed() != 0))
+                v.addProperty("angle",valve.getIndependentAngle(0));
+            else v.addProperty("angle_unavailable","externally driven angle requires client renderer");
             o.add("valve",v);
         }
         if (k instanceof com.simibubi.create.content.kinetics.chainDrive.ChainGearshiftBlockEntity chain)

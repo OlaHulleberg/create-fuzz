@@ -722,6 +722,28 @@ impl Run {
         )
     }
 
+    fn context_limit(&self, p: Pos, sub: u8, distance: bool) -> Option<f32> {
+        let k = &self.w.dims[0].kinetics;
+        if self.w.sequencer_run(0, p).is_some() {
+            // Java's single entity holds the outgoing context but reads it at the
+            // driven shaft's theoretical speed. The engine stores it on the far half.
+            let driven = k.theoretical(p, sub)?.0;
+            for half in [0, 1] {
+                if let Some(value) = k.sequence_limit(p, half, distance) {
+                    let speed = k.theoretical(p, half)?.0;
+                    return Some(if speed == 0. {
+                        0.
+                    } else {
+                        value * (driven / speed).abs()
+                    });
+                }
+            }
+            None
+        } else {
+            k.sequence_limit(p, sub, distance)
+        }
+    }
+
     fn kinetic(&self, p: Pos, id: u32) -> Option<Kinetic> {
         let k = &self.w.dims[0].kinetics;
         let (block, info): (create_engine::Block, &StateInfo) = self.w.table.get(id)?;
@@ -772,12 +794,17 @@ impl Run {
                 .gauges
                 .get(&p)
                 .map(|g| create_engine::gauge::analog_output(g.shown.dial)),
-            sequence_angle: k.sequence_limit(p, sub, false),
-            sequence_distance: k.sequence_limit(p, sub, true),
-            valve: self
-                .handles
-                .get(&p)
-                .map(|h| h.observe(info.facing.is_some_and(|f| f.positive()))),
+            sequence_angle: self.context_limit(p, sub, false),
+            sequence_distance: self.context_limit(p, sub, true),
+            valve: self.handles.get(&p).map(|h| {
+                let mut observed = h.observe(info.facing.is_some_and(|f| f.positive()));
+                if h.remaining == 0 && k.driven_elsewhere(p, sub) && speed != 0. {
+                    observed.angle = None;
+                    observed.angle_unavailable =
+                        Some("externally driven angle requires client renderer".into());
+                }
+                observed
+            }),
             sequencer: self
                 .w
                 .sequencer_run(0, p)

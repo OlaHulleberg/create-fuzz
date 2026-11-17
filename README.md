@@ -147,7 +147,7 @@ network sizes. Rust reads the selected part's actual membership through
 figures. Raw network ids are used only to group positions within each snapshot and are never
 serialized or compared. An empty network observation is emitted as empty partitions and sizes.
 Dynamic settings other than the currently driven motor/crank inputs and readable steam output,
-sequencer/valve programs, environment sensing, belt/conveyor links, placement outside the version 3 subset and machine
+environment sensing, belt/conveyor links, placement outside the version 3 subset and machine
 work remain outside differential coverage until their action adapters and required accessors exist.
 
 The shrinker tries contiguous block/event chunks before individual removals so long checkpoint
@@ -172,15 +172,16 @@ No fluid differences are suppressed. This is state injection, not player placeme
 
 `manifest` includes an explicit static exclusion reason for each omitted id: belt/conveyor
 links (group 5), environmental generators (group 6), moving/assembling machines (group 7),
-and transmission settings/topology requiring group 4 adapters. Generated valve handles are
-passive nodes only; inherited crank turns are never used as valve activation. Machine work,
+and independent static chain-shape injection. Transmission traces exercise chain
+placement/topology, controller placement/boards, sequencer programs, valve boards/use/dye
+and crank expiry. Inherited crank turns are never used as valve activation. Machine work,
 fluid transfer, crafting, inventory, crushing entities and equipment filling remain outside the
 static solver tests. The scenario JSON format and comparisons are unchanged.
 
 Observation scope is explicit per block in the manifest's `observation_scope` map:
 only its named properties are omitted by the shared comparison; raw snapshots retain
-them. Display up/down and girder top/bottom belong to shape updates, chain part and
-connection coordinate to ChainDriveBlock.updateShape, gantry part/carriage axis to
+them. Chain part and connection coordinate are committed and fully compared.
+Display up/down and girder top/bottom belong to shape updates, gantry part/carriage axis to
 their updateShape methods, and large-wheel extension to LargeWaterWheelBlock.updateShape.
 Placement-selected facing/axis/shaft flags remain compared: state injection supplies
 those inputs, rather than invoking player placement. FluidValveBlockEntity.tick's
@@ -200,3 +201,10 @@ clicked positions, face hit points, orientation and sneaking. It also exposes bl
 breaks and controlled analog input for a bounded subset of blocks. See [player actions](docs/player-actions.md) for
 schema, exact entry points, the ordinary ServerPlayer with packet-discarding
 connection, the Create FakePlayer audit and explicit remaining exclusions.
+
+Transmission screen settings are version 3 `speed_setting`, `valve_setting` and
+`program` actions. Java uses the ordinary actor and the value behaviour or
+ConfigureSequencedGearshiftPacket.handle; Rust calls the corresponding world
+APIs and runs their input ticks. See docs/player-actions.md for payloads and
+accessor limitations. Per-tick traces observe sequencer runs, valve use/angle and
+context; controller targets and chain modifiers are also compared.

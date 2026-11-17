@@ -71,32 +71,6 @@ pub fn generate(seed: u64) -> Scenario {
     serde_json::from_value(value).unwrap()
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn controller_board_zero_column_selects_one_and_reverses() {
-        let mut sc = super::generate(14);
-        sc.checkpoints = vec![21, 29];
-        let snap = crate::engine::run(&sc);
-        assert_eq!(
-            snap.checkpoints[&21].blocks["0,8,0"]
-                .kinetic
-                .as_ref()
-                .unwrap()
-                .speed_setting,
-            Some(-1.)
-        );
-        assert_eq!(
-            snap.checkpoints[&29].blocks["0,8,0"]
-                .kinetic
-                .as_ref()
-                .unwrap()
-                .speed_setting,
-            Some(1.)
-        );
-    }
-}
-
 fn use_block(
     tick: u32,
     pos: [i32; 3],
@@ -116,7 +90,7 @@ pub fn chain(seed: u64) -> Scenario {
         events.push(use_block(
             10 + z as u32 * 2,
             [0, 7, z],
-            if z % 2 == 0 {
+            if (z + ((seed >> 5) & 1) as i32) % 2 == 0 {
                 "create:encased_chain_drive"
             } else {
                 "create:adjustable_chain_gearshift"
@@ -140,7 +114,35 @@ pub fn chain(seed: u64) -> Scenario {
         0.,
         true,
     ));
-    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":220,"checkpoints":[25,125,135,150],"blocks":blocks,"events":events})).unwrap()
+    let mut value = serde_json::json!({"version":3,"seed":seed,"ticks":220,"checkpoints":[25,125,135,150],"blocks":blocks,"events":events});
+    let axis = (seed / 64) % 3;
+    if axis == 1 {
+        for b in value["blocks"].as_array_mut().unwrap() {
+            b["pos"].as_array_mut().unwrap().swap(0, 2);
+            if b["state"].as_str().unwrap().contains("creative_motor") {
+                b["state"] = serde_json::json!("create:creative_motor[facing=south]");
+            }
+        }
+        for e in value["events"].as_array_mut().unwrap() {
+            e["pos"].as_array_mut().unwrap().swap(0, 2);
+            if e["action"]["kind"] == "use" {
+                e["action"]["yaw"] = serde_json::json!(0);
+            }
+        }
+    } else if axis == 2 {
+        for b in value["blocks"].as_array_mut().unwrap() {
+            if b["state"].as_str().unwrap().contains("creative_motor") {
+                b["pos"] = serde_json::json!([0, 9, 0]);
+                b["state"] = serde_json::json!("create:creative_motor[facing=down]");
+            }
+        }
+        for e in value["events"].as_array_mut().unwrap() {
+            if e["action"]["kind"] == "use" {
+                e["action"]["pitch"] = serde_json::json!(90);
+            }
+        }
+    }
+    serde_json::from_value(value).unwrap()
 }
 
 pub fn sequence(seed: u64) -> Scenario {
@@ -214,4 +216,30 @@ pub fn valve(seed: u64) -> Scenario {
         {"pos":[0,7,0],"state":"minecraft:stone"},
         {"pos":[0,8,0],"state":"create:copper_valve_handle[facing=up,waterlogged=false]"},
         {"pos":[0,9,0],"state":"create:shaft[axis=y,waterlogged=false]"}],"events":events})).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn controller_board_zero_column_selects_one_and_reverses() {
+        let mut sc = super::generate(14);
+        sc.checkpoints = vec![21, 29];
+        let snap = crate::engine::run(&sc);
+        assert_eq!(
+            snap.checkpoints[&21].blocks["0,8,0"]
+                .kinetic
+                .as_ref()
+                .unwrap()
+                .speed_setting,
+            Some(-1.)
+        );
+        assert_eq!(
+            snap.checkpoints[&29].blocks["0,8,0"]
+                .kinetic
+                .as_ref()
+                .unwrap()
+                .speed_setting,
+            Some(1.)
+        );
+    }
 }

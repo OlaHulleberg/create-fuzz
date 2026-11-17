@@ -169,7 +169,7 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
         println!("{label} version 3 action submissions: {counts:?}");
     }
     println!(
-        "use limits: shaft casing/bracket only; motor value-box geometry via board::motor_slot/hits_box; other value boxes/block-use overrides, fluid collision, inventories, sequencer/chain topology unsupported (cases retained with notes); ordinary ServerPlayer uses geometric value-box hit tests; no allowance for these gaps"
+        "use limits: shaft casing/bracket only; motor value-box geometry via board::motor_slot/hits_box; motor/controller speed boards, sequencer programs, valve angle/use/dye and chain topology enabled; other block-use overrides, fluid collision and inventories unsupported (cases retained with notes); ordinary ServerPlayer uses geometric value-box hit tests; no allowance for these gaps"
     );
     let m = collect(manual);
     let g = collect(generated);
@@ -190,6 +190,10 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
                 "kinetic value board (legacy motor and v3 speed_setting)"
             } else if e.id == "create:rotation_speed_controller" {
                 "v3 speed_setting; static controller/cog fixtures"
+            } else if e.id == "create:sequenced_gearshift" {
+                "v3 program, signal; per-tick execution and context"
+            } else if e.id.ends_with("_valve_handle") {
+                "v3 valve_setting, empty-hand/sneak/dye use; per-tick angle and context"
             } else if crate::actions::BLOCKS.contains(&e.id.as_str()) {
                 "v3 item use/break; isolated adjacent signal"
             } else {
