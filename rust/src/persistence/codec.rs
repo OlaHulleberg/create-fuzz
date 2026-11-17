@@ -1,4 +1,29 @@
 //! MIT glue codecs over a local NBT value tree.
+pub fn belt_segment_to_nbt(saved: create_engine::belt::SavedSegment) -> Compound {
+    Compound::from([
+        (
+            "Controller".into(),
+            Tag::IntArray(saved.controller.to_vec()),
+        ),
+        ("Index".into(), Tag::Int(saved.index)),
+        ("Length".into(), Tag::Int(saved.length)),
+    ])
+}
+pub fn belt_segment_from_nbt(data: &Compound) -> Option<create_engine::belt::SavedSegment> {
+    let (Some(Tag::IntArray(c)), Some(Tag::Int(index)), Some(Tag::Int(length))) = (
+        data.get("Controller"),
+        data.get("Index"),
+        data.get("Length"),
+    ) else {
+        return None;
+    };
+    let [x, y, z] = c.as_slice() else { return None };
+    Some(create_engine::belt::SavedSegment {
+        controller: [*x, *y, *z],
+        index: *index,
+        length: *length,
+    })
+}
 pub fn depot_to_nbt(saved: create_engine::depot::SavedDepot) -> Compound {
     let Some(h) = saved.held else {
         return Compound::new();
@@ -249,6 +274,15 @@ pub fn belts_to_nbt(belts: &[([i32; 3], create_engine::belt::Inventory)]) -> Tag
                     "positive".into(),
                     Tag::IntArray(vec![i32::from(inv.positive)]),
                 );
+                b.insert(
+                    "insertion".into(),
+                    Tag::IntArray(
+                        inv.items
+                            .iter()
+                            .flat_map(|i| [i.inserted_at, i.inserted_from.map_or(6, |d| d as i32)])
+                            .collect(),
+                    ),
+                );
                 // Items in a sequenced assembly: their index and step, and the recipe.
                 let assembly: Vec<Tag> = inv
                     .items
@@ -309,6 +343,15 @@ pub fn belts_from_nbt(data: &Compound) -> Vec<([i32; 3], create_engine::belt::In
                     Some(item)
                 })
                 .collect();
+            if let Some(Tag::IntArray(context)) = b.get("insertion") {
+                for (item, pair) in items.iter_mut().zip(context.as_chunks::<2>().0) {
+                    item.inserted_at = pair[0];
+                    item.inserted_from = usize::try_from(pair[1])
+                        .ok()
+                        .and_then(|n| create_engine::kinetics::Dir::ALL.get(n))
+                        .copied();
+                }
+            }
             if let Some(Tag::List(assembly)) = b.get("assembly") {
                 for a in assembly {
                     let Tag::Compound(a) = a else { continue };
@@ -455,19 +498,24 @@ mod tests {
         assert_eq!(saved_from_nbt(&data), Some(saved));
     }
     #[test]
-    fn belt_reload_uses_persisted_fields_and_clears_runtime_insertion_context() {
+    fn belt_reload_preserves_insertion_context() {
         let mut inv = create_engine::belt::Inventory::default();
         let mut item = create_engine::belt::Item::new("minecraft:iron_ingot", 4, 180, false);
         item.position = 1.25;
         item.locked = true;
         item.inserted_at = 2;
+        item.inserted_from = Some(create_engine::kinetics::Dir::Up);
         inv.add(item);
         let tag = Compound::from([("belts".into(), belts_to_nbt(&[([0, 8, 0], inv.to_save())]))]);
         let saved = belts_from_nbt(&tag);
         assert_eq!(saved[0].1.items[0].position, 1.25);
         assert!(saved[0].1.items[0].locked);
         assert_eq!(saved[0].1.items[0].count, 4);
-        assert_eq!(saved[0].1.items[0].inserted_at, 0);
+        assert_eq!(saved[0].1.items[0].inserted_at, 2);
+        assert_eq!(
+            saved[0].1.items[0].inserted_from,
+            Some(create_engine::kinetics::Dir::Up)
+        );
     }
 }
 
@@ -534,5 +582,48 @@ mod depot_tests {
         let empty = depot_to_nbt(SavedDepot { held: None });
         assert!(empty.is_empty());
         assert_eq!(depot_from_nbt(&empty).held, None);
+    }
+}
+
+#[cfg(test)]
+mod belt_membership_tests {
+    use super::*;
+    #[test]
+    fn segment_membership_round_trips_and_requires_typed_fields() {
+        let saved = create_engine::belt::SavedSegment {
+            controller: [-2, 8, 4],
+            index: 2,
+            length: 5,
+        };
+        let bytes = serde_json::to_vec(&belt_segment_to_nbt(saved)).unwrap();
+        assert_eq!(
+            belt_segment_from_nbt(&serde_json::from_slice(&bytes).unwrap()),
+            Some(saved)
+        );
+        assert_eq!(belt_segment_from_nbt(&Compound::new()), None);
+    }
+    #[test]
+    fn optional_insertion_pairs_preserve_all_directions_and_legacy_is_readable() {
+        for direction in create_engine::kinetics::Dir::ALL
+            .into_iter()
+            .map(Some)
+            .chain(std::iter::once(None))
+        {
+            let mut item = create_engine::belt::Item::new("minecraft:iron_ingot", 1, 180, false);
+            item.inserted_at = 3;
+            item.inserted_from = direction;
+            let inv = create_engine::belt::Inventory::from_saved(vec![item], true);
+            let mut data = Compound::from([("belts".into(), belts_to_nbt(&[([0, 8, 0], inv)]))]);
+            let bytes = serde_json::to_vec(&data).unwrap();
+            let saved = belts_from_nbt(&serde_json::from_slice(&bytes).unwrap());
+            assert_eq!(saved[0].1.items[0].inserted_from, direction);
+            assert_eq!(saved[0].1.items[0].inserted_at, 3);
+            if let Some(Tag::List(list)) = data.get_mut("belts")
+                && let Tag::Compound(c) = &mut list[0]
+            {
+                c.remove("insertion");
+            }
+            assert_eq!(belts_from_nbt(&data)[0].1.items[0].inserted_at, 0);
+        }
     }
 }

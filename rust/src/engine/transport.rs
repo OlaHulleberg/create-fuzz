@@ -190,7 +190,10 @@ impl Run {
             // Native dropped-entity flight after an open end is outside this adapter.
             let _ = ticked;
         }
-        let changed = std::mem::take(&mut self.w.dims[0].belt_changes);
+        let mut changed = std::mem::take(&mut self.w.dims[0].belt_changes);
+        changed.sort_unstable();
+        changed.dedup();
+        self.save_belt_records(&changed);
         for p in changed {
             self.w.mark_unsaved(0, p);
         }

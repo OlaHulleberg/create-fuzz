@@ -11,6 +11,7 @@ pub(super) struct Store {
     pub columns: Compound,
     pub handles: HashMap<Pos, Compound>,
     pub depots: HashMap<Pos, Compound>,
+    pub belts: HashMap<Pos, Compound>,
     pub dirty_columns: std::collections::BTreeSet<(i32, i32)>,
     pub brackets: HashMap<Pos, create_engine::decor::Bracket>,
     pub conveyors: HashMap<Pos, Vec<Pos>>,
@@ -21,6 +22,7 @@ type ReloadData = (
     Vec<(Pos, Compound)>,
     Vec<(Pos, crate::transport::Stack)>,
     Vec<(Pos, crate::handles::Handle)>,
+    Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
 );
@@ -47,6 +49,22 @@ impl Run {
         for &p in self.w.dims[0].depots.keys() {
             if let Some(saved) = self.w.saved_depot(0, p) {
                 self.persisted.depots.insert(p, codec::depot_to_nbt(saved));
+            }
+        }
+    }
+    pub(super) fn save_belt_records(&mut self, changed: &[Pos]) {
+        for c in changed {
+            let members = self.w.dims[0]
+                .belts
+                .get(c)
+                .map(|b| b.chain.clone())
+                .unwrap_or_default();
+            for p in members {
+                if let Some(saved) = self.w.saved_belt_segment(0, p) {
+                    self.persisted
+                        .belts
+                        .insert(p, codec::belt_segment_to_nbt(saved));
+                }
             }
         }
     }
@@ -223,10 +241,10 @@ impl Run {
             self.handles.iter().collect::<Vec<_>>(),
             self.persisted.handles.iter().collect::<Vec<_>>(),
             self.persisted.depots.iter().collect::<Vec<_>>(),
+            self.persisted.belts.iter().collect::<Vec<_>>(),
         ))
         .unwrap();
-        let (data, entities, sequences, slots, handles, saved_handles, saved_depots): ReloadData =
-            serde_json::from_slice(&bytes).unwrap();
+        let (data, entities, sequences, slots, handles, saved_handles, saved_depots, saved_belts): ReloadData = serde_json::from_slice(&bytes).unwrap();
         self.depot_stacks = slots.into_iter().collect();
         self.handles = handles.into_iter().collect();
         for &(cx, cz) in &columns {
@@ -244,8 +262,12 @@ impl Run {
         self.w.load_settings(0, motors.into_iter());
         self.w
             .load_belt_items(0, codec::belts_from_nbt(&data).into_iter());
+        let saved_belts: HashMap<_, _> = saved_belts.into_iter().collect();
         for &(p, s) in &blocks {
             self.w.block_loaded(0, p, s);
+            if let Some(saved) = saved_belts.get(&p).and_then(codec::belt_segment_from_nbt) {
+                self.w.restore_belt_segment(0, p, saved);
+            }
         }
         let restored_depots: std::collections::HashSet<_> =
             saved_depots.iter().map(|(p, _)| *p).collect();
@@ -266,7 +288,10 @@ impl Run {
         // block_entity_on_load: the scan may already have registered this block.
         for (p, sub, data) in entities {
             if let Some(saved) = codec::saved_from_nbt(&data) {
-                self.w.dims[0].kinetics.restore_state(p, sub, saved);
+                assert!(
+                    self.w.dims[0].kinetics.restore_state(p, sub, saved),
+                    "saved kinetic part missing at {p:?} port {sub}"
+                );
             }
         }
         for (p, data) in sequences {
@@ -343,10 +368,14 @@ impl Run {
                 held: self.depot_stacks.get(&p).cloned(),
             },
             Block::Belt => {
-                let controller = *self.w.dims[0].belt_of.get(&p)?;
-                let b = &self.w.dims[0].belts[&controller];
-                let index = b.chain.iter().position(|q| *q == p)? as i32;
-                let inventory = (p == controller).then(|| {
+                let saved = self
+                    .persisted
+                    .belts
+                    .get(&p)
+                    .and_then(codec::belt_segment_from_nbt);
+                let (controller, index, length) =
+                    saved.map_or((p, 0, 0), |s| (s.controller, s.index, s.length));
+                let inventory = (saved.is_some() && p == controller).then(|| {
                     let inv = codec::belts_from_nbt(&self.persisted.columns)
                         .into_iter()
                         .find(|(c, _)| *c == controller)
@@ -370,7 +399,7 @@ impl Run {
                 });
                 Payload::Belt {
                     controller,
-                    length: b.chain.len() as i32,
+                    length,
                     index,
                     casing: self
                         .belt_casing
@@ -595,6 +624,82 @@ mod tests {
         assert_eq!(phase.next(&mut r.w), Some(c));
         assert_eq!(r.w.dims[0].belts[&c].items.items[0].position, 1.4);
         assert!(r.w.dims[0].kinetics.has_part(c, 0));
+    }
+    #[test]
+    fn saved_membership_and_insertion_survive_two_belt_reloads() {
+        let sc: Scenario =
+            serde_json::from_str(include_str!("../persistence/belt-reload-case.json")).unwrap();
+        let mut r = Run::new(&sc);
+        let c = [0, 8, 0];
+        let mut reloads = 0;
+        for t in 0_u32..46 {
+            if let Some(b) = sc.blocks.get(t as usize) {
+                r.place(b);
+            }
+            if let Some(b) = t.checked_sub(1).and_then(|i| sc.blocks.get(i as usize)) {
+                r.set_motor(b);
+            }
+            for e in sc.events.iter().filter(|e| e.tick == t) {
+                if let Some(a) = &e.action {
+                    let clock = r.persisted.clock;
+                    r.action(e.pos, a);
+                    if matches!(a, crate::actions::Action::Reload) {
+                        reloads += 1;
+                        assert_eq!(r.persisted.clock, clock);
+                        for &p in &r.w.dims[0].belts[&c].chain {
+                            let saved =
+                                codec::belt_segment_from_nbt(&r.persisted.belts[&p]).unwrap();
+                            assert_eq!(r.w.saved_belt_segment(0, p), Some(saved));
+                            assert!(r.w.dims[0].kinetics.has_part(p, 0));
+                        }
+                        let item = &r.w.dims[0].belts[&c].items.items[0];
+                        assert_eq!(item.inserted_at, 1);
+                        assert_eq!(item.inserted_from, Some(create_engine::kinetics::Dir::Up));
+                    }
+                }
+            }
+            r.tick();
+            if t == 41 {
+                assert!((r.w.dims[0].belts[&c].items.items[0].position - 1.4291666).abs() < 1e-6);
+            }
+        }
+        assert_eq!(reloads, 2);
+    }
+    #[test]
+    fn empty_belt_direction_survives_two_zero_speed_reloads() {
+        let mut sc = crate::transport::generate(63);
+        sc.events.retain(|e| e.tick <= 20);
+        let mut r = Run::new(&sc);
+        let c = [0, 8, 0];
+        for t in 0_u32..30 {
+            if let Some(b) = sc.blocks.get(t as usize) {
+                r.place(b);
+            }
+            if let Some(b) = t.checked_sub(1).and_then(|i| sc.blocks.get(i as usize)) {
+                r.set_motor(b);
+            }
+            for e in sc.events.iter().filter(|e| e.tick == t) {
+                if let Some(a) = &e.action {
+                    r.action(e.pos, a);
+                }
+            }
+            r.tick();
+        }
+        assert!(r.w.dims[0].belts[&c].items.positive);
+        r.set([-1, 8, 0], AIR);
+        r.tick();
+        r.tick();
+        for _ in 0..2 {
+            assert_eq!(r.w.speed(0, c), Some(0.));
+            let saved = codec::belts_from_nbt(&r.persisted.columns);
+            let inv = &saved.iter().find(|(p, _)| *p == c).unwrap().1;
+            assert!(inv.is_empty() && inv.positive);
+            r.reload();
+            let b = &r.w.dims[0].belts[&c];
+            assert!(b.items.is_empty() && b.items.positive);
+            assert_eq!(b.chain.len(), 5);
+            r.tick();
+        }
     }
     #[test]
     fn reload_histories_run_without_reusing_live_belt_entities() {

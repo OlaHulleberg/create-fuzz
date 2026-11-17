@@ -211,6 +211,7 @@ impl Run {
             self.persisted.kinetics.remove(&(p, 1));
             self.persisted.sequences.remove(&p);
             self.persisted.depots.remove(&p);
+            self.persisted.belts.remove(&p);
             if !self
                 .w
                 .table
