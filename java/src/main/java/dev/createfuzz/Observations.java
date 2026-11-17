@@ -160,8 +160,15 @@ final class Observations {
         o.addProperty("overstressed", k.isOverStressed());
         o.addProperty("stress", field(k, "stress"));
         o.addProperty("capacity", field(k, "capacity"));
+        // calculateStressApplied/calculateAddedStressCapacity also cache their result in the
+        // entity (lastStressApplied, lastCapacityProvided), which write() saves: observing must
+        // not change what Create later saves, so the caches are put back.
+        float lastStress = field(k, "lastStressApplied");
+        float lastCapacity = field(k, "lastCapacityProvided");
         o.addProperty("impact", k.calculateStressApplied());
         o.addProperty("added_capacity", k.calculateAddedStressCapacity());
+        setField(k, "lastStressApplied", lastStress);
+        setField(k, "lastCapacityProvided", lastCapacity);
         o.addProperty("generated", k.getGeneratedSpeed());
         o.addProperty("has_source", k.hasSource());
         if (k.getBlockState().getBlock() instanceof GaugeBlock gauge)
@@ -198,6 +205,16 @@ final class Observations {
             o.add("faces", faces);
         }
         return o;
+    }
+
+    static void setField(KineticBlockEntity k, String name, float value) {
+        try {
+            java.lang.reflect.Field f = KineticBlockEntity.class.getDeclaredField(name);
+            f.setAccessible(true);
+            f.setFloat(k, value);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     static float field(KineticBlockEntity k, String name) {
