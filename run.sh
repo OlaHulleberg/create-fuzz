@@ -93,6 +93,10 @@ stop)
     fi ;;
 fuzz)
     shift
+    if [ "${1:-}" = gaps ]; then
+        shift
+        exec python3 "$here/tools/coverage/gaps.py" "$@"
+    fi
     if [ "${1:-}" = cover ]; then coverage_tools; fi
     export FUZZ_FOUND="${FUZZ_FOUND:-$here/found}"
     manifest="$here/rust/Cargo.toml"
