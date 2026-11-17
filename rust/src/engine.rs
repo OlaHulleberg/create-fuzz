@@ -344,7 +344,9 @@ impl Run {
         let state = self.at(p);
         let own = self.w.table.get(state).map(|(b, i)| (b, *i));
         if let Some((block, info)) = own.filter(|(b, _)| create_engine::dye::is_valve_handle(*b)) {
+            // interaction/values.rs: a box takes the click only while its behaviour is active.
             if !sneaking
+                && self.w.value_box_active(0, p)
                 && let Some(slot) = info.facing.and_then(|f| board::valve_slot(f, face))
                 && board::hits_valve_box(slot, hit)
             {
@@ -386,6 +388,7 @@ impl Run {
         // interaction/values.rs: the motor's active value box consumes the click first.
         if !sneaking
             && let Some((Block::CreativeMotor, info)) = own
+            && self.w.value_box_active(0, p)
             && let Some(slot) = info.facing.and_then(|f| board::motor_slot(f, face))
             && board::hits_box(slot, hit)
         {
@@ -882,7 +885,8 @@ pub fn run(sc: &Scenario) -> Snapshot {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn busy_valve_centre_still_enters_the_ports_value_box_handler() {
+    fn busy_valve_box_passes_a_centred_dye_to_the_block() {
+        // interaction/values.rs: `ValveHandleBlockEntity.showValue` hides the box while in use.
         let sc: crate::scenario::Scenario =
             serde_json::from_value(serde_json::json!({"ticks":80,"blocks":[
             {"pos":[0,7,0],"state":"minecraft:stone"},
@@ -899,7 +903,7 @@ mod tests {
         r.use_item(p, "minecraft:red_dye", face, [0.5, 0.5, 0.5], 0., 0., false);
         assert_eq!(
             r.w.block_at(0, p),
-            Some(create_engine::Block::CopperValveHandle)
+            Some(create_engine::Block::RedValveHandle)
         );
     }
 
