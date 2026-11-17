@@ -131,6 +131,21 @@ fn kinetic_diff(j: &Kinetic, r: &Kinetic) -> Vec<String> {
             }
         }
     }
+    match (&j.sequencer, &r.sequencer) {
+        (Some(a), Some(b)) => {
+            if (a.current, a.duration, a.timer, a.powered_before)
+                != (b.current, b.duration, b.timer, b.powered_before)
+                || !close(a.progress, b.progress)
+            {
+                out.push(format!("sequencer: java {a:?} rust {b:?}"));
+            }
+        }
+        (None, None) => {}
+        _ => out.push(format!(
+            "sequencer: java {:?} rust {:?}",
+            j.sequencer, r.sequencer
+        )),
+    }
     if j.has_source != r.has_source {
         out.push(format!(
             "has_source: java {} rust {}",

@@ -40,6 +40,8 @@ pub struct Kinetic {
     /// `getSpeed()`: 0 when overstressed.
     pub speed: f32,
     #[serde(default)]
+    pub sequencer: Option<SequenceRun>,
+    #[serde(default)]
     pub speed_setting: Option<f32>,
     #[serde(default)]
     pub chain_modifier: Option<f32>,
@@ -72,4 +74,13 @@ pub struct Kinetic {
 pub struct Networks {
     pub partitions: Vec<Vec<String>>,
     pub sizes: BTreeMap<String, i32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct SequenceRun {
+    pub current: i32,
+    pub duration: i32,
+    pub progress: f32,
+    pub timer: i32,
+    pub powered_before: bool,
 }

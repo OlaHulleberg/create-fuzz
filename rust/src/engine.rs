@@ -87,6 +87,14 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     for face in ["up", "down", "north", "south", "east", "west"] {
         push(format!("create:creative_motor[facing={face}]"));
     }
+    for entry in crate::catalogue::entries()
+        .iter()
+        .filter(|e| e.id == "create:sequenced_gearshift")
+    {
+        for spec in entry.specifications() {
+            push(spec.state);
+        }
+    }
     for b in &all {
         if !b.state.starts_with("create:") {
             continue;
@@ -283,6 +291,14 @@ impl Run {
                         row: *row,
                         value: *value,
                     },
+                );
+            }
+            Action::Program { instructions } => {
+                self.w.set_sequencer_instructions(
+                    0,
+                    p,
+                    instructions.iter().map(|i| i.engine()).collect(),
+                    true,
                 );
             }
             Action::Remove => self.set(p, AIR),
@@ -575,6 +591,25 @@ impl Run {
             let next = with_prop(&self.name(self.at(p)), "part", drive.part.name());
             self.set(p, self.id(&next));
         }
+        let mut steps = Vec::new();
+        for (p, running) in self.w.take_sequencer_checks(0) {
+            let powered = self.signal(p) > 0;
+            if let Some(step) = self.w.sequencer_redstone(0, p, powered, running) {
+                steps.push((p, step));
+            }
+        }
+        steps.extend(self.w.tick_sequencers(0));
+        for (p, step) in steps {
+            use create_engine::sequencer::Step;
+            let n = match step {
+                Step::Run(n) => n,
+                Step::Idle => 0,
+                Step::Ended if self.signal(p) > 0 => continue,
+                Step::Ended => 0,
+            };
+            let next = with_prop(&self.name(self.at(p)), "state", &n.to_string());
+            self.set(p, self.id(&next));
+        }
         let mut events = Vec::new();
         self.w.settle_belts(0);
         self.w.tick(0, &mut events);
@@ -701,6 +736,16 @@ impl Run {
                 .map(|g| create_engine::gauge::analog_output(g.shown.dial)),
             sequence_angle: k.sequence_limit(p, sub, false),
             sequence_distance: k.sequence_limit(p, sub, true),
+            sequencer: self
+                .w
+                .sequencer_run(0, p)
+                .map(|r| crate::observation::SequenceRun {
+                    current: r.current,
+                    duration: r.duration,
+                    progress: r.progress,
+                    timer: r.timer,
+                    powered_before: r.powered_before,
+                }),
             chain_modifier: (block == create_engine::Block::AdjustableChainGearshift).then(|| {
                 create_engine::chain::modifier_for_signal(
                     self.chain_signals.get(&p).copied().unwrap_or(0),

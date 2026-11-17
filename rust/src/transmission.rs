@@ -116,3 +116,40 @@ pub fn chain(seed: u64) -> Scenario {
     ));
     serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":220,"checkpoints":[25,125,135,150],"blocks":blocks,"events":events})).unwrap()
 }
+
+pub fn sequence(seed: u64) -> Scenario {
+    let modifier = if seed & 16 == 0 {
+        "FORWARD_FAST"
+    } else {
+        "BACK_FAST"
+    };
+    let program = serde_json::json!({"kind":"program","instructions":[
+        {"instruction":"TURN_ANGLE","modifier":modifier,"value":90},
+        {"instruction":"DELAY","modifier":"FORWARD","value":3},
+        {"instruction":"AWAIT","modifier":"FORWARD","value":-1},
+        {"instruction":"TURN_DISTANCE","modifier":"BACK","value":1},
+        {"instruction":"END","modifier":"FORWARD","value":-1}]});
+    let mut events = vec![serde_json::json!({"tick":10,"pos":[0,8,0],"action":program})];
+    for (tick, strength) in [
+        (20, 15),
+        (23, 0),
+        (25, 15),
+        (27, 0),
+        (45, 15),
+        (47, 0),
+        (80, 15),
+        (82, 0),
+        (110, 15),
+        (112, 0),
+    ] {
+        events.push(serde_json::json!({"tick":tick,"pos":[0,9,0],"action":{"kind":"signal","strength":strength}}));
+    }
+    events.push(serde_json::json!({"tick":100,"pos":[0,8,0],"action":program}));
+    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":190,
+        "checkpoints":(19..140).collect::<Vec<_>>(),"blocks":[
+        {"pos":[-1,8,0],"state":"create:creative_motor[facing=east]","motor":32},
+        {"pos":[0,8,0],"state":"create:sequenced_gearshift[axis=x,vertical=false,state=0]"},
+        {"pos":[1,8,0],"state":"create:shaft[axis=x,waterlogged=false]"},
+        {"pos":[2,8,0],"state":"create:mechanical_press[facing=east]"}],"events":events}))
+    .unwrap()
+}

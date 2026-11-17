@@ -11,6 +11,7 @@ mod guided;
 mod java;
 mod mutate;
 mod observation;
+mod program;
 mod scenario;
 mod shrink;
 mod transmission;

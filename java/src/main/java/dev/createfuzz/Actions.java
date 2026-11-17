@@ -58,6 +58,18 @@ final class Actions {
                         InteractionHand.MAIN_HAND,
                         new BlockHitResult(point, face, pos, false));
             }
+            case "program" -> {
+                var list = new java.util.Vector<com.simibubi.create.content.kinetics.transmission.sequencer.Instruction>();
+                for (var element : action.getAsJsonArray("instructions")) {
+                    var i = element.getAsJsonObject();
+                    list.add(new com.simibubi.create.content.kinetics.transmission.sequencer.Instruction(
+                        com.simibubi.create.content.kinetics.transmission.sequencer.SequencerInstructions.valueOf(i.get("instruction").getAsString()),
+                        com.simibubi.create.content.kinetics.transmission.sequencer.InstructionSpeedModifiers.valueOf(i.get("modifier").getAsString()), i.get("value").getAsInt()));
+                }
+                player.setPos(pos.getX()+.5,pos.getY()+1,pos.getZ()+2);
+                if (level.getBlockEntity(pos) instanceof com.simibubi.create.content.kinetics.transmission.sequencer.SequencedGearshiftBlockEntity)
+                    new com.simibubi.create.content.kinetics.transmission.sequencer.ConfigureSequencedGearshiftPacket(pos,list).handle(player);
+            }
             case "speed_setting" -> speedSetting(level, player, pos,
                     action.get("row").getAsInt(), action.get("value").getAsInt());
             case "remove" -> player.gameMode.destroyBlock(pos);

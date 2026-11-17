@@ -171,3 +171,15 @@ outputs are compared. Chain traces contain two adjustable gearshifts, an analog
 0..15 sweep and boundary transitions, middle removal/replacement and both motor
 signs. `chain_modifier` reads Java's getModifier; Rust reports the modifier of the
 last signal submitted to set_chain_signal (the engine has no public setting getter).
+
+`program` carries `instructions`, each with `instruction` (TURN_ANGLE,
+TURN_DISTANCE, DELAY, AWAIT, END), `modifier` (FORWARD_FAST, FORWARD, BACK,
+BACK_FAST) and `value`. Lists contain one to five screen rows; END is terminal.
+Java constructs ConfigureSequencedGearshiftPacket and calls handle with the
+ordinary actor within range. Rust calls set_sequencer_instructions(stop=true),
+then checks redstone, ticks instructions and commits returned state transitions
+in the same order as the glue. Snapshots compare current index, duration,
+progress, timer and previous power; the block state remains compared too.
+Sequence angle/distance limits continue to compare propagated context at every
+kinetic block. Per-tick program traces include pulses during turns and await,
+configuration while running, restart, both turn kinds and both modifier signs.

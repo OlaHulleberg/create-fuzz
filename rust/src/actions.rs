@@ -18,6 +18,9 @@ pub enum Action {
         row: i32,
         value: i32,
     },
+    Program {
+        instructions: Vec<crate::program::Instruction>,
+    },
     Remove,
     Signal {
         strength: u8,
@@ -107,6 +110,16 @@ impl Action {
                             "hit is not on clicked face"
                         );
                     }
+                }
+            }
+            Self::Program { instructions } => {
+                assert!(!instructions.is_empty() && instructions.len() <= 5);
+                for (i, instruction) in instructions.iter().enumerate() {
+                    instruction.validate();
+                    assert!(
+                        instruction.instruction != crate::program::Kind::End
+                            || i + 1 == instructions.len()
+                    );
                 }
             }
             Self::Remove => {}

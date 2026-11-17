@@ -145,6 +145,16 @@ final class Observations {
                             : "sequence_distance";
             o.addProperty(name, k.sequenceContext.getEffectiveValue(k.getTheoreticalSpeed()));
         }
+        if (k instanceof com.simibubi.create.content.kinetics.transmission.sequencer.SequencedGearshiftBlockEntity) {
+            var tag = k.saveWithoutMetadata(k.getLevel().registryAccess());
+            JsonObject run = new JsonObject();
+            run.addProperty("current", tag.getInt("InstructionIndex"));
+            run.addProperty("duration", tag.getInt("InstructionDuration"));
+            run.addProperty("progress", tag.getFloat("InstructionProgress"));
+            run.addProperty("timer", tag.getInt("Timer"));
+            run.addProperty("powered_before", tag.getBoolean("PrevPowered"));
+            o.add("sequencer", run);
+        }
         // A clutch's or gearshift's halves: the speed each shaft face turns at.
         if (k instanceof SplitShaftBlockEntity s
                 && k.getBlockState().getBlock() instanceof IRotate r) {
