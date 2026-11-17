@@ -1,6 +1,6 @@
 //! Valve entity data maintained by the glue outside CreateWorld.
 use serde::{Deserialize, Serialize};
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Handle {
     pub selected: i32,
     pub remaining: u8,

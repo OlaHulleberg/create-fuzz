@@ -36,3 +36,13 @@ loadStatic entities with unchanged block states. Initialization runs on their
 next normal entity tick. This keeps scheduled world ticks and external entities;
 it is an entity reload, not a restart or a chunk-ticket test. Slots share forced
 chunks and the shared level, so chunk ticket removal cannot isolate an area.
+
+The Rust reload adapter now uses the MIT glue's kinetic, belt and sequencer NBT
+codecs over a local typed tag tree. It encodes and decodes the records before
+calling column_unloaded, load_settings/load_belt_items, block_loaded,
+restore_state, set_sequencer_instructions and restore_sequencer. Conveyor links
+use Chains::unload/add and set_far. Host inventory slots and valve use records
+cross the serialization boundary independently of the engine. Depot motion and
+engine crank timers are reset exactly where the current glue has no persisted
+restore entry; the driver does not invent one. Current-save round trips never
+enter legacy migration. Corrupt/old save injection remains a separate scope.

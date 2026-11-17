@@ -1,7 +1,7 @@
 //! Package subsystem's explicit conveyor connections and kinetic synchronization.
 use super::*;
 impl Run {
-    fn sync_conveyors(&mut self) {
+    pub(super) fn sync_conveyors(&mut self) {
         for (&p, c) in &self.chains.conveyors {
             self.w.dims[0]
                 .kinetics

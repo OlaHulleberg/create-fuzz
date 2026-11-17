@@ -1,4 +1,5 @@
 //! Shared server-save fields of KineticBlockEntity; runtime network identity is excluded.
+pub mod codec;
 use crate::scenario::Pos;
 use serde::{Deserialize, Serialize};
 

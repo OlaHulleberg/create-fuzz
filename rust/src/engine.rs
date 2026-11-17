@@ -10,6 +10,7 @@ mod conveyors;
 mod interaction;
 mod kinetics;
 mod observation;
+mod persistence;
 mod transport;
 
 use crate::scenario::{
