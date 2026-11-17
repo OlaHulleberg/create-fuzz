@@ -128,6 +128,7 @@ pub struct Run {
     ids: HashMap<String, u32>,
     names: Vec<String>,
     world: HashMap<Pos, u32>,
+    entity_order: Vec<Pos>,
     notes: Vec<String>,
     depot_stacks: HashMap<Pos, crate::transport::Stack>,
     item_outcomes: Vec<crate::transport::Outcome>,
@@ -169,6 +170,7 @@ impl Run {
             ids,
             names,
             world: HashMap::new(),
+            entity_order: Vec::new(),
             notes: Vec::new(),
             depot_stacks: HashMap::new(),
             item_outcomes: Vec::new(),
@@ -246,6 +248,32 @@ impl Run {
         }
         if old == new {
             return;
+        }
+        // Native block-entity registrations survive state changes and recolouring,
+        // while replacement/removal registers a new ticker at the end of the level.
+        let old_block = self.w.table.get(old).map(|(block, _)| block);
+        let new_block = self.w.table.get(new).map(|(block, _)| block);
+        let funnel = |block| match block {
+            Some(
+                create_engine::Block::AndesiteFunnel | create_engine::Block::AndesiteBeltFunnel,
+            ) => Some(false),
+            Some(create_engine::Block::BrassFunnel | create_engine::Block::BrassBeltFunnel) => {
+                Some(true)
+            }
+            _ => None,
+        };
+        let retains = old_block == new_block
+            || old_block.zip(new_block).is_some_and(|(old, new)| {
+                create_engine::dye::is_valve_handle(old) && create_engine::dye::is_valve_handle(new)
+            })
+            || funnel(old_block).is_some_and(|material| funnel(new_block) == Some(material));
+        if !retains {
+            self.entity_order.retain(|pos| *pos != p);
+        }
+        if new_block.is_some_and(|block| block.has_block_entity())
+            && !self.entity_order.contains(&p)
+        {
+            self.entity_order.push(p);
         }
         if new == AIR {
             self.world.remove(&p);

@@ -19,13 +19,11 @@ final class Persistence {
             int v=e.getAsJsonObject().getAsJsonArray("pos").get(a).getAsInt();
             lo[a]=Math.min(lo[a],v); hi[a]=Math.max(hi[a],v);
         }
-        var unloaded = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<net.minecraft.world.level.block.entity.BlockEntity, Boolean>());
         var tags = new java.util.LinkedHashMap<BlockPos,net.minecraft.nbt.CompoundTag>();
         for(int x=lo[0]-1;x<=hi[0]+1;x++) for(int y=lo[1]-1;y<=hi[1]+1;y++) for(int z=lo[2]-1;z<=hi[2]+1;z++) {
             var pos=origin.offset(x,y,z);
             var be=level.getBlockEntity(pos);
             if(be==null) continue;
-            unloaded.add(be);
             var tag=be.saveWithoutMetadata(level.registryAccess());
             tag.putString("id",net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(be.getType()).toString());
             tags.put(pos,tag);
@@ -49,20 +47,6 @@ final class Persistence {
             be.onChunkUnloaded();
             level.removeBlockEntity(pos);
         }
-        // onChunkUnloaded deliberately skips KineticBlockEntity.remove(). The
-        // synthetic reload must release the replaced objects itself, retaining
-        // network totals and other cases' live members until normal initialization.
-        try {
-            var field = com.simibubi.create.content.kinetics.TorquePropagator.class.getDeclaredField("networks");
-            field.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            var worlds = (java.util.Map<net.minecraft.world.level.LevelAccessor, java.util.Map<Long, com.simibubi.create.content.kinetics.KineticNetwork>>) field.get(null);
-            var networks = worlds.get(level);
-            if (networks != null) for (var network : networks.values()) {
-                network.members.keySet().removeAll(unloaded);
-                network.sources.keySet().removeAll(unloaded);
-            }
-        } catch (ReflectiveOperationException e) { throw new IllegalStateException(e); }
         for(var entry:tags.entrySet()) {
             var pos=entry.getKey();
             var fresh=net.minecraft.world.level.block.entity.BlockEntity.loadStatic(pos,level.getBlockState(pos),entry.getValue(),level.registryAccess());

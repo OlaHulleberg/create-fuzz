@@ -272,7 +272,15 @@ impl Run {
             .collect();
         self.belt_casing = casing.into_iter().collect();
         let mut blocks: Vec<_> = self.world.iter().map(|(&p, &s)| (p, s)).collect();
-        blocks.sort_by_key(|(p, _)| *p);
+        blocks.sort_by_key(|(p, _)| {
+            (
+                self.entity_order
+                    .iter()
+                    .position(|pos| pos == p)
+                    .unwrap_or(usize::MAX),
+                *p,
+            )
+        });
         let columns: std::collections::BTreeSet<_> =
             blocks.iter().map(|(p, _)| (p[0] >> 4, p[2] >> 4)).collect();
         let connections: Vec<_> = self
