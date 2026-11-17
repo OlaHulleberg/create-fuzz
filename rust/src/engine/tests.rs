@@ -200,3 +200,31 @@ fn pulley_change_exposes_engine_network_capacity() {
         32.
     );
 }
+
+#[test]
+fn player_chain_placement_keeps_declared_default_properties() {
+    let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({
+        "ticks": 80, "blocks": []
+    }))
+    .unwrap();
+    let mut r = super::Run::new(&sc);
+    for (x, block) in [
+        "create:encased_chain_drive",
+        "create:adjustable_chain_gearshift",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let p = [x as i32 * 3, 8, 0];
+        r.place_player(p, block, 90., 0., create_engine::kinetics::Dir::Up, false);
+        let (_, placed) = crate::scenario::parse_state(&r.name(r.at(p)));
+        for (property, value) in crate::defaults::declared(block) {
+            if property != "axis" {
+                assert!(
+                    placed.contains(&(property.clone(), value.clone())),
+                    "{block}: {property} must retain declared {value}"
+                );
+            }
+        }
+    }
+}
