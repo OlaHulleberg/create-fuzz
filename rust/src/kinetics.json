@@ -364,7 +364,7 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Static belt/conveyor state injection excluded; use belts scenario family for connector, casing, pulley, slicer endpoint and explicit chain links; item transport/inventory adapter pending",
+    "excluded": "Static isolated belt injection excluded; connector/casing/pulley/slicer histories and plain item landing, pickup and transport are supported; native flight, components and loaded slicing remain outside the adapter",
     "observation_scope": {}
   },
   {
@@ -376,7 +376,7 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Static belt/conveyor state injection excluded; use belts scenario family for connector, casing, pulley, slicer endpoint and explicit chain links; item transport/inventory adapter pending",
+    "excluded": "Static isolated conveyor injection excluded; explicit chain_link histories are supported; conveyor packages, ports and riding remain outside the adapter",
     "observation_scope": {}
   },
   {
