@@ -52,6 +52,7 @@ def generate(input_path, definitions, reasons, subsystem, provenance):
              '', 'Counts refer to missed JaCoCo branch outcomes; groups are method/line pairs.',
              'A missed group can contain both covered and missed outcomes. Reasons do not identify individual edges.',
              '', '| Category | Groups | Missed branches |', '| --- | ---: | ---: |']
+    counts.setdefault('UNCLASSIFIED', 0)
     for category in sorted(counts):
         lines.append(f'| {category} | {groups[category]} | {counts[category]} |')
     lines += ['', '## Harness work items', '']
@@ -87,6 +88,10 @@ def main():
     review = json.loads((ROOT / "coverage/review.json").read_text())
     if provenance["create"] != review["create"]:
         parser.error("reason map was reviewed against a different Create commit")
+    if not provenance.get("complete"):
+        parser.error("coverage campaign did not complete")
+    if provenance.get("never_reached_sha256") != hashlib.sha256(args.input.read_bytes()).hexdigest():
+        parser.error("coverage input differs from completed campaign")
     provenance["reporter"] = revision(ROOT)
     subsystems = [args.subsystem] if args.subsystem else sorted(definitions)
     args.output.mkdir(parents=True, exist_ok=True)

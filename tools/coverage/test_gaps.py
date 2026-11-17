@@ -31,5 +31,24 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(missing, 0)
 
 
+    def test_class_method_and_line_precedence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'never-reached.tsv'
+            path.write_text('class\tmethod\tline\tmissed branches\n'
+                            'test/A\trun()V\t10\t1\n'
+                            'test/A\trun(I)V\t11\t2\n'
+                            'test/A\tother()V\t12\t3\n')
+            base = dict(zip(['class', 'method', 'first', 'last', 'category', 'why'],
+                            ['test/A', '*', '1', '100', 'harness-gap', 'Missing world']))
+            method = dict(base, method='run', category='client', why='Client run')
+            line = dict(base, first='11', last='11', category='error-path', why='Invalid argument')
+            provenance = dict(fuzzer='f', engine='e', create='c', command='cover 1', reporter='r')
+            report, missing = gaps.generate(path, {'test': ['test/']}, [base, method, line], 'test', provenance)
+            self.assertEqual(missing, 0)
+            self.assertIn('| client | 1 | 1 |', report)
+            self.assertIn('| error-path | 1 | 2 |', report)
+            self.assertIn('| harness-gap | 1 | 3 |', report)
+
+
 if __name__ == '__main__':
     unittest.main()

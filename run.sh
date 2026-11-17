@@ -114,7 +114,13 @@ fuzz)
         manifest="$copy/Cargo.toml"
         export CARGO_TARGET_DIR="$copy/target"
     fi
-    cargo +1.99.1 run -q --release --manifest-path "$manifest" -- "$@" ;;
+    if [ "${1:-}" = cover ]; then
+        python3 "$here/tools/coverage/campaign.py" begin "$here" "$CREATE_HORIZON_DIR" "${CREATE_DIR:-$here/../Create}" "$2"
+    fi
+    cargo +1.99.1 run -q --release --manifest-path "$manifest" -- "$@"
+    if [ "${1:-}" = cover ]; then
+        python3 "$here/tools/coverage/campaign.py" complete
+    fi ;;
 *)
     sed -n 2,8p "$0"; exit 1 ;;
 esac

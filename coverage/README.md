@@ -26,3 +26,17 @@ Report counts are branch outcomes, not method counts or inferred edge identities
 The source hash is review evidence; refreshing reasons after a Create upgrade
 requires checking their source and replacing the hash. The reporter never reads
 Java sources or dependencies.
+
+A method selector may also be a Java method name without its descriptor, covering
+all overloads. Narrower line ranges override wider ranges; at equal ranges a
+method selector overrides `*`. Equal-priority matches are an error. This permits
+mixed server/client classes to keep explicit line-level client guards without
+hiding their server gameplay gaps.
+
+`fuzz cover` writes `campaign.json` automatically and marks it complete only after
+the driver succeeds. `fuzz gaps` checks completion and the input hash. An engine
+source archive must set `FUZZ_ENGINE_REVISION` to its archived commit. Preserve the
+initial corpus along with the report to reproduce a guided continuation; its
+filenames and contents are hashed in the campaign header. The isolated-server
+settings `FUZZ_PORT`, `FUZZ_DIR`, `FUZZ_GAME_DIR`, `FUZZ_JAVA_BUILD` and
+`FUZZ_COVERAGE_CACHE` keep its files apart from the shared server.
