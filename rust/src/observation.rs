@@ -27,6 +27,8 @@ pub struct Snapshot {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct BlockSnap {
     #[serde(default)]
+    pub world_fluid: Option<crate::fluid_world::Observation>,
+    #[serde(default)]
     pub payload: Option<crate::persistence::payload::Payload>,
     #[serde(default)]
     pub saved: Option<crate::persistence::Saved>,

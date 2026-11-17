@@ -82,6 +82,9 @@ impl Run {
         if self.belt_use(p, item, face, hit, sneaking) {
             return;
         }
+        if self.world_bucket(p, item, face) {
+            return;
+        }
         if self.pipe_use(p, item, face, hit, sneaking) {
             return;
         }
@@ -258,12 +261,12 @@ impl Run {
             return;
         }
         // No override of the clicked position: air replaces itself; solid clicks place adjacent.
-        let p = if state == AIR {
+        let p = if self.replaceable(p) {
             p
         } else {
             add(p, face.offset())
         };
-        if self.at(p) != AIR {
+        if !self.replaceable(p) {
             return;
         }
         self.place_player(p, item, yaw, pitch, face, sneaking);

@@ -7,6 +7,7 @@
 
 mod belts;
 mod conveyors;
+mod fluid_world;
 mod fluids;
 mod interaction;
 mod kinetics;
@@ -24,7 +25,7 @@ use create_engine::world::{CreateWorld, StateTable};
 use std::collections::{BTreeMap, HashMap};
 
 /// Create's state ids start here; below are the few vanilla ones the scenarios use.
-const FIRST: u32 = 32;
+const FIRST: u32 = 256;
 const AIR: u32 = 0;
 const REDSTONE_BLOCK: u32 = 1;
 const OTHER: u32 = 2;
@@ -98,6 +99,10 @@ fn create_states(sc: &Scenario) -> Vec<String> {
         }
         let (_, props) = parse_state(&b.state);
         push(normal(&b.state));
+        if props.iter().any(|(k, _)| k == "waterlogged") {
+            push(normal(&with_prop(&b.state, "waterlogged", "true")));
+            push(normal(&with_prop(&b.state, "waterlogged", "false")));
+        }
         if props.iter().any(|(k, _)| k == "powered") {
             push(normal(&with_prop(&b.state, "powered", "true")));
             push(normal(&with_prop(&b.state, "powered", "false")));
@@ -129,6 +134,13 @@ pub struct Run {
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
     java_ties: bool,
+    fluid_host: Option<crate::fluid_host::Host>,
+    fluid_host_enabled: bool,
+    fluid_rules: crate::fluid_world::Rules,
+    fluid_host_changes: Vec<crate::fluid_host::State>,
+    fluid_native_schedule: Vec<Pos>,
+    fluid_water_due: BTreeMap<usize, Vec<Pos>>,
+    fluid_domain: std::collections::BTreeSet<Pos>,
     _guard: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -171,6 +183,13 @@ impl Run {
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
             java_ties: false,
+            fluid_host: None,
+            fluid_host_enabled: crate::fluid_world::enabled(sc),
+            fluid_rules: crate::fluid_world::Rules::default(),
+            fluid_host_changes: Vec::new(),
+            fluid_native_schedule: Vec::new(),
+            fluid_water_due: BTreeMap::new(),
+            fluid_domain: sc.region().into_iter().collect(),
             _guard: guard,
         }
     }
@@ -182,6 +201,9 @@ impl Run {
             .and_then(|s| s.parse::<u32>().ok())
         {
             return 3 + v;
+        }
+        if let Some(id) = crate::fluid_world::id(state) {
+            return id;
         }
         if state == "minecraft:air" {
             return AIR;
@@ -198,6 +220,7 @@ impl Run {
             REDSTONE_BLOCK => "minecraft:redstone_block".into(),
             OTHER => "minecraft:stone".into(),
             3..=18 => format!("createfuzz:signal[strength={}]", id - 3),
+            19..=255 => crate::fluid_world::name(id).expect("registered external state"),
             _ => self.names[(id - FIRST) as usize].clone(),
         }
     }
@@ -318,6 +341,7 @@ impl Run {
             self.w.restore_chain_signal(0, p, 0);
         }
         self.conveyor_changed(p, old, new);
+        self.fluid_world_changed(p);
         if !notify {
             return;
         }

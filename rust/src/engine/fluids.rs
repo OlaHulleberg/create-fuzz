@@ -18,6 +18,7 @@ impl Run {
         }
     }
     pub(super) fn tick_fluids(&mut self) {
+        self.tick_world_fluids();
         self.tick_pipe_shapes();
         let open: HashMap<_, _> = self.w.dims[0]
             .plumbing

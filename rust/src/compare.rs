@@ -40,6 +40,12 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
             (Some(j), None) => out.push(format!("{k}: java has {}, rust has air", j.state)),
             (None, Some(r)) => out.push(format!("{k}: java has air, rust has {}", r.state)),
             (Some(j), Some(r)) => {
+                if j.world_fluid != r.world_fluid {
+                    out.push(format!(
+                        "{k}: world fluid: java {:?} rust {:?}",
+                        j.world_fluid, r.world_fluid
+                    ));
+                }
                 if j.fluid_tank != r.fluid_tank {
                     out.push(format!(
                         "{k}: fluid tank: java {:?} rust {:?}",
@@ -277,7 +283,14 @@ mod tests {
             )
             .is_some()
         );
-        assert!(crate::catalogue::validate("create:shaft[waterlogged=true]").is_err());
+        assert!(crate::catalogue::validate("create:shaft[waterlogged=true]").is_ok());
+        assert!(
+            state_diff(
+                "create:shaft[waterlogged=true]",
+                "create:shaft[waterlogged=false]"
+            )
+            .is_some()
+        );
         for e in crate::catalogue::entries() {
             for (property, reason) in &e.observation_scope {
                 assert!(e.properties.contains_key(property));

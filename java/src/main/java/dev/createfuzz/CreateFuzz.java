@@ -91,6 +91,7 @@ public class CreateFuzz {
                             cz <= (o.getZ() + CLEAR_RADIUS) >> 4;
                             cz++) level.setChunkForced(cx, cz, true);
             }
+            FluidHost.prepare(level);
             // Run ticks as fast as the server can.
             e.getServer().tickRateManager().setTickRate(10000f);
             startup = 0;
@@ -127,12 +128,24 @@ public class CreateFuzz {
             Path next = nextInbox();
             if (next == null) return;
             try {
-                JsonArray cases = JsonParser.parseString(Files.readString(next)).getAsJsonArray();
+                var input=JsonParser.parseString(Files.readString(next));
                 Files.delete(next);
+                if(next.getFileName().toString().startsWith("fluid-host-")) {
+                    var result=FluidHost.handle(level,input.getAsJsonObject());
+                    Path tmp=dir.resolve("outbox").resolve(next.getFileName()+".tmp");
+                    Files.writeString(tmp,GSON.toJson(result));
+                    Files.move(tmp,dir.resolve("outbox").resolve(next.getFileName()),StandardCopyOption.ATOMIC_MOVE);
+                    return;
+                }
+                if(FluidHost.busy()) throw new IllegalStateException("fluid world active; use one runner per private server");
+                server.tickRateManager().setFrozen(false);
+                JsonArray cases=input.getAsJsonArray();
                 batch = new Batch(next.getFileName().toString(), cases, level, dir);
+
                 batch.start(level);
                 if (batch.name.startsWith("cover-")) coverage(null);
             } catch (Exception ex) {
+                if(next.getFileName().toString().startsWith("fluid-host-")) FluidHost.abort(level);
                 fail(level, next.getFileName().toString(), ex);
             }
             return;
@@ -369,15 +382,6 @@ public class CreateFuzz {
             } catch (Exception ex) {
                 throw new RuntimeException("bad state " + b.get("state"), ex);
             }
-            if (state.hasProperty(
-                            net.minecraft.world.level.block.state.properties.BlockStateProperties
-                                    .WATERLOGGED)
-                    && state.getValue(
-                            net.minecraft.world.level.block.state.properties.BlockStateProperties
-                                    .WATERLOGGED))
-                throw new IllegalArgumentException(
-                        "waterlogged=true requires a fluid-world adapter; kinetics scenarios are"
-                                + " dry");
             level.setBlock(pos, state, 3);
         }
 

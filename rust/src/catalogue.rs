@@ -20,6 +20,9 @@ pub fn entries() -> &'static [Entry] {
 }
 pub fn validate(state: &str) -> Result<(), String> {
     let (id, props) = parse_state(state);
+    if crate::fluid_world::id(state).is_some() {
+        return Ok(());
+    }
     if !id.starts_with("create:") {
         return if [
             "minecraft:air",
@@ -46,11 +49,6 @@ pub fn validate(state: &str) -> Result<(), String> {
         .iter()
         .find(|e| e.id == id)
         .ok_or_else(|| format!("unknown kinetic id {id}"))?;
-    if props.iter().any(|(k, v)| k == "waterlogged" && v == "true") {
-        return Err(
-            "waterlogged=true requires a fluid-world adapter; kinetics scenarios are dry".into(),
-        );
-    }
     let mut seen = BTreeSet::new();
     for (k, v) in props {
         if !seen.insert(k.clone()) || !entry.properties.get(&k).is_some_and(|vs| vs.contains(&v)) {

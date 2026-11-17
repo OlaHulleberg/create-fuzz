@@ -48,11 +48,6 @@ pub fn contract() -> &'static Contract {
 }
 pub fn validate_state(id: &str, props: &[(String, String)]) -> Option<Result<(), String>> {
     let entry = contract().blocks.iter().find(|e| e.id == id)?;
-    if props.iter().any(|(k, v)| k == "waterlogged" && v == "true") {
-        return Some(Err(
-            "waterlogged fluid blocks require the fluid-world phase".into(),
-        ));
-    }
     let mut seen = std::collections::BTreeSet::new();
     Some(
         if props.iter().all(|(k, v)| {

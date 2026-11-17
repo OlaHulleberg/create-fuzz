@@ -23,6 +23,7 @@ impl Run {
             blocks.insert(
                 key(p),
                 BlockSnap {
+                    world_fluid: crate::fluid_world::observe(&state),
                     payload: self.saved_payload(p),
                     saved: self
                         .persisted

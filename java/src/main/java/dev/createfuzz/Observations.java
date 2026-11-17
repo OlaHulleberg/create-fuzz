@@ -54,6 +54,16 @@ final class Observations {
                     BlockState state = level.getBlockState(pos);
                     JsonObject snap = new JsonObject();
                     snap.addProperty("state", BlockStateParser.serialize(state));
+                    var fs = state.getFluidState();
+                    if (!fs.isEmpty()) {
+                        var fluid = new JsonObject();
+                        String id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fs.getType()).toString().replace(":flowing_", ":");
+                        fluid.addProperty("fluid", id);
+                        fluid.addProperty("source", fs.isSource());
+                        fluid.addProperty("amount", fs.getAmount());
+                        fluid.addProperty("falling", fs.hasProperty(net.minecraft.world.level.material.FlowingFluid.FALLING) && fs.getValue(net.minecraft.world.level.material.FlowingFluid.FALLING));
+                        snap.add("world_fluid", fluid);
+                    }
                     BlockEntity be = level.getBlockEntity(pos);
                     if (be instanceof com.simibubi.create.content.fluids.tank.FluidTankBlockEntity tank) {
                         var cbe = tank.getControllerBE();

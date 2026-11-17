@@ -54,19 +54,28 @@ final class Actions {
                                 ResourceLocation.parse(action.get("item").getAsString()));
                 var stack = action.get("item").getAsString().equals("create:belt_connector")
                     ? connectors.computeIfAbsent(player, ignored -> new ItemStack(item, 64))
-                    : new ItemStack(item, 64);
+                    : new ItemStack(item, item instanceof net.minecraft.world.item.BucketItem ? 1 : 64);
                 player.setYRot(action.get("yaw").getAsFloat());
                 player.setYHeadRot(action.get("yaw").getAsFloat());
                 player.setXRot(action.get("pitch").getAsFloat());
                 player.setShiftKeyDown(action.get("sneaking").getAsBoolean());
                 player.setPos(pos.getX() + .5, pos.getY() + 1, pos.getZ() + 2);
                 player.setItemInHand(InteractionHand.MAIN_HAND, stack);
-                player.gameMode.useItemOn(
+                var result = player.gameMode.useItemOn(
                         player,
                         level,
                         stack,
                         InteractionHand.MAIN_HAND,
                         new BlockHitResult(point, face, pos, false));
+                if (item instanceof net.minecraft.world.item.BucketItem && !result.consumesAction()) {
+                    // BucketItem uses the player's real ray cast through useItem, not useOn.
+                    // Put the eye on the selected face normal and look through the supplied hit.
+                    Vec3 eye = point.add(Vec3.atLowerCornerOf(face.getNormal()).scale(2.5));
+                    player.setPos(eye.x, eye.y-player.getEyeHeight(), eye.z);
+                    player.setYRot((float)Math.toDegrees(Math.atan2(face.getStepX(),-face.getStepZ())));
+                    player.setXRot(face.getStepY()*90);
+                    player.gameMode.useItem(player,level,stack,InteractionHand.MAIN_HAND);
+                }
             }
             case "valve_setting" -> {
                 int row=action.get("row").getAsInt(), value=action.get("value").getAsInt();

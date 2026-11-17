@@ -87,6 +87,9 @@ pub const BLOCKS: &[&str] = &[
     "create:flywheel",
 ];
 pub const ITEMS: &[&str] = &[
+    "minecraft:bucket",
+    "minecraft:water_bucket",
+    "minecraft:lava_bucket",
     "create:copper_casing",
     "create:belt_connector",
     "minecraft:air",

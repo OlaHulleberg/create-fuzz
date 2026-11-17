@@ -173,8 +173,8 @@
   ],
   "unimplemented": {
     "pipes/pumps": "Placement, topology and wrench/casing/glass are driven; reach/transfer and flow phases follow in step 3.",
-    "buckets": "Regular tank's item exchange requires creative player; existing actor is survival. Creative tank adapter is not implemented.",
-    "open ends/world": "Host fluid-state and world mutation callbacks are absent; native fluid spread cannot be inferred from a static map.",
+    "buckets": "World bucket input is driven through the real ray cast; creative handler exchange follows in step 4.",
+    "open ends/world": "The Front callbacks and native host-fluid scheduler are installed for contained overworld fixtures; pump transfer is connected in step 3. Other dimensions/entity effects need separate contracts.",
     "smart pipes": "FilteringBehaviour input and filter observation adapter absent.",
     "valves": "Moving pointer tick is installed, but dedicated fluid placement/drive histories and flow observations are absent. Redstone controls a clutch/gearshift, not FluidValveBlock directly.",
     "spouts/drains": "Fluid recipes, item emptying/filling and tanks are not connected to harness fluid phase.",

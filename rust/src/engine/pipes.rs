@@ -87,12 +87,13 @@ impl Run {
         pitch: f32,
         sneaking: bool,
     ) -> bool {
+        let water = self.world_fluid(p) == Some((create_engine::tank::Fluid::Water, 0));
         let nearest = create_engine::place::ordered_by_nearest(yaw, pitch)[0];
         let next = match item {
             "create:fluid_pipe" => self.sides_state(
                 item,
                 fluids::pipe_sides(0, |d| self.pipe_cell(add(p, d.offset())), nearest),
-                false,
+                water,
             ),
             "create:mechanical_pump" => {
                 let target = if sneaking {
@@ -123,7 +124,7 @@ impl Run {
                     Some((d, _)) if d.axis() != target.axis() && !sneaking => d,
                     _ => facing,
                 };
-                format!("{item}[facing={},waterlogged=false]", dir(facing))
+                format!("{item}[facing={},waterlogged={water}]", dir(facing))
             }
             _ => return false,
         };

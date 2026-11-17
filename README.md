@@ -196,11 +196,10 @@ those inputs, rather than invoking player placement. FluidValveBlockEntity.tick'
 enabled output belongs to the fluids phase (`state_phase`); its speed, stress,
 capacity, source and network observations remain compared.
 
-Kinetics scenarios now require dry states on both adapters: waterlogged=true is
-rejected explicitly, and generation enumerates only waterlogged=false. Create's
-ProperWaterloggedBlock.updateWater and AbstractShaftBlock.updateShape schedule
-vanilla water ticks; the standalone driver has no fluid world. The manifest retains
-the full binary domain for auditing. Fluid-world tests require a separate adapter.
+Kinetic generation remains dry. Contained fluid-world cases can use waterlogged states:
+the Rust adapter reads and changes the native environment through the private server's
+separate host-fluid region. See [the fluid world boundary](docs/fluid-world.md) for callback
+semantics, isolation, observations and the server requirement for `fuzz rust` fluid cases.
 Network sizes read the existing TorquePropagator registry's KineticNetwork.getSize(),
 without constructing networks; partitions still group block entities by network id.
 
