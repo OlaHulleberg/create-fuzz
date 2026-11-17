@@ -120,6 +120,7 @@ public class CreateFuzz {
 				Files.delete(next);
 				batch = new Batch(next.getFileName().toString(), cases, level);
 				batch.start(level);
+				if (batch.name.startsWith("cover-")) coverage(null);
 			} catch (Exception ex) {
 				fail(level, next.getFileName().toString(), ex);
 			}
@@ -134,6 +135,7 @@ public class CreateFuzz {
 		}
 		if (done) {
 			try {
+				if (batch.name.startsWith("cover-")) coverage(dir.resolve("outbox").resolve(batch.name + ".exec"));
 				Path tmp = dir.resolve("outbox").resolve(batch.name + ".tmp");
 				Files.writeString(tmp, GSON.toJson(batch.results), StandardCharsets.UTF_8);
 				Files.move(tmp, dir.resolve("outbox").resolve(batch.name), StandardCopyOption.ATOMIC_MOVE);
@@ -143,6 +145,15 @@ public class CreateFuzz {
 			batch.clear(level);
 			batch = null;
 		}
+	}
+
+	/** Reset after cleanup, dump before publishing the batch response. No agent dependency in the mod. */
+	static void coverage(Path output) {
+		try {
+			Object agent = Class.forName("org.jacoco.agent.rt.RT", true, ClassLoader.getSystemClassLoader()).getMethod("getAgent").invoke(null);
+			if (output == null) agent.getClass().getMethod("reset").invoke(agent);
+			else Files.write(output, (byte[]) agent.getClass().getMethod("getExecutionData", boolean.class).invoke(agent, true));
+		} catch (Exception ex) { throw new RuntimeException("coverage requires the JaCoCo agent", ex); }
 	}
 
 	Path nextInbox() {

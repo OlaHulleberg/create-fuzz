@@ -8,10 +8,23 @@ use std::time::{Duration, Instant};
 static SEQ: AtomicU64 = AtomicU64::new(0);
 
 pub fn run(dir: &Path, cases: &[Scenario]) -> Vec<Snapshot> {
+    exchange(dir, cases, false).0
+}
+
+pub fn covered(dir: &Path, case: &Scenario) -> (Snapshot, std::path::PathBuf) {
+    let (mut snapshots, path) = exchange(dir, std::slice::from_ref(case), true);
+    (snapshots.remove(0), path)
+}
+
+fn exchange(dir: &Path, cases: &[Scenario], coverage: bool) -> (Vec<Snapshot>, std::path::PathBuf) {
     let name = format!(
-        "{}-{}-{}.json",
+        "{}{}-{}-{}.json",
+        if coverage { "cover-" } else { "" },
         std::process::id(),
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
         SEQ.fetch_add(1, Ordering::Relaxed)
     );
     let inbox = dir.join("inbox");
@@ -27,13 +40,19 @@ pub fn run(dir: &Path, cases: &[Scenario]) -> Vec<Snapshot> {
             if let Some(e) = value.get("error") {
                 panic!("java side: {e}");
             }
-            return serde_json::from_value(value).expect("snapshots");
+            return (
+                serde_json::from_value(value).expect("snapshots"),
+                dir.join("outbox").join(format!("{name}.exec")),
+            );
         }
         if let Ok(pid) = std::fs::read_to_string(dir.join("server.pid"))
             && std::fs::read_to_string(format!("/proc/{}/stat", pid.trim()))
                 .map_or(true, |st| st.split_whitespace().nth(2) == Some("Z"))
         {
-            panic!("the Java server exited: see {}", dir.join("server.log").display());
+            panic!(
+                "the Java server exited: see {}",
+                dir.join("server.log").display()
+            );
         }
         if start.elapsed() > Duration::from_secs(600) {
             panic!("no answer from the Java side in 10 min: is `./run.sh server` running?");
