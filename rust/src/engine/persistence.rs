@@ -281,6 +281,29 @@ mod tests {
         assert_ne!(loaded.position, held.position);
     }
     #[test]
+    fn cold_belt_load_forms_controller_after_the_logistics_phase() {
+        let sc:Scenario=serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,0],"state":"create:belt[casing=false,facing=east,part=start,slope=horizontal,waterlogged=false]"}]})).unwrap();
+        let mut r = Run::new(&sc);
+        let c = [0, 8, 0];
+        let mut inv = create_engine::belt::Inventory::default();
+        let mut item = create_engine::belt::Item::new("minecraft:iron_ingot", 4, 180, false);
+        item.position = 1.4;
+        inv.add(item);
+        r.w.load_belt_items(0, std::iter::once((c, inv.to_save())));
+        for (x, part) in [(0, "start"), (1, "middle"), (2, "end")] {
+            let state = r.id(&format!(
+                "create:belt[casing=false,facing=east,part={part},slope=horizontal,waterlogged=false]"
+            ));
+            r.w.block_loaded(0, [x, 8, 0], state);
+        }
+        assert!(!r.w.dims[0].kinetics.has_part(c, 0));
+        let mut phase = r.w.belt_ticks(0);
+        assert_eq!(phase.next(&mut r.w), None);
+        r.w.settle_belts(0);
+        assert_eq!(r.w.dims[0].belts[&c].items.items[0].position, 1.4);
+        assert!(r.w.dims[0].kinetics.has_part(c, 0));
+    }
+    #[test]
     fn reload_histories_run_without_reusing_live_belt_entities() {
         for seed in [41, 43, 47] {
             let sc = crate::generate::generate(seed);
