@@ -63,9 +63,19 @@ pub fn validate_state(id: &str, props: &[(String, String)]) -> Option<Result<(),
         },
     )
 }
-pub fn report() {
+pub fn report(manual: &[crate::scenario::Scenario], generated: &[crate::scenario::Scenario]) {
     for entry in &contract().blocks {
-        println!("fluid {}: {:?}", entry.id, entry.properties);
+        let uses = |cases: &[crate::scenario::Scenario]| {
+            cases.iter().flat_map(|s| &s.events).filter(|e| matches!(&e.action, Some(crate::actions::Action::Use { item, .. }) if item == &entry.id)).count()
+        };
+        println!(
+            "fluid {}: {:?}; domain={}; player placement submissions generated={} manual={}",
+            entry.id,
+            entry.properties,
+            entry.specifications().len(),
+            uses(generated),
+            uses(manual)
+        );
     }
     for (group, reason) in &contract().unimplemented {
         println!("fluid excluded {group}: {reason}");

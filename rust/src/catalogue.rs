@@ -126,7 +126,7 @@ pub fn scenario(sc: &Scenario) {
 }
 /// Counts submitted states separately from crank interaction targets; never claims full domains.
 pub fn report(manual: &[Scenario], generated: &[Scenario]) {
-    crate::fluids::report();
+    crate::fluids::report(manual, generated);
     let collect = |cases: &[Scenario]| -> BTreeMap<String, BTreeSet<String>> {
         let mut out: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         for sc in cases {
@@ -175,7 +175,7 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
         println!("{label} version 3 action submissions: {counts:?}");
     }
     println!(
-        "use limits: shaft casing/bracket; belts through persistent connector use, casing, pulley and slicer endpoints; conveyor chain_link screen packet; motor value-box geometry via board::motor_slot/hits_box; motor/controller speed boards, sequencer programs, valve angle/use/dye and chain topology enabled; other block-use overrides, fluid collision and inventories unsupported (cases retained with notes); ordinary ServerPlayer uses geometric value-box hit tests; no allowance for these gaps"
+        "use limits: shaft casing/bracket; belts through persistent connector use, casing, pulley and slicer endpoints; conveyor chain_link screen packet; motor value-box geometry via board::motor_slot/hits_box; motor/controller speed boards, sequencer programs, valve angle/use/dye and chain topology enabled; fluid placement, world callbacks, bucket handlers and smart filters enabled; other block-use overrides and arbitrary inventories require separate contracts; ordinary ServerPlayer uses geometric value-box hit tests; no allowance for these gaps"
     );
     for block in &crate::transport::contract().blocks {
         println!(
@@ -187,7 +187,7 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
         println!("transport item: {} max_stack={}", item.id, item.max_stack);
     }
     println!(
-        "item transport: controlled player-drop landing, empty-hand belt pickup, depot use/swap, belt inventory tick and belt/depot end insertion; longitudinal position/stack/lock/pending/stall compared; no native item flight, components, machine processing, funnels or tunnels"
+        "item transport: controlled player-drop landing, empty-hand belt pickup, depot use/swap, belt inventory tick and belt/depot end insertion; longitudinal position/stack/lock/pending/stall compared; fluid spout/drain processing and depot outputs enabled; no native item flight, components, other machine processing, funnels or tunnels"
     );
     let m = collect(manual);
     let g = collect(generated);

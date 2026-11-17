@@ -301,12 +301,9 @@
     }
   ],
   "unimplemented": {
-    "buckets": "World bucket input is driven through the real ray cast; creative handler exchange follows in step 4.",
     "open ends/world": "Overworld native fluid ticks, host replacement/collision/face support, source drain/renewal, placement, waterlogging, cauldrons/hives and spills are driven for contained fixtures. Other dimensions and entity/fire/candle workloads require additional contracts.",
-    "smart pipes": "FilteringBehaviour input and filter observation adapter absent.",
-    "valves": "Moving pointer tick is installed, but dedicated fluid placement/drive histories and flow observations are absent. Redstone controls a clutch/gearshift, not FluidValveBlock directly.",
-    "spouts/drains": "Fluid recipes, item emptying/filling and tanks are not connected to harness fluid phase.",
-    "boilers": "Tank sensing, heat and water supply adapters absent.",
+    "spouts/drains": "Audited component-free tea/honey/chocolate recipes and ordinary buckets are driven. Component-bearing potions, sequenced assemblies, arbitrary recipes, block spouting integrations and native item entity flight need additional contracts.",
+    "boilers": "BoilerData is source-audited as a tank/water-supply reader; active boiler heat, rolling water supply and engine/whistle adapters are not driven.",
     "hoses/interfaces/effects": "World/entity/contraption callbacks absent.",
     "stored connection pressures": "The port retains endpoint pressures and flow paths, not stored Java PipeConnection pressures. Endpoint-path projections remain compared and are labeled in snapshots; pressure-only differences are not treated as port defects."
   }
