@@ -40,3 +40,12 @@ initial corpus along with the report to reproduce a guided continuation; its
 filenames and contents are hashed in the campaign header. The isolated-server
 settings `FUZZ_PORT`, `FUZZ_DIR`, `FUZZ_GAME_DIR`, `FUZZ_JAVA_BUILD` and
 `FUZZ_COVERAGE_CACHE` keep its files apart from the shared server.
+
+
+A line group can include several missing outcomes. When a never-called guard has
+both a valid gameplay edge and a defensive/dead edge, its primary category follows
+the missing gameplay/client input and its explanation names the defensive/dead
+edge too. The report does not claim every outcome on that line is impossible.
+Static connection-state injection is already generated for the kinetic catalogue;
+a missing machine workflow means missing processing, entity or player inputs,
+not absence of that block from all generated layouts.
