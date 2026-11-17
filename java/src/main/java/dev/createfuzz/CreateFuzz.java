@@ -266,6 +266,7 @@ public class CreateFuzz {
                     results.set(i, result);
                     continue;
                 }
+                actors.get(i).getCooldowns().tick();
                 // A player places the blocks, one each tick.
                 JsonArray blocks = c.getAsJsonArray("blocks");
                 if (tick < blocks.size())
@@ -288,7 +289,7 @@ public class CreateFuzz {
                                 level,
                                 actors.get(i),
                                 at(origins.get(i), o),
-                                o.getAsJsonObject("action"));
+                                origins.get(i), o.getAsJsonObject("action"));
                     else if (o.has("state")) place(level, origins.get(i), o);
                     // HandCrankBlock.useWithoutItem: turn(sneaking).
                     else if (o.has("turn")

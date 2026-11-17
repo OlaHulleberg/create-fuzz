@@ -34,6 +34,15 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
             (Some(j), None) => out.push(format!("{k}: java has {}, rust has air", j.state)),
             (None, Some(r)) => out.push(format!("{k}: java has air, rust has {}", r.state)),
             (Some(j), Some(r)) => {
+                if j.conveyor_links != r.conveyor_links {
+                    out.push(format!(
+                        "{k}: conveyor links: java {:?} rust {:?}",
+                        j.conveyor_links, r.conveyor_links
+                    ));
+                }
+                if j.belt != r.belt {
+                    out.push(format!("{k}: belt: java {:?} rust {:?}", j.belt, r.belt));
+                }
                 if j.bracket != r.bracket {
                     out.push(format!(
                         "{k}: bracket: java {:?} rust {:?}",

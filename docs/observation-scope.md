@@ -76,3 +76,9 @@ sequencer message/load paths do. A cached sequencer record after replacement by
 a different kinetic block is not that block's sequencer state. The replacement
 regression retains this distinction without suppressing live sequencer context
 or transition comparisons.
+
+Belt observations add controller/index/length/casing and conveyor link offsets.
+Kinetic part reconstruction supplies the current belt controller in Settings;
+without it parts() returns no belt part even though the solver contains one.
+This was a driver observation bug, corrected before classifying differences.
+Items and covered/color entity state still need separate observations and inputs.

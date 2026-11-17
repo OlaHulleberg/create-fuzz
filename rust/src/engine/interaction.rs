@@ -39,6 +39,7 @@ impl Run {
                     self.sequencer_step(p, step);
                 }
             }
+            Action::ChainLink { target, connect } => self.chain_link(p, *target, *connect),
             Action::Remove => self.set(p, AIR),
             Action::Signal { strength } => self.set(p, 3 + u32::from(*strength)),
             Action::Use {
@@ -65,6 +66,9 @@ impl Run {
         sneaking: bool,
     ) {
         use create_engine::{Block, board, place};
+        if self.belt_use(p, item, face, hit, sneaking) {
+            return;
+        }
         let state = self.at(p);
         let own = self.w.table.get(state).map(|(b, i)| (b, *i));
         if let Some((block, info)) = own.filter(|(b, _)| create_engine::dye::is_valve_handle(*b)) {
@@ -330,6 +334,4 @@ impl Run {
             );
         }
     }
-
-
 }

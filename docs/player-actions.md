@@ -225,3 +225,27 @@ Up-facing valve traces now hit their half-height gameplay surface, from Create's
 MIT AllShapes definition. A centred surface hit (0.5,0.5,0.5) reaches the value
 box, while an off-centre rim hit reaches activation/dye. This is a backward
 compatible widening of accepted version 3 hit coordinates, not an asset mesh.
+
+Belt connectors now retain their first-shaft component across `use` events on
+one case's actor. Other use stacks retain the earlier independent-use semantics.
+The actor's cooldown manager advances once per scenario tick. Use at least five
+ticks between connector clicks. Rust invokes belt_connector::click/layout and
+commits the same dry segment states, then settles controllers before solving.
+Belt snapshots compare controller coordinates, index, length and casing kind.
+The driver mirrors logistics::tick_belts' queued break effects once per tick;
+Java's recursive onRemove can therefore finish a cascade earlier.
+
+`chain_link {target:[x,y,z],connect:true|false}` submits the player's
+ChainConveyorConnectionPacket on Java (with 64 chains in the held slot), and
+mirrors packages::chain_command's Chains connect/disconnect and sync_far on Rust.
+The target is a scenario-relative block position; provision both endpoints in
+initial blocks. This exercises the server transaction after client selection;
+it does not test the client's distance/slope/connection-count validation or
+crosshair geometry. Only valid client-selectable links belong in this family.
+Sorted relative link offsets are compared independently of network membership.
+
+This is partial group 5 coverage. Belt items, inventory provisioning for survival
+splits, dye/covered flags, item movement/transfers/depots and stalls remain
+unimplemented adapters, rather than established API gaps. They are not generated.
+Endpoint slicing/reforming currently supports empty belts only. No comparison
+field or allowance was removed for this extension.

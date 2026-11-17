@@ -5,6 +5,8 @@
 //! The world outside the engine is a map of positions to state strings. Redstone is only what
 //! the scenarios use: adjacent redstone blocks or controlled 0..15 signal sources.
 
+mod belts;
+mod conveyors;
 mod interaction;
 mod kinetics;
 mod observation;
@@ -70,10 +72,11 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     for face in ["up", "down", "north", "south", "east", "west"] {
         push(format!("create:creative_motor[facing={face}]"));
     }
-    for entry in crate::catalogue::entries()
-        .iter()
-        .filter(|e| e.id == "create:sequenced_gearshift" || e.id.ends_with("_valve_handle"))
-    {
+    for entry in crate::catalogue::entries().iter().filter(|e| {
+        e.id == "create:belt"
+            || e.id == "create:sequenced_gearshift"
+            || e.id.ends_with("_valve_handle")
+    }) {
         for spec in entry.specifications() {
             push(spec.state);
         }
@@ -104,6 +107,9 @@ pub struct Run {
     names: Vec<String>,
     world: HashMap<Pos, u32>,
     notes: Vec<String>,
+    chains: create_engine::chain_conveyor::Chains<()>,
+    connector: Option<Pos>,
+    belt_casing: HashMap<Pos, String>,
     handles: HashMap<Pos, crate::handles::Handle>,
     chain_signals: HashMap<Pos, i32>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
@@ -139,6 +145,9 @@ impl Run {
             names,
             world: HashMap::new(),
             notes: Vec::new(),
+            chains: Default::default(),
+            connector: None,
+            belt_casing: HashMap::new(),
             handles: HashMap::new(),
             chain_signals: HashMap::new(),
             brackets: HashMap::new(),
@@ -206,7 +215,16 @@ impl Run {
         } else {
             self.handles.remove(&p);
         }
+        if !self
+            .w
+            .table
+            .get(new)
+            .is_some_and(|(b, _)| b == create_engine::Block::Belt)
+        {
+            self.belt_casing.remove(&p);
+        }
         self.w.block_changed(0, p, old, new);
+        self.conveyor_changed(p, old, new);
         if !notify {
             return;
         }
@@ -283,7 +301,6 @@ impl Run {
             .max()
             .unwrap_or(0)
     }
-
 }
 
 pub fn run(sc: &Scenario) -> Snapshot {

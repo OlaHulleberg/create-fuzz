@@ -364,7 +364,7 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 5: belt controller/pulley data or conveyor link actions and glue ticks required",
+    "excluded": "Static belt/conveyor state injection excluded; use belts scenario family for connector, casing, pulley, slicer endpoint and explicit chain links; item transport/inventory adapter pending",
     "observation_scope": {}
   },
   {
@@ -376,7 +376,7 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 5: belt controller/pulley data or conveyor link actions and glue ticks required",
+    "excluded": "Static belt/conveyor state injection excluded; use belts scenario family for connector, casing, pulley, slicer endpoint and explicit chain links; item transport/inventory adapter pending",
     "observation_scope": {}
   },
   {

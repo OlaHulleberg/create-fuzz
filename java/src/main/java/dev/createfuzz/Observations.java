@@ -55,6 +55,21 @@ final class Observations {
                     JsonObject snap = new JsonObject();
                     snap.addProperty("state", BlockStateParser.serialize(state));
                     BlockEntity be = level.getBlockEntity(pos);
+                    if (be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity belt) {
+                        JsonObject b = new JsonObject();
+                        BlockPos controller = belt.getController().subtract(origin);
+                        b.add("controller",CreateFuzz.GSON.toJsonTree(new int[]{controller.getX(),controller.getY(),controller.getZ()}));
+                        b.addProperty("length",belt.beltLength);
+                        b.addProperty("index",belt.index);
+                        b.addProperty("casing",belt.casing.name().toLowerCase(java.util.Locale.ROOT));
+                        snap.add("belt",b);
+                    }
+                    if (be instanceof com.simibubi.create.content.kinetics.chainConveyor.ChainConveyorBlockEntity conveyor) {
+                        var links=new java.util.ArrayList<int[]>();
+                        for(var q:conveyor.connections) links.add(new int[]{q.getX(),q.getY(),q.getZ()});
+                        links.sort(java.util.Arrays::compare);
+                        snap.add("conveyor_links",CreateFuzz.GSON.toJsonTree(links));
+                    }
                     if (be instanceof KineticBlockEntity k) {
                         snap.add("kinetic", kinetic(k));
                         if (k.network != null) {

@@ -9,6 +9,9 @@ pub fn mutate(parent: &Scenario, seed: u64) -> Scenario {
     sc.seed = seed;
     if sc.version == 3 {
         for e in &mut sc.events {
+            if let Some(crate::actions::Action::ChainLink { connect, .. }) = &mut e.action {
+                *connect = rng.chance(0.5);
+            }
             if let Some(crate::actions::Action::ValveSetting { row, value }) = &mut e.action {
                 *row = rng.below(2) as i32;
                 *value = rng.below(181) as i32;

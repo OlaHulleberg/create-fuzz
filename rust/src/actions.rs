@@ -26,6 +26,10 @@ pub enum Action {
     Program {
         instructions: Vec<crate::program::Instruction>,
     },
+    ChainLink {
+        target: crate::scenario::Pos,
+        connect: bool,
+    },
     Remove,
     Signal {
         strength: u8,
@@ -76,6 +80,7 @@ pub const BLOCKS: &[&str] = &[
     "create:flywheel",
 ];
 pub const ITEMS: &[&str] = &[
+    "create:belt_connector",
     "minecraft:air",
     "create:wrench",
     "create:andesite_casing",
@@ -121,6 +126,11 @@ impl Action {
                             || i + 1 == instructions.len()
                     );
                 }
+            }
+            Self::ChainLink { target, .. } => {
+                assert!(
+                    target[0].abs() <= 23 && target[2].abs() <= 23 && (1..=23).contains(&target[1])
+                );
             }
             Self::Remove => {}
         }

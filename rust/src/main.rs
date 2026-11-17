@@ -1,5 +1,6 @@
 mod actions;
 mod allow;
+mod belts;
 mod catalogue;
 mod compare;
 mod corpus;

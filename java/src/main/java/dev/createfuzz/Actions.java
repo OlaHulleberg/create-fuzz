@@ -15,6 +15,7 @@ import net.minecraft.world.phys.Vec3;
 
 /** Player inputs enter the game-mode pipeline, including RightClickBlock and item placement. */
 final class Actions {
+    private static final java.util.Map<ServerPlayer, ItemStack> connectors = new java.util.WeakHashMap<>();
     static void speedSetting(ServerLevel level, ServerPlayer player, BlockPos pos, int row, int value) {
         if (row < 0 || row > 1 || value < 0 || value > 256)
             throw new IllegalArgumentException("invalid kinetic board selection");
@@ -28,7 +29,7 @@ final class Actions {
         behaviour.setValueSettings(player,
                 new com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBehaviour.ValueSettings(row, value), false);
     }
-    static void apply(ServerLevel level, ServerPlayer player, BlockPos pos, JsonObject action) {
+    static void apply(ServerLevel level, ServerPlayer player, BlockPos pos, BlockPos origin, JsonObject action) {
         player.setShiftKeyDown(false);
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
         player.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
@@ -44,7 +45,9 @@ final class Actions {
                 var item =
                         BuiltInRegistries.ITEM.get(
                                 ResourceLocation.parse(action.get("item").getAsString()));
-                var stack = new ItemStack(item, 64);
+                var stack = action.get("item").getAsString().equals("create:belt_connector")
+                    ? connectors.computeIfAbsent(player, ignored -> new ItemStack(item, 64))
+                    : new ItemStack(item, 64);
                 player.setYRot(action.get("yaw").getAsFloat());
                 player.setYHeadRot(action.get("yaw").getAsFloat());
                 player.setXRot(action.get("pitch").getAsFloat());
@@ -78,6 +81,13 @@ final class Actions {
             }
             case "speed_setting" -> speedSetting(level, player, pos,
                     action.get("row").getAsInt(), action.get("value").getAsInt());
+            case "chain_link" -> {
+                var t=action.getAsJsonArray("target");
+                BlockPos target=origin.offset(t.get(0).getAsInt(),t.get(1).getAsInt(),t.get(2).getAsInt());
+                player.setPos(pos.getX()+.5,pos.getY()+1,pos.getZ()+2);
+                player.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(net.minecraft.world.item.Items.CHAIN,64));
+                new com.simibubi.create.content.kinetics.chainConveyor.ChainConveyorConnectionPacket(pos,target,new ItemStack(net.minecraft.world.item.Items.CHAIN),action.get("connect").getAsBoolean()).handle(player);
+            }
             case "remove" -> player.gameMode.destroyBlock(pos);
             case "signal" -> {
                 int strength = action.get("strength").getAsInt();

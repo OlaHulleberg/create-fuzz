@@ -23,6 +23,12 @@ impl Run {
             blocks.insert(
                 key(p),
                 BlockSnap {
+                    conveyor_links: self.chains.conveyors.get(&p).map(|c| {
+                        let mut v = c.connections.clone();
+                        v.sort();
+                        v
+                    }),
+                    belt: self.belt_observation(p),
                     measured_trig: self.measured_trig.get(&p).cloned(),
                     bracket: self.brackets.get(&p).map(|b| {
                         format!(
@@ -96,6 +102,7 @@ impl Run {
             .find(|(q, _)| *q == p)
             .map_or(16.0, |(_, rpm)| rpm as f32);
         let settings = Settings {
+            belt: self.w.dims[0].belt_of.get(&p).copied(),
             motor_rpm,
             steam: self.w.shaft_steam(0, p),
             ..Settings::default()
