@@ -7,6 +7,31 @@ use std::path::Path;
 
 fn candidates(sc: &Scenario) -> Vec<Scenario> {
     let mut out = Vec::new();
+    // Coarse reductions first: traces often contain many repeated uses. Keep the same
+    // ordering and checkpoint schedule while removing contiguous chunks, then prove
+    // one-step minimality with the single-action candidates below.
+    for events in [false, true] {
+        let len = if events {
+            sc.events.len()
+        } else {
+            sc.blocks.len()
+        };
+        let mut width = len / 2;
+        while width > 1 {
+            for start in (0..len).step_by(width) {
+                let mut c = sc.clone();
+                let end = (start + width).min(len);
+                if events {
+                    c.events.drain(start..end);
+                } else {
+                    let removed: Vec<_> = c.blocks.drain(start..end).map(|b| b.pos).collect();
+                    c.events.retain(|e| !removed.contains(&e.pos));
+                }
+                out.push(c);
+            }
+            width /= 2;
+        }
+    }
     // Each block, with every event at its position.
     for i in 0..sc.blocks.len() {
         let mut c = sc.clone();
@@ -39,10 +64,10 @@ fn candidates(sc: &Scenario) -> Vec<Scenario> {
     let settled = last + crate::generate::SETTLE;
     if sc.ticks > settled {
         let mut c = sc.clone();
-        c.ticks = settled;
+        c.ticks = settled.max(c.checkpoints.iter().copied().max().unwrap_or(0));
         out.push(c);
     }
-    out.retain(|c| !c.blocks.is_empty());
+    out.retain(|c| !c.blocks.is_empty() && c != sc);
     out
 }
 
@@ -67,9 +92,10 @@ pub fn shrink(dir: &Path, mut sc: Scenario) -> (Scenario, Vec<String>) {
         if cands.is_empty() {
             break;
         }
-        // The Java side runs at most 128 cases at once: try them in chunks, first hit wins.
+        // Small batches avoid constructing and clearing many areas after an early coarse hit.
+        // The Java protocol permits up to 128, but shrinking usually accepts an early candidate.
         let mut hit = None;
-        for chunk in cands.chunks(128) {
+        for chunk in cands.chunks(16) {
             let results = diffs(dir, chunk);
             if let Some((c, d)) = chunk.iter().zip(results).find(|(_, d)| !d.is_empty()) {
                 hit = Some((c.clone(), d));
