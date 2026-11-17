@@ -540,6 +540,34 @@ impl Run {
 mod tests {
     use super::*;
     #[test]
+    fn broken_motor_settings_are_flushed_before_reload() {
+        let sc: Scenario = serde_json::from_value(serde_json::json!({
+        "ticks": 20, "blocks": [
+            {"pos":[0,8,0],"state":"create:creative_motor[facing=east]","motor":32},
+            {"pos":[1,8,0],"state":"create:shaft[axis=x]"},
+            {"pos":[2,8,0],"state":"create:creative_motor[facing=west]","motor":32}
+        ]}))
+        .unwrap();
+        let mut r = Run::new(&sc);
+        for (i, b) in sc.blocks.iter().enumerate() {
+            r.place(b);
+            if i > 0 {
+                r.set_motor(&sc.blocks[i - 1]);
+            }
+            r.tick();
+        }
+        r.set_motor(&sc.blocks[2]);
+        r.tick();
+        r.reload();
+        // Java's new ScrollValueBehaviour starts at 16: the destroyed object's
+        // column setting must not leak into the replacement entity.
+        r.place(&sc.blocks[2]);
+        assert_eq!(r.w.motor_setting(0, [2, 8, 0]), Some(16.0));
+        r.tick();
+        assert_eq!(r.w.speed(0, [2, 8, 0]), Some(32.0));
+    }
+
+    #[test]
     fn motor_interaction_publishes_before_reload_without_tick() {
         let sc: Scenario = serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,0],"state":"create:creative_motor[facing=east]","motor":32}]})).unwrap();
         let mut r = Run::new(&sc);

@@ -63,6 +63,8 @@ impl Run {
                 self.apply_chain_shapes();
             }
         }
+        // Break callbacks can remove column-owned settings after the solve.
+        self.persisted.dirty_columns.extend(self.w.take_unsaved(0));
         self.mark_package_columns();
         self.publish_entities();
         self.flush_persistence();
