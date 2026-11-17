@@ -899,6 +899,10 @@ mod tests {
         for b in &sc.blocks {
             r.place(b);
         }
+        // Complete the placement-time initial signal read before changing power.
+        for block in &sc.blocks {
+            r.w.set_chain_signal(0, block.pos, 0);
+        }
         r.w.take_redstone(0);
         let p = [0, 8, 0];
         let powered = r.id(&crate::scenario::with_prop(
