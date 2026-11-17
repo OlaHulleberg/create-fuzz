@@ -6,6 +6,7 @@ import net.minecraft.core.Direction;
 
 /** The same explicit fluid containment domain on the Java and Rust-host worlds. */
 final class FluidBounds {
+ static boolean fluidItem(String item) { return item.endsWith("bucket") || item.equals("minecraft:honey_bottle") || item.equals("create:builders_tea"); }
  static final String OUTSIDE="fluid-world-outside-region";
  static boolean enabled(JsonObject scenario) {
   var all=new java.util.ArrayList<JsonObject>();
@@ -15,8 +16,8 @@ final class FluidBounds {
    if(b.has("state")){String s=b.get("state").getAsString();String id=s.split("\\[",2)[0];if((!id.startsWith("create:")&&!java.util.Set.of("minecraft:air","minecraft:stone","minecraft:redstone_block").contains(id))||java.util.Set.of("create:honey","create:chocolate","create:limestone","create:scoria").contains(id)||s.contains("waterlogged=true"))return true;}
    if(b.has("action")) {
     var a=b.getAsJsonObject("action");
-    if(a.has("item")&&a.get("item").getAsString().endsWith("bucket"))return true;
-    if(a.has("input")){var input=a.getAsJsonObject("input");if(input.has("stack")&&!input.get("stack").isJsonNull()&&input.getAsJsonObject("stack").get("item").getAsString().endsWith("bucket"))return true;}
+    if(a.has("item")&&fluidItem(a.get("item").getAsString()))return true;
+    if(a.has("input")){var input=a.getAsJsonObject("input");if(input.has("stack")&&!input.get("stack").isJsonNull()&&fluidItem(input.getAsJsonObject("stack").get("item").getAsString()))return true;}
    }
   }return false;
  }
