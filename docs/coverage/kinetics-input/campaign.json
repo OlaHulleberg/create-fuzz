@@ -1,0 +1,12 @@
+{
+  "command": "./run.sh fuzz cover 100",
+  "complete": true,
+  "corpus_scenarios": 115,
+  "corpus_sha256": "7003f210e4abaaf0885e026b059b71110983f61c7170b2b47c0c600bd16c19ad",
+  "create": "b62e837acab5e2ceeb7bfd0c9fd551c64b52dd18",
+  "engine": "9dfc3cbe028f16fd842eb06167a042b722fc729c",
+  "fuzzer": "3b9a80562f78024afec191672c7be8bf2d56d53a",
+  "includes": "com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.content.logistics.depot.*:com.simibubi.create.content.logistics.funnel.*:com.simibubi.create.content.logistics.tunnel.*:com.simibubi.create.content.logistics.box.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*",
+  "never_reached_sha256": "4dc3bd75fbe421f293c66acd8127878879d3db084b303aa97d621e27ff3c3d00",
+  "port": "25599"
+}
