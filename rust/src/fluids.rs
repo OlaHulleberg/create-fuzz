@@ -159,20 +159,25 @@ mod fidelity {
             let observed = crate::engine::run(&sc);
             let mut tanks = create_engine::tank::Tanks::default();
             let mut positions = Vec::new();
-            for event in &sc.events {
-                if let Some(crate::actions::Action::Use { item, .. }) = &event.action {
-                    if item == "create:fluid_tank" {
-                        let mut p = event.pos;
-                        p[1] += 1;
-                        tanks.place(p);
-                        positions.push(p);
-                    } else if item == "create:wrench" {
-                        let (_, m) = tanks.get_mut(event.pos).unwrap();
-                        m.window = !m.window;
+            for tick in 0..sc.ticks {
+                for event in sc.events.iter().filter(|e| e.tick == tick) {
+                    if let Some(crate::actions::Action::Use { item, .. }) = &event.action {
+                        if item == "create:fluid_tank" {
+                            let mut p = event.pos;
+                            p[1] += 1;
+                            tanks.place(p);
+                            positions.push(p);
+                        } else if item == "create:wrench" {
+                            let (_, m) = tanks.get_mut(event.pos).unwrap();
+                            m.window = !m.window;
+                        }
+                    } else if event.action == Some(crate::actions::Action::Remove) {
+                        tanks.remove(event.pos);
+                        positions.retain(|p| *p != event.pos);
                     }
-                } else if event.action == Some(crate::actions::Action::Remove) {
-                    tanks.remove(event.pos);
-                    positions.retain(|p| *p != event.pos);
+                }
+                for &p in &positions {
+                    tanks.tick(p);
                 }
             }
             for p in positions {

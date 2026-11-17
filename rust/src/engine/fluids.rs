@@ -24,7 +24,9 @@ impl Run {
             .keys()
             .map(|&p| (p, self.w.table.get(self.at(p)).map(|(_, i)| i.enabled)))
             .collect();
-        let changes = self.w.tick_valves(0, |p| open.get(&p).copied().flatten());
+        let changes = self
+            .w
+            .tick_fluid_entities(0, |p| open.get(&p).copied().flatten());
         for (p, enabled) in changes {
             let next = with_prop(
                 &self.name(self.at(p)),

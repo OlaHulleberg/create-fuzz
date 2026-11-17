@@ -605,7 +605,7 @@ mod tests {
         r.save_kinetic_records();
         r.reload();
         assert_eq!(r.w.saved_valve_pointer(0, p), Some(pointer));
-        assert!(r.w.tick_valves(0, |_| Some(true)).is_empty());
+        assert!(r.w.tick_fluid_entities(0, |_| Some(true)).is_empty());
         r.save_kinetic_records();
         assert_eq!(
             codec::valve_pointer_from_nbt(&r.persisted.valve_pointers[&p]).value,
@@ -623,7 +623,7 @@ mod tests {
         r.save_kinetic_records();
         r.reload();
         assert_eq!(r.w.saved_valve_pointer(0, p).unwrap().value, 1.0);
-        assert!(r.w.tick_valves(0, |_| Some(true)).is_empty());
+        assert!(r.w.tick_fluid_entities(0, |_| Some(true)).is_empty());
         r.save_kinetic_records();
         assert!(r.w.dims[0].kinetics.take_saved_changes().is_empty());
     }
