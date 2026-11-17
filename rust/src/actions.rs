@@ -8,7 +8,8 @@ pub enum Action {
     Use {
         item: String,
         face: Face,
-        /// Point relative to the clicked block's lower corner, on the clicked face.
+        /// Surface hit relative to the clicked block; face is its normal.
+        /// Partial-block surfaces may lie inside the unit cell.
         hit: [f64; 3],
         yaw: f32,
         pitch: f32,
@@ -94,7 +95,6 @@ impl Action {
             Self::Signal { strength } => assert!(*strength <= 15, "signal outside 0..15"),
             Self::Use {
                 item,
-                face,
                 hit,
                 yaw,
                 pitch,
@@ -111,16 +111,6 @@ impl Action {
                     hit.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
                     "hit outside clicked block"
                 );
-                let offset = face.dir().offset();
-                for a in 0..3 {
-                    if offset[a] != 0 {
-                        assert_eq!(
-                            hit[a],
-                            if offset[a] > 0 { 1. } else { 0. },
-                            "hit is not on clicked face"
-                        );
-                    }
-                }
             }
             Self::Program { instructions } => {
                 assert!(!instructions.is_empty() && instructions.len() <= 5);

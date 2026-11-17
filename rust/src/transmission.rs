@@ -214,6 +214,13 @@ pub fn valve(seed: u64) -> Scenario {
         event["action"]["hit"] = serde_json::json!([0.1, 1, 0.1]);
         events.push(event);
     }
+    // The up-facing handle's gameplay hit shape is half-height (Create AllShapes).
+    // A surface normal is not the boundary plane of its containing unit cell.
+    for event in &mut events {
+        if event["action"]["kind"] == "use" {
+            event["action"]["hit"][1] = serde_json::json!(0.5);
+        }
+    }
     serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":370,"checkpoints":(10..300).collect::<Vec<_>>(),"blocks":[
         {"pos":[0,7,0],"state":"create:shaft[axis=y,waterlogged=false]"},
         {"pos":[0,8,0],"state":"create:copper_valve_handle[facing=up,waterlogged=false]"},

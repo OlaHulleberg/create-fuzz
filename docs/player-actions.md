@@ -18,7 +18,9 @@ Events retain array order and checkpoints observe completed ticks.
 ```
 
 `pos` is the clicked block for `use`. `hit` is a point relative to that block's
-lower corner, on the named unit-cube face. Yaw/pitch are degrees. The Java adapter
+lower corner. `face` is the hit surface normal; a partial block's surface can lie
+inside its containing unit cell. The adapter bounds the point to that cell but
+does not perform a host ray cast. Yaw/pitch are degrees. The Java adapter
 sets an ordinary ServerPlayer's body/head rotation, sneak state and held item, and calls
 **ServerPlayerGameMode.useItemOn**. This runs RightClickBlock, the block's item
 interaction, the held item's use, and normal BlockItem placement. There are no
@@ -217,3 +219,9 @@ inUse-dependent `isActive` condition. Thus an unsneaking centred dye click can b
 consumed by the port before recolouring. Off-centre and sneaking clicks still
 reach the block's dye/use handler. This source-level port/Java difference is
 retained by comparison.
+
+The earlier unit-boundary-only validation excluded real partial-block hit points.
+Up-facing valve traces now hit their half-height gameplay surface, from Create's
+MIT AllShapes definition. A centred surface hit (0.5,0.5,0.5) reaches the value
+box, while an off-centre rim hit reaches activation/dye. This is a backward
+compatible widening of accepted version 3 hit coordinates, not an asset mesh.

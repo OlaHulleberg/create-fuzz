@@ -894,9 +894,9 @@ mod tests {
         }
         let p = [0, 8, 0];
         let face = create_engine::kinetics::Dir::Up;
-        r.use_item(p, "minecraft:air", face, [0.1, 1., 0.1], 0., 0., false);
+        r.use_item(p, "minecraft:air", face, [0.1, 0.5, 0.1], 0., 0., false);
         assert!(r.handles[&p].remaining > 0);
-        r.use_item(p, "minecraft:red_dye", face, [0.5, 1., 0.5], 0., 0., false);
+        r.use_item(p, "minecraft:red_dye", face, [0.5, 0.5, 0.5], 0., 0., false);
         assert_eq!(
             r.w.block_at(0, p),
             Some(create_engine::Block::CopperValveHandle)
