@@ -332,6 +332,7 @@ pub fn generate(seed: u64) -> Scenario {
         events.push(replacement);
     }
     Scenario {
+        day_time: 0,
         seed,
         ticks: end + 160,
         checkpoints: vec![end + 69],
@@ -368,6 +369,7 @@ fn stress_boundary(seed: u64) -> Scenario {
         .map(|t| Change::turn(t, [-1, 8, 0], sign))
         .collect();
     Scenario {
+        day_time: 0,
         seed,
         ticks: end + 100,
         blocks,
@@ -414,6 +416,7 @@ fn network(seed: u64) -> Scenario {
     }
     let end = blocks.len() as u32;
     Scenario {
+        day_time: 0,
         seed,
         ticks: end + 150,
         blocks,

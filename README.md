@@ -50,7 +50,8 @@ the shrunk case, not kept here.
 ```
 
 Blocks are placed one per tick, in order. `motor` sets a creative motor's speed the tick after it is placed.
-Each event happens before its tick runs: `state` places a block (`minecraft:air` removes it), `turn` turns a hand
+`day_time` (default 0) is the level's day time when the case starts; Java sets it for each batch, whose cases share
+it. Each event happens before its tick runs: `state` places a block (`minecraft:air` removes it), `turn` turns a hand
 crank (true: backwards). A `minecraft:redstone_block` powers the blocks beside it.
 
 ## How the two sides are kept comparable
@@ -61,6 +62,9 @@ crank (true: backwards). A `minecraft:redstone_block` powers the blocks beside i
 - Java's tick t is the level tick after the one it is placed in; each case is read after its own last tick.
 - Every case area is force-loaded when the server starts. At a sprint tick rate, block entities placed in a chunk
   that is still loading wait 10-20 ticks before they tick.
+- The day time is the scenario's: Create's mysterious cuckoo clock explodes at 18:32, so a server whose day ran on
+  between batches blew up some cases and not their reruns. Clock animations and the explosion are machine work
+  (group 7): the Rust driver does not run them yet, so generated cases keep day time 0, where none happens.
 - A difference is rerun three times on Java first; a case Java disagrees with itself on is reported as unstable.
 - `rust/src/allow.rs` lists the differences confirmed not to be port bugs, each with its evidence.
 - The port's glue rules the engine lacks (a crank breaks when its support goes) are mirrored in `rust/src/engine.rs`.

@@ -198,6 +198,12 @@ public class CreateFuzz {
 
 		void start(ServerLevel level) {
 			clear(level);
+			// The day time is the scenario's (Create's cuckoo clocks read it), not the server's history.
+			long dayTime = cases.isEmpty() || !cases.get(0).has("day_time") ? 0 : cases.get(0).get("day_time").getAsLong();
+			for (JsonObject c : cases)
+				if ((c.has("day_time") ? c.get("day_time").getAsLong() : 0) != dayTime)
+					throw new IllegalArgumentException("a batch's cases share one day time");
+			level.setDayTime(dayTime);
 		}
 
 		/** One tick of every case; true when all are done. */

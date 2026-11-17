@@ -15,6 +15,11 @@ pub struct Scenario {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub checkpoints: Vec<u32>,
     pub ticks: u32,
+    /// The level's day time when the case starts (`Level.setDayTime`): Create reads it (a
+    /// cuckoo clock's hands, its pig and creeper at 12:00 and 18:32). One batch shares a level,
+    /// so its cases share a day time.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub day_time: i64,
     pub blocks: Vec<Placed>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub events: Vec<Change>,
@@ -153,4 +158,8 @@ impl Scenario {
         }
         out
     }
+}
+
+fn is_zero(t: &i64) -> bool {
+    *t == 0
 }

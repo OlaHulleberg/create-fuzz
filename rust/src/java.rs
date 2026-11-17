@@ -20,6 +20,10 @@ fn exchange(dir: &Path, cases: &[Scenario], coverage: bool) -> (Vec<Snapshot>, s
     for sc in cases {
         crate::catalogue::scenario(sc);
     }
+    assert!(
+        cases.iter().all(|c| c.day_time == cases[0].day_time),
+        "a batch shares one level: its cases need one day time"
+    );
     let name = format!(
         "{}{}-{}-{}.json",
         if coverage { "cover-" } else { "" },
