@@ -74,6 +74,7 @@ public class CreateFuzz {
             Files.writeString(
                     dir.resolve("actor-probe.json"),
                     GSON.toJson(PlayerActor.probe(e.getServer().overworld())));
+            Files.writeString(dir.resolve("default-states.json"), DefaultStates.json());
             Files.writeString(
                     dir.resolve("runtime-probe.json"),
                     GSON.toJson(RuntimeProbe.angles(e.getServer().overworld())));

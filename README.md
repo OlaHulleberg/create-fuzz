@@ -35,6 +35,10 @@ To drive another checkout's engine (a worktree), set `CREATE_HORIZON=/path/to/ch
 against it in its own folder (`FUZZ_BUILD`, default `/mnt/lanes/fuzz-build`), and several drivers can share one
 server. `FUZZ_FOUND` sets where `fuzz` saves differences.
 
+The server writes `work/default-states.json` when it starts: every Create block's default state from the running
+binary (property and value names as serialized). create-horizon's create-data takes it as
+`tools/create-data/src/default_states.json`.
+
 `./run.sh server` accepts Minecraft's EULA for its local test server (`java/run/eula.txt`).
 
 Differences are filed as issues on [create-horizon](https://github.com/OlaHulleberg/create-horizon/issues) with
