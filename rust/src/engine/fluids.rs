@@ -124,14 +124,14 @@ mod tests {
             r.tick();
             assert!(r.name(r.at([16, 8, 1])).contains("shape=plain"));
         }
-        // A drained, single, windowed tank uses no column record; stale multi data must go.
+        // A drained single tank keeps its member record; stale multiblock data must go.
         for p in [[15, 8, 1], [16, 8, 0], [16, 8, 1]] {
             r.set(p, AIR);
         }
         r.w.set_tank(0, p, Tank::default());
         r.w.toggle_tank_windows(0, p);
         r.tick();
-        assert!(!r.persisted.fluid_columns.contains_key(&(0, 0)));
+        assert!(r.persisted.fluid_columns.contains_key(&(0, 0)));
         r.reload();
         let (_, m) = r.w.tank(0, p).unwrap();
         assert_eq!(m, create_engine::tank::Multi::default());

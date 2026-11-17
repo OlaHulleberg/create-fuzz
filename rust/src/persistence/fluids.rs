@@ -58,7 +58,8 @@ pub fn save_column(w: &CreateWorld, column: (i32, i32)) -> Compound {
     let mut codes = Codes::default();
     let v: Vec<_> = tanks
         .iter()
-        .flat_map(|(p, m)| {
+        .flat_map(|(p, saved)| {
+            let m = saved.multi.unwrap_or_default();
             [
                 p[0],
                 p[1],
@@ -68,12 +69,18 @@ pub fn save_column(w: &CreateWorld, column: (i32, i32)) -> Compound {
                 i32::from(m.width),
                 i32::from(m.height),
                 i32::from(m.window),
+                saved.part.controller[0],
+                saved.part.controller[1],
+                saved.part.controller[2],
+                i32::from(saved.part.window),
+                i32::from(saved.part.update_connectivity),
+                i32::from(saved.multi.is_some()),
             ]
         })
         .collect();
     if !v.is_empty() {
-        data.insert("tank_multis".into(), Tag::IntArray(v));
-        put_keys(&mut data, "tank_multis", codes);
+        data.insert("tank_entities".into(), Tag::IntArray(v));
+        put_keys(&mut data, "tank_entities", codes);
     }
     let d = &w.dims[0];
     let p = &d.plumbing;
@@ -263,6 +270,40 @@ pub fn load_column(w: &mut CreateWorld, data: &Compound) {
             )
         }))
         .collect();
+    let saved = if data.contains_key("tank_entities") {
+        let keys = keys(data, "tank_entities");
+        ints(data, "tank_entities")
+            .as_chunks::<14>()
+            .0
+            .iter()
+            .map(|c| {
+                (
+                    [c[0], c[1], c[2]],
+                    create_engine::tank::SavedTank {
+                        part: create_engine::tank::Part {
+                            controller: [c[8], c[9], c[10]],
+                            window: c[11] != 0,
+                            update_connectivity: c[12] != 0,
+                        },
+                        multi: (c[13] != 0).then_some(Multi {
+                            tank: Tank {
+                                fluid: Codes::fluid(&keys, c[3]),
+                                amount: c[4].max(0) as u32,
+                            },
+                            width: c[5] as u8,
+                            height: c[6] as u8,
+                            window: c[7] != 0,
+                        }),
+                    },
+                )
+            })
+            .collect::<Vec<_>>()
+    } else {
+        saved
+            .into_iter()
+            .map(|(p, m)| (p, create_engine::tank::SavedTank::controller(p, m)))
+            .collect()
+    };
     w.load_tanks(0, saved.into_iter());
     if let Some(Tag::Compound(own)) = data.get("create_fluids") {
         let k = keys(own, "create_fluids");
