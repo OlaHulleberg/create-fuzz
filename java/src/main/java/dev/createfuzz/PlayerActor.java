@@ -14,15 +14,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /** An ordinary server player; only its outbound transport is replaced. */
 final class PlayerActor {
     static ServerPlayer create(ServerLevel level, int slot) {
-        UUID id =
-                UUID.nameUUIDFromBytes(
-                        ("create-fuzz:actor:" + slot).getBytes(StandardCharsets.UTF_8));
+        UUID id = UUID.randomUUID();
         var profile = new GameProfile(id, "FuzzActor" + slot);
         var player =
                 new ServerPlayer(

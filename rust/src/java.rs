@@ -2,10 +2,12 @@
 
 use crate::scenario::{Scenario, Snapshot};
 use std::path::Path;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 static SEQ: AtomicU64 = AtomicU64::new(0);
+static BOOT: OnceLock<String> = OnceLock::new();
 
 pub fn run(dir: &Path, cases: &[Scenario]) -> Vec<Snapshot> {
     exchange(dir, cases, false, None).0
@@ -55,9 +57,26 @@ fn exchange(
     for sc in cases {
         crate::catalogue::scenario(sc);
     }
-    assert!(
-        cases.iter().all(|c| c.day_time == cases[0].day_time),
-        "a batch shares one level: its cases need one day time"
+    let runtime = dir.join("harness-runtime.json");
+    let stamp: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&runtime)
+        .unwrap_or_else(|_| panic!("missing Java runtime stamp at {}; the server owner must load the matching reviewed harness build", runtime.display())))
+        .expect("Java runtime stamp");
+    assert_eq!(
+        stamp["protocol"].as_u64(),
+        Some(1),
+        "unsupported Java harness protocol"
+    );
+    let expected = std::env::var("FUZZ_HARNESS_HASH").expect("use run.sh");
+    assert_eq!(
+        stamp["source_hash"].as_str(),
+        Some(expected.as_str()),
+        "Java harness source mismatch: refuse comparisons against a different server build"
+    );
+    let boot = stamp["boot"].as_str().expect("Java boot id").to_owned();
+    assert_eq!(
+        BOOT.get_or_init(|| boot.clone()),
+        &boot,
+        "Java server restarted during this run; discard the mixed-runtime campaign"
     );
     let name = format!(
         "{}{}-{}-{}.json",
@@ -74,7 +93,9 @@ fn exchange(
     let mut wire = serde_json::to_value(cases).unwrap();
     if let Some(phase) = phase {
         assert!(phase < 10);
-        wire[0]["_start_phase"] = phase.into();
+        for case in wire.as_array_mut().unwrap() {
+            case["_start_phase"] = phase.into();
+        }
     }
     std::fs::write(&tmp, serde_json::to_string(&wire).unwrap()).expect("write inbox");
     std::fs::rename(&tmp, inbox.join(&name)).expect("move into inbox");
@@ -87,6 +108,18 @@ fn exchange(
             if let Some(e) = value.get("error") {
                 panic!("java side: {e}");
             }
+            let after: serde_json::Value = serde_json::from_str(
+                &std::fs::read_to_string(&runtime).expect("runtime stamp after response"),
+            )
+            .expect("runtime stamp");
+            assert_eq!(
+                after["boot"], stamp["boot"],
+                "Java restarted while handling the request"
+            );
+            assert_eq!(
+                after["source_hash"], stamp["source_hash"],
+                "Java build changed during the request"
+            );
             return (
                 serde_json::from_value(value).expect("snapshots"),
                 dir.join("outbox").join(format!("{name}.exec")),

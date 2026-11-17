@@ -35,7 +35,7 @@ import java.util.stream.Stream;
 /**
  * Runs fuzzing scenarios on a dedicated server without restarting it. A batch is a JSON array of
  * scenarios dropped into {@code <dir>/inbox/<name>.json}; each case gets its own area, its blocks
- * are placed one per tick (block i before tick i), all cases of a batch run at once, and the
+ * are placed one per tick (block i before tick i), cases run in separate, serial level namespaces, and the
  * snapshots are written to {@code <dir>/outbox/<name>.json} in the batch's order. The directory is
  * {@code $FUZZ_DIR}, or {@code fuzz} in the server's directory.
  */
@@ -113,8 +113,10 @@ public class CreateFuzz {
             if (all && ++startup > 100) {
                 startup = -1;
                 try {
+                    for (int i = 0; i < SLOTS; i++) CaseIsolation.clear(level, slot(i));
+                    CaseIsolation.initialize(level, dir);
                     Files.writeString(dir.resolve("ready"), "ready\n");
-                } catch (IOException ex) {
+                } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
             }
@@ -127,7 +129,7 @@ public class CreateFuzz {
             try {
                 JsonArray cases = JsonParser.parseString(Files.readString(next)).getAsJsonArray();
                 Files.delete(next);
-                batch = new Batch(next.getFileName().toString(), cases, level);
+                batch = new Batch(next.getFileName().toString(), cases, level, dir);
                 batch.start(level);
                 if (batch.name.startsWith("cover-")) coverage(null);
             } catch (Exception ex) {
@@ -144,7 +146,7 @@ public class CreateFuzz {
         }
         if (done) {
             try {
-                if (batch.name.startsWith("cover-"))
+                if (batch.name.startsWith("cover-") && !batch.coverageCaptured)
                     coverage(dir.resolve("outbox").resolve(batch.name + ".exec"));
                 Path tmp = dir.resolve("outbox").resolve(batch.name + ".tmp");
                 Files.writeString(tmp, GSON.toJson(batch.results), StandardCharsets.UTF_8);
@@ -215,10 +217,15 @@ public class CreateFuzz {
         final List<ServerPlayer> actors = new ArrayList<>();
         final JsonArray results = new JsonArray();
         final List<JsonObject> traces = new ArrayList<>();
-        int tick, maxTicks;
+        int tick;
+        int activeCase;
+        int settling = 2;
+        boolean coverageCaptured;
+        final Path outputDirectory;
 
-        Batch(String name, JsonArray in, ServerLevel level) {
+        Batch(String name, JsonArray in, ServerLevel level, Path directory) {
             this.name = name;
+            outputDirectory = directory.resolve("outbox");
             for (int i = 0; i < in.size(); i++) {
                 cases.add(in.get(i).getAsJsonObject());
                 int version =
@@ -229,7 +236,6 @@ public class CreateFuzz {
                     throw new IllegalArgumentException("a batch holds at most " + SLOTS + " cases");
                 origins.add(slot(i));
                 actors.add(PlayerActor.create(level, i));
-                maxTicks = Math.max(maxTicks, in.get(i).getAsJsonObject().get("ticks").getAsInt());
                 results.add(new JsonObject());
                 traces.add(new JsonObject());
             }
@@ -237,33 +243,34 @@ public class CreateFuzz {
 
         void start(ServerLevel level) {
             clear(level);
-            NetworkIsolation.reset(level);
-            // Cuckoo clocks read the scenario's day time, independent of server history.
-            long dayTime =
-                    cases.isEmpty() || !cases.get(0).has("day_time")
-                            ? 0
-                            : cases.get(0).get("day_time").getAsLong();
-            for (JsonObject c : cases) {
-                if ((c.has("day_time") ? c.get("day_time").getAsLong() : 0) != dayTime)
-                    throw new IllegalArgumentException("a batch's cases share one day time");
-            }
-            level.setDayTime(dayTime);
-
+            if (name.startsWith("cover-") && cases.size() != 1)
+                throw new IllegalArgumentException("coverage requests contain one case");
         }
 
-        /** One tick of every case; true when all are done. */
+        /** One tick of the active case; disposal settles before the next namespace starts. */
         boolean step(ServerLevel level) {
-            if (tick == 0 && !cases.isEmpty() && cases.get(0).has("_start_phase")) {
-                int phase = cases.get(0).get("_start_phase").getAsInt();
+            CaseIsolation.settings(level);
+            if (settling > 0) {
+                if (--settling == 0) {
+                    CaseIsolation.begin(level);
+                    if (activeCase == cases.size()) return true;
+                    var next = cases.get(activeCase);
+                    level.setDayTime(next.has("day_time") ? next.get("day_time").getAsLong() : 0);
+                    if (name.startsWith("cover-")) coverage(null);
+                }
+                return false;
+            }
+            if (tick == 0 && !cases.isEmpty() && cases.get(activeCase).has("_start_phase")) {
+                int phase = cases.get(activeCase).get("_start_phase").getAsInt();
                 if (phase < 0 || phase >= 10) throw new IllegalArgumentException("start phase 0..9");
                 if (Math.floorMod(level.getGameTime(), 10) != phase) return false;
                 // Waiting happens before inputs. Preserve the ordinary start's one elapsed
                 // level tick so clocks see the same scenario day time in every context.
-                long dayTime = cases.get(0).has("day_time") ? cases.get(0).get("day_time").getAsLong() : 0;
+                long dayTime = cases.get(activeCase).has("day_time") ? cases.get(activeCase).get("day_time").getAsLong() : 0;
                 level.setDayTime(dayTime + 1);
             }
-            if(tick==0) for(var c:cases) c.addProperty("_save_phase",Math.floorMod(level.getGameTime(),10));
-            for (int i = 0; i < cases.size(); i++) {
+            if(tick==0) cases.get(activeCase).addProperty("_save_phase",Math.floorMod(level.getGameTime(),10));
+            for (int i = activeCase; i == activeCase; i++) {
                 JsonObject c = cases.get(i);
                 if (tick > c.get("ticks").getAsInt()) continue;
                 if (c.has("checkpoints"))
@@ -277,7 +284,15 @@ public class CreateFuzz {
                     JsonObject result = Observations.snapshot(level, origins.get(i), c, actors.get(i));
                     result.add("checkpoints", traces.get(i));
                     results.set(i, result);
-                    continue;
+                    if (name.startsWith("cover-")) {
+                        coverage(outputDirectory.resolve(name + ".exec"));
+                        coverageCaptured = true;
+                    }
+                    CaseIsolation.clear(level, origins.get(i));
+                    activeCase++;
+                    tick = 0;
+                    settling = 2;
+                    return false;
                 }
                 actors.get(i).getCooldowns().tick();
                 // A player places the blocks, one each tick.
@@ -318,33 +333,11 @@ public class CreateFuzz {
             // so it is read here once its last tick, `ticks`, has run.
 
             tick++;
-            return tick > maxTicks;
+            return false;
         }
 
         void clear(ServerLevel level) {
-            BlockState air = Blocks.AIR.defaultBlockState();
-            for (BlockPos o : origins)
-                for (BlockPos p :
-                        BlockPos.betweenClosed(
-                                o.offset(-CLEAR_RADIUS, 0, -CLEAR_RADIUS),
-                                o.offset(CLEAR_RADIUS, CLEAR_HEIGHT, CLEAR_RADIUS)))
-                    if (!level.getBlockState(p).isAir()) level.setBlock(p, air, 3);
-            // Clearing drops containers' contents (a depot's, a belt's): they must not reach the
-            // next case in the slot. Every entity but players goes with the blocks.
-            for (BlockPos o : origins) {
-                var box =
-                        new net.minecraft.world.phys.AABB(
-                                        o.offset(-CLEAR_RADIUS, 0, -CLEAR_RADIUS).getCenter(),
-                                        o.offset(CLEAR_RADIUS, CLEAR_HEIGHT, CLEAR_RADIUS)
-                                                .getCenter())
-                                .inflate(2);
-                for (var e :
-                        level.getEntitiesOfClass(
-                                net.minecraft.world.entity.Entity.class,
-                                box,
-                                e -> !(e instanceof net.minecraft.world.entity.player.Player)))
-                    e.discard();
-            }
+            for (BlockPos origin : origins) CaseIsolation.clear(level, origin);
         }
 
         static BlockPos at(BlockPos origin, JsonObject b) {
