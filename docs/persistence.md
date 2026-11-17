@@ -131,3 +131,10 @@ establish parity for host saves/unloads occurring earlier in the level tick or
 for mutations made by other mods afterward. The port still documents a missing
 before-entity-save callback in API_GAPS.md; no unload-time refresh can repair an
 already saved chunk. The driver does not invent such a callback.
+
+Reload completes each kinetic block_entity_on_load callback before starting the
+next entity: block_loaded, saved belt/depot/handle fields, kinetic ports, then
+that entity's sequencer instructions/run. It does not restore all entities'
+kinetic ports first and defer all sequencer callbacks to a later pass. The
+sequencer reload fixture compares this path with an independent per-entity
+reference using the same public engine entries. Publication remains unchanged.

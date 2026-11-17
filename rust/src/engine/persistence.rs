@@ -273,19 +273,45 @@ impl Run {
         self.w
             .load_belt_items(0, codec::belts_from_nbt(&data).into_iter());
         let saved_belts: HashMap<_, _> = saved_belts.into_iter().collect();
+        let saved_depots: HashMap<_, _> = saved_depots.into_iter().collect();
+        let saved_handles: HashMap<_, _> = saved_handles.into_iter().collect();
+        let sequences: HashMap<_, _> = sequences.into_iter().collect();
+        let entities: HashMap<_, _> = entities
+            .into_iter()
+            .map(|(p, sub, data)| ((p, sub), data))
+            .collect();
+        let restored_depots: std::collections::HashSet<_> = saved_depots.keys().copied().collect();
+        // Complete one block_entity_on_load callback before starting the next one.
         for &(p, s) in &blocks {
             self.w.block_loaded(0, p, s);
             if let Some(saved) = saved_belts.get(&p).and_then(codec::belt_segment_from_nbt) {
                 self.w.restore_belt_segment(0, p, saved);
             }
-        }
-        let restored_depots: std::collections::HashSet<_> =
-            saved_depots.iter().map(|(p, _)| *p).collect();
-        for (p, data) in saved_depots {
-            self.w.restore_depot(0, p, codec::depot_from_nbt(&data));
-        }
-        for (p, data) in saved_handles {
-            self.w.restore_handle(0, p, codec::handle_from_nbt(&data));
+            if let Some(data) = saved_depots.get(&p) {
+                self.w.restore_depot(0, p, codec::depot_from_nbt(data));
+            }
+            if let Some(data) = saved_handles.get(&p) {
+                self.w.restore_handle(0, p, codec::handle_from_nbt(data));
+            }
+            for sub in 0..2 {
+                if let Some(saved) = entities.get(&(p, sub)).and_then(codec::saved_from_nbt) {
+                    assert!(
+                        self.w.dims[0].kinetics.restore_state(p, sub, saved),
+                        "saved kinetic part missing at {p:?} port {sub}"
+                    );
+                }
+            }
+            if self.w.block_at(0, p) == Some(create_engine::Block::SequencedGearshift)
+                && let Some(data) = sequences.get(&p)
+            {
+                let instructions = codec::of_tag(data);
+                if !instructions.is_empty() {
+                    self.w.set_sequencer_instructions(0, p, instructions, false);
+                }
+                if let Some(run) = codec::run_of_tag(data) {
+                    self.w.restore_sequencer(0, p, run);
+                }
+            }
         }
         for (&p, h) in &mut self.handles {
             if let Some(saved) = self.w.saved_handle(0, p) {
@@ -293,24 +319,6 @@ impl Run {
                 h.total = saved.total_use_ticks;
                 h.back = saved.backwards;
                 h.target = saved.target_angle;
-            }
-        }
-        // block_entity_on_load: the scan may already have registered this block.
-        for (p, sub, data) in entities {
-            if let Some(saved) = codec::saved_from_nbt(&data) {
-                assert!(
-                    self.w.dims[0].kinetics.restore_state(p, sub, saved),
-                    "saved kinetic part missing at {p:?} port {sub}"
-                );
-            }
-        }
-        for (p, data) in sequences {
-            let instructions = codec::of_tag(&data);
-            if !instructions.is_empty() {
-                self.w.set_sequencer_instructions(0, p, instructions, false);
-            }
-            if let Some(run) = codec::run_of_tag(&data) {
-                self.w.restore_sequencer(0, p, run);
             }
         }
         for (p, links) in connections {
@@ -851,5 +859,85 @@ mod write_phase_tests {
         assert_eq!(serde_json::to_vec(&r.persisted.columns).unwrap(), written);
         r.tick();
         assert_ne!(serde_json::to_vec(&r.persisted.columns).unwrap(), written);
+    }
+}
+
+#[cfg(test)]
+mod reload_order_tests {
+    use super::*;
+    fn before_reload() -> Run {
+        let sc: Scenario =
+            serde_json::from_str(include_str!("../persistence/sequencer-reload-case.json"))
+                .unwrap();
+        let mut r = Run::new(&sc);
+        for t in 0_u32..22 {
+            if let Some(b) = sc.blocks.get(t as usize) {
+                r.place(b);
+            }
+            if let Some(b) = t.checked_sub(1).and_then(|i| sc.blocks.get(i as usize)) {
+                r.set_motor(b);
+            }
+            for e in sc.events.iter().filter(|e| e.tick == t) {
+                if let Some(a) = &e.action {
+                    r.action(e.pos, a);
+                }
+            }
+            r.tick();
+        }
+        r
+    }
+    #[test]
+    fn reload_matches_each_glue_load_callback_before_the_next_entity() {
+        let sc: Scenario =
+            serde_json::from_str(include_str!("../persistence/sequencer-reload-case.json"))
+                .unwrap();
+        let actual = {
+            let mut r = before_reload();
+            r.reload();
+            r.snapshot(&sc)
+        };
+        let expected = {
+            let mut r = before_reload();
+            let mut blocks: Vec<_> = r.world.iter().map(|(&p, &s)| (p, s)).collect();
+            blocks.sort_by_key(|(p, _)| *p);
+            let columns: std::collections::BTreeSet<_> =
+                blocks.iter().map(|(p, _)| (p[0] >> 4, p[2] >> 4)).collect();
+            let kinetic = r.persisted.kinetics.clone();
+            let sequence = r.persisted.sequences.clone();
+            let motors = match r.persisted.columns.get("motors") {
+                Some(Tag::IntArray(v)) => v
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|v| ([v[0], v[1], v[2]], v[3]))
+                    .collect::<Vec<_>>(),
+                _ => vec![],
+            };
+            for (cx, cz) in columns {
+                r.w.column_unloaded(0, cx, cz);
+            }
+            r.w.load_settings(0, motors.into_iter());
+            // Independent fixture reference for kinetics.rs::block_entity_on_load:
+            // this case has kinetic entities and one sequencer, no belt/handle/depot.
+            for (p, s) in blocks {
+                r.w.block_loaded(0, p, s);
+                for sub in 0..2 {
+                    if let Some(saved) = kinetic.get(&(p, sub)).and_then(codec::saved_from_nbt) {
+                        assert!(r.w.dims[0].kinetics.restore_state(p, sub, saved));
+                    }
+                }
+                if let Some(data) = sequence.get(&p) {
+                    let instructions = codec::of_tag(data);
+                    if !instructions.is_empty() {
+                        r.w.set_sequencer_instructions(0, p, instructions, false);
+                    }
+                    if let Some(run) = codec::run_of_tag(data) {
+                        r.w.restore_sequencer(0, p, run);
+                    }
+                }
+            }
+            r.snapshot(&sc)
+        };
+        assert_eq!(actual, expected);
     }
 }
