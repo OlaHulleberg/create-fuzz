@@ -61,7 +61,7 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
         version: 3,
         seed,
         day_time: 0,
-        ticks: 110,
+        ticks: 150,
         checkpoints: vec![30, 40, 60, 80],
         blocks: vec![],
         events: vec![],
@@ -122,4 +122,28 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
         turn: None,
     });
     sc
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn player_placement_forms_tank_and_wrench_changes_windows() {
+        let sc = super::generate(40);
+        let snap = crate::engine::run(&sc);
+        let before = &snap.checkpoints[&40].blocks["0,4,0"];
+        let tank = before.fluid_tank.as_ref().expect("player placed a tank");
+        assert_eq!((tank.width, tank.height, tank.capacity), (2, 1, 32000));
+        assert!(before.state.contains("shape=window_nw"));
+        assert!(
+            snap.checkpoints[&60].blocks["0,4,0"]
+                .state
+                .contains("shape=plain")
+        );
+        assert_eq!(snap.blocks["0,4,0"].state, "minecraft:air");
+        assert!(
+            super::validate_state("create:fluid_tank", &[("shape".into(), "bogus".into())])
+                .unwrap()
+                .is_err()
+        );
+    }
 }
