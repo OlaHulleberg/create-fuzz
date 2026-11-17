@@ -405,3 +405,38 @@ fn replacing_a_depot_drops_its_host_slot_state() {
             .is_empty()
     );
 }
+
+#[test]
+fn chain_heading_boundary_uses_the_glues_axis_selection() {
+    use create_engine::{
+        Block,
+        kinetics::{Axis, Dir},
+        place,
+    };
+    let sc: crate::scenario::Scenario =
+        serde_json::from_value(serde_json::json!({"ticks":80,"blocks":[]})).unwrap();
+    let ctx = place::Context {
+        yaw: 45.,
+        pitch: 0.,
+        sneaking: true,
+        clicked_face: Dir::Up,
+    };
+    let (axis, _) = place::axis(
+        Block::AdjustableChainGearshift,
+        ctx,
+        |_| false,
+        place::Nearby::default(),
+    )
+    .unwrap();
+    assert_eq!(axis, Axis::X);
+    let mut r = super::Run::new(&sc);
+    r.place_player(
+        [0, 8, 0],
+        "create:adjustable_chain_gearshift",
+        45.,
+        0.,
+        Dir::Up,
+        true,
+    );
+    assert_eq!(r.w.table.get(r.at([0, 8, 0])).unwrap().1.axis, Some(axis));
+}
