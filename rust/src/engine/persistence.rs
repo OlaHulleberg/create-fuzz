@@ -101,6 +101,9 @@ impl Run {
     }
     /// Subsystem::write_entities: after all mutations, before column attachment flush.
     pub(super) fn publish_entities(&mut self) {
+        for c in self.w.take_belt_saved_changes(0) {
+            self.mark_column(c);
+        }
         self.save_depot_records();
         let positions: Vec<_> = self.w.dims[0].sequencers.keys().copied().collect();
         for p in positions {

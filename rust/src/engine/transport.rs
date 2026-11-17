@@ -64,6 +64,7 @@ impl Run {
                             i.position =
                                 index as f32 + 0.5 + if b.items.positive { -1. } else { 1. } / 16.;
                             b.items.add(i);
+                            self.w.belt_inventory_changed(0, c);
                             remainder = None;
                         }
                     }
@@ -95,6 +96,9 @@ impl Run {
                                 count: i.count,
                             })
                             .collect();
+                        if !taken.is_empty() {
+                            self.w.belt_inventory_changed(0, c);
+                        }
                     }
                 } else if self.w.dims[0].depots.contains_key(&p) {
                     if face.dir() != Dir::Up {
@@ -183,6 +187,9 @@ impl Run {
                     b.items.add(i);
                 }
             }
+            if ticked.saved_changed {
+                self.w.belt_inventory_changed(0, c);
+            }
             if ticked.changed {
                 self.w.dims[0].belt_changes.push(c);
             }
@@ -257,6 +264,7 @@ impl Run {
         moved.inserted_at = index;
         moved.inserted_from = Some(side);
         b.items.add(moved);
+        self.w.belt_inventory_changed(0, c);
         Some(0)
     }
     pub(super) fn transport_observation(&self, p: Pos) -> Option<Contents> {
