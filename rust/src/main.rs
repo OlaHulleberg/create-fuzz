@@ -8,7 +8,9 @@ mod coverage;
 mod defaults;
 mod engine;
 mod fluid_host;
+mod fluid_network;
 mod fluid_pipes;
+mod fluid_pumps;
 mod fluid_world;
 mod fluids;
 mod generate;
@@ -190,25 +192,42 @@ struct Counts {
     matched: usize,
     differed: usize,
     unstable: usize,
+    unsupported: usize,
 }
 impl Counts {
     fn print(&self) {
         println!(
-            "{} matched, {} differed, {} java-unstable",
-            self.matched, self.differed, self.unstable
+            "{} matched, {} differed, {} java-unstable, {} driver-unsupported",
+            self.matched, self.differed, self.unstable, self.unsupported
         );
     }
 }
-fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) {
+fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) -> bool {
     let found = std::env::var_os("FUZZ_FOUND")
         .map(PathBuf::from)
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../found"));
     std::fs::create_dir_all(&found).unwrap();
     let r = engine::run_at_phase(sc, j.save_phase);
     let diffs = compare::diff(j, &r);
+    if [j, &r].iter().any(|snapshot| {
+        snapshot
+            .unavailable
+            .iter()
+            .any(|s| s == crate::fluid_world::OUTSIDE)
+    }) {
+        counts.unsupported += 1;
+        let record = serde_json::json!({"kind":"driver-unsupported","scenario":sc,"java":j,"rust":r,"diffs":diffs});
+        std::fs::write(
+            found.join(format!("unsupported-{}.json", sc.seed)),
+            serde_json::to_string_pretty(&record).unwrap(),
+        )
+        .unwrap();
+        println!("seed {}: driver unsupported (fluid containment)", sc.seed);
+        return false;
+    }
     if diffs.is_empty() {
         counts.matched += 1;
-        return;
+        return true;
     }
     // Recheck repeatability before recording a port difference. Controlled Java inputs
     // must agree across all three reruns; print the actual disagreement if they do not.
@@ -241,7 +260,7 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) {
         )
         .unwrap();
         println!("seed {}: java unstable", sc.seed);
-        return;
+        return true;
     }
     counts.differed += 1;
     let record = serde_json::json!({"scenario": sc, "java": j, "rust": r, "diffs": diffs});
@@ -256,4 +275,5 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) {
         diffs.len(),
         diffs[0]
     );
+    true
 }

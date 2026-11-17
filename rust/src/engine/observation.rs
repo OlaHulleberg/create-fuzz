@@ -23,7 +23,8 @@ impl Run {
             blocks.insert(
                 key(p),
                 BlockSnap {
-                    world_fluid: crate::fluid_world::observe(&state),
+                    fluid_network: self.fluid_network(p),
+                    world_fluid: self.world_fluid_observation(p),
                     payload: self.saved_payload(p),
                     saved: self
                         .persisted
@@ -71,7 +72,18 @@ impl Run {
             save_phase: self.persisted.phase,
             item_outcomes: self.item_outcomes.clone(),
             side: "rust".into(),
-            unavailable: Vec::new(),
+            unavailable: {
+                let mut unavailable = Vec::new();
+                if self.native_failed {
+                    unavailable.push(crate::fluid_world::OUTSIDE.into());
+                }
+                if !self.w.dims[0].pumps.is_empty() {
+                    unavailable.push(
+                        "stored-connection-pressure: endpoint path projection is compared".into(),
+                    );
+                }
+                unavailable
+            },
             networks: Some(crate::observation::Networks { partitions, sizes }),
             blocks,
             notes: self.notes.clone(),

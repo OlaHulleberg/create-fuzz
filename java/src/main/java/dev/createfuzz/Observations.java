@@ -35,9 +35,10 @@ final class Observations {
                 lo[a] = Math.min(lo[a], v);
                 hi[a] = Math.max(hi[a], v);
             }
+        int padding=FluidBounds.enabled(c)?2:1;
         for (int a = 0; a < 3; a++) {
-            lo[a]--;
-            hi[a]++;
+            lo[a]-=padding;
+            hi[a]+=padding;
         }
         if (!all.isEmpty()
                 && (lo[0] < -24
@@ -65,6 +66,7 @@ final class Observations {
                         snap.add("world_fluid", fluid);
                     }
                     BlockEntity be = level.getBlockEntity(pos);
+                    var fluidNetwork=FluidObservations.observe(level,pos);if(fluidNetwork!=null)snap.add("fluid_network",fluidNetwork);
                     if (be instanceof com.simibubi.create.content.fluids.tank.FluidTankBlockEntity tank) {
                         var cbe = tank.getControllerBE();
                         if (cbe != null) {

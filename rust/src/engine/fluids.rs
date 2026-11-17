@@ -1,4 +1,4 @@
-//! The tank state updates and moving-valve phase from glue/fluids.
+//! Tank state updates and the valve reconciliation phase from glue/fluids.
 use super::*;
 impl Run {
     /// fluids::Tanks::send_tank_changes, after logistics/tools/arms and before Solve.
@@ -18,8 +18,8 @@ impl Run {
         }
     }
     pub(super) fn tick_fluids(&mut self) {
-        self.tick_world_fluids();
         self.tick_pipe_shapes();
+        self.tick_pumps();
         let open: HashMap<_, _> = self.w.dims[0]
             .plumbing
             .valves

@@ -12,9 +12,22 @@ pub struct State {
     pub pos: Pos,
     pub state: String,
 }
+#[derive(Clone, Debug, Deserialize)]
+pub struct Facts {
+    pub replaceable: bool,
+    pub collision: bool,
+    pub sturdy: u8,
+    pub fluid: Option<crate::fluid_world::Observation>,
+}
+#[derive(Deserialize)]
+pub struct Cell {
+    pub pos: Pos,
+    pub state: String,
+    pub facts: Facts,
+}
 #[derive(Deserialize)]
 pub struct Frame {
-    pub states: Vec<State>,
+    pub states: Vec<Cell>,
     pub rules: crate::fluid_world::Rules,
 }
 pub struct Host {
@@ -67,15 +80,21 @@ impl Host {
         manual: Vec<Pos>,
         native: Vec<Pos>,
         region: Vec<Pos>,
-    ) -> Frame {
+    ) -> Result<Frame, String> {
         let mut request = serde_json::json!({"owner":self.owner,"clock":clock,"changes":changes,"manual":manual,"native":native,"region":region});
         if self.first {
             request["begin"] = true.into();
             self.first = false;
         }
         let result = self.exchange(request);
-        assert!(result.get("error").is_none(), "fluid host: {result}");
-        serde_json::from_value(result).unwrap()
+        if let Some(error) = result.get("error") {
+            let error = error.to_string();
+            if error.contains("provide a contained fixture") {
+                return Err(error);
+            }
+            panic!("fluid host: {error}");
+        }
+        Ok(serde_json::from_value(result).unwrap())
     }
 }
 impl Drop for Host {

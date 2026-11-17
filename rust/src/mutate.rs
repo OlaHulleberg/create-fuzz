@@ -138,8 +138,8 @@ mod tests {
             let sc = super::mutate(&crate::generate::generate(seed / 5), seed);
             crate::catalogue::scenario(&sc);
             assert!(!sc.blocks.is_empty());
-            assert!(sc.blocks.iter().all(|b| b.pos[0].abs() <= 10
-                && b.pos[2].abs() <= 10
+            assert!(sc.blocks.iter().all(|b| b.pos[0].abs() <= 23
+                && b.pos[2].abs() <= 23
                 && (1..=16).contains(&b.pos[1])));
             assert!(
                 sc.events

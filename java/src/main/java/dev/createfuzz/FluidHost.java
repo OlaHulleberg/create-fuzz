@@ -21,6 +21,7 @@ final class FluidHost {
         for(int x=(ORIGIN.getX()-24)>>4;x<=(ORIGIN.getX()+24)>>4;x++)
             for(int z=(ORIGIN.getZ()-24)>>4;z<=(ORIGIN.getZ()+24)>>4;z++) level.setChunkForced(x,z,true);
     }
+    static void abortIfOwner(ServerLevel level,String key) {if(key.equals(owner)) abort(level);}
     static void abort(ServerLevel level) {clear(level);owner=null;level.getServer().tickRateManager().setFrozen(false);}
     static void clear(ServerLevel level) {
         for(var p:BlockPos.betweenClosed(ORIGIN.offset(-24,0,-24),ORIGIN.offset(24,24,24)))
@@ -33,7 +34,7 @@ final class FluidHost {
         if(request.has("begin")) {
             if(owner!=null&&!owner.equals(key)) throw new IllegalStateException("fluid host already owned by "+owner);
             level.getServer().tickRateManager().setFrozen(true);
-            clear(level);owner=key;epoch=level.getGameTime();
+            owner=key;epoch=level.getGameTime();clear(level);
         }
         if(!key.equals(owner)) throw new IllegalStateException("fluid host owner mismatch");
         if(request.has("close")) {clear(level);owner=null;level.getServer().tickRateManager().setFrozen(false);return new JsonObject();}
@@ -59,26 +60,15 @@ final class FluidHost {
             var xyz=value.getAsJsonArray();var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());
             var state=level.getFluidState(pos);if(!state.isEmpty()) state.tick(level,pos);
         }
-        int[] lo={24,24,24},hi={-24,-24,-24};
-        for(var value:request.getAsJsonArray("region")) {
-            var xyz=value.getAsJsonArray();for(int a=0;a<3;a++){lo[a]=Math.min(lo[a],xyz.get(a).getAsInt());hi[a]=Math.max(hi[a],xyz.get(a).getAsInt());}
-        }
-        for(var value:request.getAsJsonArray("region")) {
-            var xyz=value.getAsJsonArray();int x=xyz.get(0).getAsInt(),y=xyz.get(1).getAsInt(),z=xyz.get(2).getAsInt();
-            if(x!=lo[0]&&x!=hi[0]&&y!=lo[1]&&y!=hi[1]&&z!=lo[2]&&z!=hi[2]) continue;
-            var pos=ORIGIN.offset(x,y,z);if(level.getFluidState(pos).isEmpty()) continue;
-            for(var direction:net.minecraft.core.Direction.values()) {
-                if(direction==net.minecraft.core.Direction.UP) continue;
-                int nx=x+direction.getStepX(),ny=y+direction.getStepY(),nz=z+direction.getStepZ();
-                if(nx>=lo[0]&&nx<=hi[0]&&ny>=lo[1]&&ny<=hi[1]&&nz>=lo[2]&&nz<=hi[2]) continue;
-                if(level.getBlockState(pos.relative(direction)).canBeReplaced())
-                    throw new IllegalArgumentException("fluid reaches the scenario boundary; provide a contained fixture");
-            }
-        }
+        FluidBounds.check(level,ORIGIN,request.getAsJsonArray("region"));
         var out=new JsonObject();var states=new JsonArray();
         for(var value:request.getAsJsonArray("region")) {
             var xyz=value.getAsJsonArray();var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());
-            var entry=new JsonObject();entry.add("pos",xyz);entry.addProperty("state",BlockStateParser.serialize(level.getBlockState(pos)));states.add(entry);
+            var entry=new JsonObject();entry.add("pos",xyz);var state=level.getBlockState(pos);entry.addProperty("state",BlockStateParser.serialize(state));
+            var facts=new JsonObject();facts.addProperty("replaceable",state.canBeReplaced());facts.addProperty("collision",!state.getCollisionShape(level,pos).isEmpty());
+            int sturdy=0;for(var direction:net.minecraft.core.Direction.values())if(state.isFaceSturdy(level,pos,direction))sturdy|=1<<direction.get3DDataValue();facts.addProperty("sturdy",sturdy);
+            var fs=state.getFluidState();if(!fs.isEmpty()){var fluid=new JsonObject();fluid.addProperty("fluid",BuiltInRegistries.FLUID.getKey(fs.getType()).toString().replace(":flowing_",":"));fluid.addProperty("source",fs.isSource());fluid.addProperty("amount",fs.getAmount());fluid.addProperty("falling",fs.hasProperty(net.minecraft.world.level.material.FlowingFluid.FALLING)&&fs.getValue(net.minecraft.world.level.material.FlowingFluid.FALLING));facts.add("fluid",fluid);}
+            entry.add("facts",facts);states.add(entry);
         }
         out.add("states",states);
         var rules=new JsonObject();

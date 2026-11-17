@@ -40,3 +40,23 @@ The current server is the overworld. Source-conversion rules and water evaporati
 read from the live host and supplied to the Rust callbacks. Nether
 water evaporation, arbitrary third-party fluids/handlers, entity effects, fire/candle
 workloads and custom dimension rules need separate environment contracts.
+
+Fluid cases observe the input bounding box expanded by two blocks, so a pipe placed beside
+a click and the world cell beyond its open end are both included. Java's normal runner and
+the Rust host peer enforce the same containment boundary and clear rejected slots before
+fluid can reach other cases. Rejected inputs are recorded as `driver-unsupported` and do
+not enter the coverage corpus. Shrinking rejects these candidates through the same
+comparison contract.
+
+The native peer also returns replacement, collision and face-support queries. Open-end
+admission uses those host facts, including partial vanilla slabs. Waterlogging and source
+callbacks use the actual fluid-state reads at the last native frame, with local writes
+visible immediately until the next frame.
+
+Connection observations normalize all six sides and account for active, retained and
+network-held open-end buffers, deduplicating handler identity locally. Raw identities are
+never compared. Java retains per-connection pressures; the current port retains endpoint
+pressures and path/flow plans. Rust's `pressure_model=endpoint_paths` reports that projection
+and marks stored connection pressure as unavailable. Pressure-only projection differences
+are not sufficient evidence of a port defect; flow, transfer and glue traces establish the
+functional findings.

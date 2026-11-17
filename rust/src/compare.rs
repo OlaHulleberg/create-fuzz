@@ -11,6 +11,18 @@ fn close(a: f32, b: f32) -> bool {
 
 pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
     let mut out = Vec::new();
+    for (side, snapshot) in [("java", java), ("rust", rust)] {
+        if snapshot
+            .unavailable
+            .iter()
+            .any(|s| s == crate::fluid_world::OUTSIDE)
+        {
+            out.push(format!(
+                "{side} adapter unavailable: {}",
+                crate::fluid_world::OUTSIDE
+            ));
+        }
+    }
     if java.item_outcomes != rust.item_outcomes {
         out.push(format!(
             "item outcomes: java {:?} rust {:?}",
@@ -40,6 +52,11 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
             (Some(j), None) => out.push(format!("{k}: java has {}, rust has air", j.state)),
             (None, Some(r)) => out.push(format!("{k}: java has air, rust has {}", r.state)),
             (Some(j), Some(r)) => {
+                out.extend(
+                    fluid_network_diff(j.fluid_network.as_ref(), r.fluid_network.as_ref())
+                        .into_iter()
+                        .map(|d| format!("{k}: {d}")),
+                );
                 if j.world_fluid != r.world_fluid {
                     out.push(format!(
                         "{k}: world fluid: java {:?} rust {:?}",
@@ -254,6 +271,56 @@ fn transport_equal(
         }
         _ => false,
     }
+}
+
+fn fluid_network_diff(
+    j: Option<&crate::fluid_network::Observation>,
+    r: Option<&crate::fluid_network::Observation>,
+) -> Vec<String> {
+    let (j, r) = match (j, r) {
+        (Some(j), Some(r)) => (j, r),
+        (None, None) => return vec![],
+        _ => return vec!["fluid network presence differs".into()],
+    };
+    let mut out = Vec::new();
+    match (j.pump_pressure, r.pump_pressure) {
+        (Some(a), Some(b)) if close(a, b) => {}
+        (None, None) => {}
+        (a, b) => out.push(format!("pump pressure: java {a:?} rust {b:?}")),
+    }
+    let keys: std::collections::BTreeSet<_> =
+        j.connections.keys().chain(r.connections.keys()).collect();
+    for side in keys {
+        match (j.connections.get(side), r.connections.get(side)) {
+            (Some(a), Some(b)) => {
+                for (i, name) in ["inbound", "outward"].iter().enumerate() {
+                    if !close(a.pressure[i], b.pressure[i]) {
+                        out.push(format!(
+                            "{side} {name} pressure: java {} rust {}",
+                            a.pressure[i], b.pressure[i]
+                        ));
+                    }
+                }
+                if a.buffer != b.buffer {
+                    out.push(format!(
+                        "{side} open-end buffer: java {:?} rust {:?}",
+                        a.buffer, b.buffer
+                    ));
+                }
+                match (&a.flow, &b.flow) {
+                    (Some(a), Some(b))
+                        if a.fluid == b.fluid
+                            && a.inbound == b.inbound
+                            && a.complete == b.complete
+                            && close(a.progress, b.progress) => {}
+                    (None, None) => {}
+                    (a, b) => out.push(format!("{side} flow: java {a:?} rust {b:?}")),
+                }
+            }
+            _ => out.push(format!("{side} fluid connection presence differs")),
+        }
+    }
+    out
 }
 
 #[cfg(test)]

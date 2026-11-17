@@ -91,6 +91,10 @@ public class CreateFuzz {
                             cz <= (o.getZ() + CLEAR_RADIUS) >> 4;
                             cz++) level.setChunkForced(cx, cz, true);
             }
+            // The native peer advances scheduled fluids, not ambient random block ticks.
+            // Use the same deterministic external environment for ordinary Java cases.
+            level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_RANDOMTICKING).set(0,e.getServer());
+            level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOFIRETICK).set(false,e.getServer());
             FluidHost.prepare(level);
             // Run ticks as fast as the server can.
             e.getServer().tickRateManager().setTickRate(10000f);
@@ -127,8 +131,9 @@ public class CreateFuzz {
             if (poll++ % 5 != 0) return;
             Path next = nextInbox();
             if (next == null) return;
+            com.google.gson.JsonElement input=null;
             try {
-                var input=JsonParser.parseString(Files.readString(next));
+                input=JsonParser.parseString(Files.readString(next));
                 Files.delete(next);
                 if(next.getFileName().toString().startsWith("fluid-host-")) {
                     var result=FluidHost.handle(level,input.getAsJsonObject());
@@ -145,7 +150,7 @@ public class CreateFuzz {
                 batch.start(level);
                 if (batch.name.startsWith("cover-")) coverage(null);
             } catch (Exception ex) {
-                if(next.getFileName().toString().startsWith("fluid-host-")) FluidHost.abort(level);
+                if(next.getFileName().toString().startsWith("fluid-host-") && input!=null && input.isJsonObject() && input.getAsJsonObject().has("owner")) FluidHost.abortIfOwner(level,input.getAsJsonObject().get("owner").getAsString());
                 fail(level, next.getFileName().toString(), ex);
             }
             return;
@@ -234,6 +239,7 @@ public class CreateFuzz {
         final List<ServerPlayer> actors = new ArrayList<>();
         final JsonArray results = new JsonArray();
         final List<JsonObject> traces = new ArrayList<>();
+        final List<JsonArray> fluidRegions=new ArrayList<>();
         int tick;
         int activeCase;
         int settling = 2;
@@ -255,6 +261,7 @@ public class CreateFuzz {
                 actors.add(null);
                 results.add(new JsonObject());
                 traces.add(new JsonObject());
+                fluidRegions.add(FluidBounds.enabled(cases.get(i))?FluidBounds.region(cases.get(i)):new JsonArray());
             }
         }
 
@@ -290,7 +297,13 @@ public class CreateFuzz {
             if(tick==0) cases.get(activeCase).addProperty("_save_phase",Math.floorMod(level.getGameTime(),10));
             for (int i = activeCase; i == activeCase; i++) {
                 JsonObject c = cases.get(i);
-                if (tick > c.get("ticks").getAsInt()) continue;
+                if(c.has("_fluid_invalid") || tick > c.get("ticks").getAsInt()) continue;
+                try {FluidBounds.check(level,origins.get(i),fluidRegions.get(i));}
+                catch(IllegalArgumentException error){
+                    var result=Observations.snapshot(level,origins.get(i),c,actors.get(i));
+                    var unavailable=result.has("unavailable")?result.getAsJsonArray("unavailable"):new JsonArray();unavailable.add(FluidBounds.OUTSIDE);result.add("unavailable",unavailable);
+                    var notes=new JsonArray();notes.add("adapter gap: "+error.getMessage());result.add("notes",notes);result.add("checkpoints",traces.get(i));results.set(i,result);c.addProperty("_fluid_invalid",true);CaseIsolation.clear(level,origins.get(i));continue;
+                }
                 if (c.has("checkpoints"))
                     for (JsonElement t : c.getAsJsonArray("checkpoints"))
                         if (t.getAsInt() == tick)

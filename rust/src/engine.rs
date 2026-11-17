@@ -14,6 +14,7 @@ mod kinetics;
 mod observation;
 mod persistence;
 mod pipes;
+mod pumps;
 mod transport;
 
 use crate::scenario::{
@@ -134,9 +135,13 @@ pub struct Run {
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
     java_ties: bool,
+    fluid_runs: HashMap<Pos, pumps::Running>,
+    fluid_pressures: HashMap<(Pos, create_engine::kinetics::Dir), [f32; 2]>,
     fluid_host: Option<crate::fluid_host::Host>,
     fluid_host_enabled: bool,
+    native_failed: bool,
     fluid_rules: crate::fluid_world::Rules,
+    fluid_facts: HashMap<Pos, (String, crate::fluid_host::Facts)>,
     fluid_host_changes: Vec<crate::fluid_host::State>,
     fluid_native_schedule: Vec<Pos>,
     fluid_water_due: BTreeMap<usize, Vec<Pos>>,
@@ -183,9 +188,13 @@ impl Run {
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
             java_ties: false,
+            fluid_runs: HashMap::new(),
+            fluid_pressures: HashMap::new(),
             fluid_host: None,
             fluid_host_enabled: crate::fluid_world::enabled(sc),
+            native_failed: false,
             fluid_rules: crate::fluid_world::Rules::default(),
+            fluid_facts: HashMap::new(),
             fluid_host_changes: Vec::new(),
             fluid_native_schedule: Vec::new(),
             fluid_water_due: BTreeMap::new(),
@@ -439,6 +448,10 @@ pub(crate) fn run_trace_at(sc: &Scenario, java_ties: bool, phase: u8) -> Snapsho
     r.java_ties = java_ties;
     r.persisted.clock = usize::from(phase);
     r.persisted.phase = phase;
+    execute(sc, r)
+}
+
+fn execute(sc: &Scenario, mut r: Run) -> Snapshot {
     let mut checkpoints = BTreeMap::new();
     for t in 0..sc.ticks {
         if sc.checkpoints.contains(&t) {
@@ -470,8 +483,11 @@ pub(crate) fn run_trace_at(sc: &Scenario, java_ties: bool, phase: u8) -> Snapsho
             }
         }
         r.tick();
+        if r.native_failed {
+            break;
+        }
     }
-    if sc.checkpoints.contains(&sc.ticks) {
+    if !r.native_failed && sc.checkpoints.contains(&sc.ticks) {
         checkpoints.insert(sc.ticks, r.snapshot(sc));
     }
     let mut out = r.snapshot(sc);

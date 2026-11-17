@@ -4,6 +4,7 @@ use crate::scenario::{format_state, parse_state};
 use create_engine::tank::Fluid;
 use serde::{Deserialize, Serialize};
 pub const FIRST: u32 = 19;
+pub const OUTSIDE: &str = "fluid-world-outside-region";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Observation {
     pub fluid: String,
@@ -52,6 +53,13 @@ pub fn states() -> &'static [String] {
         }
         for level in 1..=3 {
             states.push(format!("minecraft:water_cauldron[level={level}]"));
+        }
+        for block in ["minecraft:stone_slab", "minecraft:oak_slab"] {
+            for kind in ["bottom", "top", "double"] {
+                for water in ["false", "true"] {
+                    states.push(format!("{block}[type={kind},waterlogged={water}]"));
+                }
+            }
         }
         for block in ["minecraft:beehive", "minecraft:bee_nest"] {
             for facing in ["north", "south", "west", "east"] {
@@ -108,8 +116,26 @@ pub fn observe(state: &str) -> Option<Observation> {
 }
 
 pub fn enabled(sc: &crate::scenario::Scenario) -> bool {
-    sc.blocks.iter().map(|b|b.state.as_str()).chain(sc.events.iter().filter_map(|e|e.state.as_deref())).any(|state|fluid(state).is_some() || state.contains("cauldron") || state.contains("honey_level"))
-    || sc.events.iter().any(|e|matches!(&e.action,Some(crate::actions::Action::Use{item,..}) if item.ends_with("bucket")))
+    sc.blocks
+        .iter()
+        .map(|b| b.state.as_str())
+        .chain(sc.events.iter().filter_map(|e| e.state.as_deref()))
+        .any(|state| {
+            id(state).is_some()
+                || fluid(state).is_some()
+                || state.contains("cauldron")
+                || state.contains("honey_level")
+        })
+        || sc.events.iter().any(|e| match &e.action {
+            Some(crate::actions::Action::Use { item, .. }) => item.ends_with("bucket"),
+            Some(crate::actions::Action::Item { input }) => match input {
+                crate::transport::Input::DropOn { stack } => stack.item.ends_with("bucket"),
+                crate::transport::Input::Use { stack, .. } => {
+                    stack.as_ref().is_some_and(|s| s.item.ends_with("bucket"))
+                }
+            },
+            _ => false,
+        })
 }
 
 pub fn generate(seed: u64) -> crate::scenario::Scenario {

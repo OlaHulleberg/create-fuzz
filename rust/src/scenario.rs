@@ -146,9 +146,14 @@ impl Scenario {
                 hi[a] = hi[a].max(p[a]);
             }
         }
+        let padding = if crate::fluid_world::enabled(self) {
+            2
+        } else {
+            1
+        };
         for a in 0..3 {
-            lo[a] -= 1;
-            hi[a] += 1;
+            lo[a] -= padding;
+            hi[a] += padding;
         }
         assert!(
             lo[0] >= -24 && lo[2] >= -24 && lo[1] >= 0 && hi[0] <= 24 && hi[2] <= 24 && hi[1] <= 24,

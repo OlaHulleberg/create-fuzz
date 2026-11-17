@@ -67,14 +67,15 @@ pub fn run(rounds: u64) {
 
         let now = collector.measure(&exec);
         history.push_str(&format!("{round}\t{}\t{}\n", sc.seed, now - covered));
-        if now > covered && !replaying {
-            corpus.keep(sc.clone());
-        }
+        let gained = now > covered;
         covered = now;
         // Reports may be on another filesystem from the server inbox/outbox.
         std::fs::copy(&exec, report.join("cases").join(format!("{round}.exec"))).unwrap();
         std::fs::remove_file(exec).unwrap();
-        crate::record(&sc, &snapshot, &mut counts);
+        let supported = crate::record(&sc, &snapshot, &mut counts);
+        if supported && gained && !replaying {
+            corpus.keep(sc.clone());
+        }
     }
     std::fs::write(report.join("seeds.tsv"), history).unwrap();
     counts.print();

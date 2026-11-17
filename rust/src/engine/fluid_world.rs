@@ -20,12 +20,44 @@ impl Run {
             .iter()
             .any(|(k, _)| k == "waterlogged")
     }
+    fn facts(&self, p: Pos) -> Option<&crate::fluid_host::Facts> {
+        let (state, facts) = self.fluid_facts.get(&p)?;
+        let current = self.name(self.at(p));
+        let (old, mut op) = parse_state(state);
+        let (new, mut np) = parse_state(&current);
+        op.retain(|(k, _)| k != "waterlogged");
+        np.retain(|(k, _)| k != "waterlogged");
+        op.sort();
+        np.sort();
+        (old == new && op == np).then_some(facts)
+    }
+    pub(super) fn world_fluid_observation(
+        &self,
+        p: Pos,
+    ) -> Option<crate::fluid_world::Observation> {
+        if let Some((state, facts)) = self.fluid_facts.get(&p)
+            && *state == self.name(self.at(p))
+        {
+            return facts.fluid.clone();
+        }
+        crate::fluid_world::observe(&self.name(self.at(p)))
+    }
+    pub(super) fn sturdy(&self, p: Pos, face: Dir) -> bool {
+        self.facts(p).map_or_else(
+            || !self.replaceable(p) && !self.waterloggable(p),
+            |f| f.sturdy & face.bit() != 0,
+        )
+    }
     pub(super) fn replaceable(&self, p: Pos) -> bool {
+        if let Some(facts) = self.facts(p) {
+            return facts.replaceable;
+        }
         self.at(p) == AIR
             || crate::fluid_world::fluid(&self.name(self.at(p))).is_some() && !self.waterloggable(p)
     }
     fn solid(&self, p: Pos) -> bool {
-        !self.replaceable(p)
+        self.facts(p)
+            .map_or_else(|| !self.replaceable(p), |f| f.collision)
     }
     fn set_world_state(&mut self, p: Pos, state: &str) {
         let id = self.id(state);
@@ -49,6 +81,24 @@ impl Run {
             "minecraft:bucket" | "minecraft:water_bucket" | "minecraft:lava_bucket"
         ) {
             return false;
+        }
+        let (block, props) = parse_state(&self.name(self.at(p)));
+        if block.ends_with("cauldron") {
+            let next = match item {
+                "minecraft:water_bucket" => Some("minecraft:water_cauldron[level=3]"),
+                "minecraft:lava_bucket" => Some("minecraft:lava_cauldron"),
+                "minecraft:bucket"
+                    if block == "minecraft:lava_cauldron"
+                        || props.iter().any(|(k, v)| k == "level" && v == "3") =>
+                {
+                    Some("minecraft:cauldron")
+                }
+                _ => None,
+            };
+            if let Some(state) = next {
+                self.set_world_state(p, state);
+            }
+            return true;
         }
         if item == "minecraft:bucket" {
             if let Some((fluid, 0)) = self.world_fluid(p)
@@ -82,7 +132,6 @@ impl Run {
         }
         true
     }
-    #[allow(dead_code)] // Connected to pump transfer in the next step.
     pub(super) fn open_end<R>(
         &mut self,
         end: &create_engine::fluids::End,
@@ -102,10 +151,18 @@ impl Run {
                 pos: end.pos,
             },
         );
-        if open == OpenEnd::default() {
-            self.w.dims[0].open_ends.remove(&key);
-        } else {
-            self.w.dims[0].open_ends.insert(key, open);
+        let before = self.w.dims[0]
+            .open_ends
+            .get(&key)
+            .copied()
+            .unwrap_or_default();
+        if open != before {
+            if open == OpenEnd::default() {
+                self.w.dims[0].open_ends.remove(&key);
+            } else {
+                self.w.dims[0].open_ends.insert(key, open);
+            }
+            self.mark_column(owner);
         }
         out
     }
@@ -137,9 +194,21 @@ impl Run {
             native,
             self.fluid_domain.iter().copied().collect(),
         );
+        let results = match results {
+            Ok(frame) => frame,
+            Err(error) => {
+                self.notes.push(format!(
+                    "adapter gap: fluid world escaped the observed region at tick {now}: {error}"
+                ));
+                self.native_failed = true;
+                return;
+            }
+        };
         self.fluid_host = Some(host);
         self.fluid_rules = results.rules;
         for state in results.states {
+            self.fluid_facts
+                .insert(state.pos, (state.state.clone(), state.facts));
             let current = self.name(self.at(state.pos));
             let (old_name, _) = parse_state(&current);
             let (new_name, new_props) = parse_state(&state.state);
@@ -192,8 +261,8 @@ impl Space for Front<'_> {
     }
     fn fluid(&self) -> Option<(Option<Fluid>, bool)> {
         self.run
-            .world_fluid(self.pos)
-            .map(|(f, n)| (Some(f), n == 0))
+            .world_fluid_observation(self.pos)
+            .map(|f| (Fluid::of_id(&f.fluid), f.source))
     }
     fn evaporates(&self) -> bool {
         self.run.fluid_rules.evaporates

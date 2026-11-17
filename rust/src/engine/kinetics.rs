@@ -4,7 +4,10 @@ impl Run {
     /// One level tick: inputs, then the solve and what it breaks.
     pub(super) fn tick(&mut self) {
         self.persisted.clock += 1;
-        self.tick_fluids();
+        self.tick_world_fluids();
+        if self.native_failed {
+            return;
+        }
         self.w.tick_cranks(0);
         for h in self.handles.values_mut() {
             h.remaining = h.remaining.saturating_sub(1);
@@ -47,6 +50,7 @@ impl Run {
             self.sequencer_step(p, step);
         }
         let mut events = Vec::new();
+        self.tick_fluids();
         self.tick_transport();
         self.save_fluid_entities();
         self.w.settle_belts(0);
