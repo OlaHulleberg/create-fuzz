@@ -87,6 +87,9 @@ pub fn shrink(dir: &Path, mut sc: Scenario) -> (Scenario, Vec<String>) {
         eprintln!("seed {}: matches now, nothing to shrink", sc.seed);
         return (sc, last);
     }
+    // Keep a witness from the original observation: reduction must not replace a
+    // network finding with an unrelated state-injection discrepancy.
+    let witness = last.clone();
     loop {
         let cands = candidates(&sc);
         if cands.is_empty() {
@@ -97,7 +100,11 @@ pub fn shrink(dir: &Path, mut sc: Scenario) -> (Scenario, Vec<String>) {
         let mut hit = None;
         for chunk in cands.chunks(16) {
             let results = diffs(dir, chunk);
-            if let Some((c, d)) = chunk.iter().zip(results).find(|(_, d)| !d.is_empty()) {
+            if let Some((c, d)) = chunk
+                .iter()
+                .zip(results)
+                .find(|(_, d)| !d.is_empty() && d.iter().all(|item| witness.contains(item)))
+            {
                 hit = Some((c.clone(), d));
                 break;
             }
