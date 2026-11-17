@@ -2,6 +2,9 @@
 import importlib.util
 from pathlib import Path
 import tempfile
+import hashlib
+import json
+from unittest.mock import patch
 import unittest
 
 spec = importlib.util.spec_from_file_location('gaps', Path(__file__).with_name('gaps.py'))
@@ -48,6 +51,42 @@ class ReportTests(unittest.TestCase):
             self.assertIn('| client | 1 | 1 |', report)
             self.assertIn('| error-path | 1 | 2 |', report)
             self.assertIn('| harness-gap | 1 | 3 |', report)
+
+
+    def test_command_requires_completed_matching_campaign_and_all_packages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'coverage').mkdir()
+            (root / 'coverage/subsystems.json').write_text(json.dumps({'belts': ['test/belt/', 'test/depot/']}))
+            (root / 'coverage/review.json').write_text(json.dumps({'create': 'create-commit'}))
+            (root / 'coverage/reasons.tsv').write_text(
+                'class\tmethod\tfirst\tlast\tcategory\twhy\tsource_sha256\n'
+                'test/belt/A\t*\t1\t100\tharness-gap\tMissing input\thash\n')
+            data = root / 'input'
+            data.mkdir()
+            missed = data / 'never-reached.tsv'
+            missed.write_text('class\tmethod\tline\tmissed branches\n'
+                              'test/belt/A\trun()V\t10\t2\n')
+            classes = data / 'classes.tsv'
+            classes.write_text('class\tcovered\ttotal\ntest/belt/A\t0\t2\n')
+            campaign = data / 'campaign.json'
+            metadata = dict(fuzzer='f', engine='e', create='create-commit', command='cover 1', complete=True,
+                            never_reached_sha256=hashlib.sha256(missed.read_bytes()).hexdigest())
+            campaign.write_text(json.dumps(metadata))
+            argv = ['gaps', '--input', str(missed), '--output', str(root / 'reports')]
+            with patch.object(gaps, 'ROOT', root), patch.object(gaps, 'revision', return_value='r'), patch('sys.argv', argv):
+                self.assertEqual(gaps.main(), 1)
+                classes.write_text(classes.read_text() + 'test/depot/A\t0\t0\n')
+                self.assertEqual(gaps.main(), 0)
+                metadata['complete'] = False
+                campaign.write_text(json.dumps(metadata))
+                with self.assertRaises(SystemExit):
+                    gaps.main()
+                metadata['complete'] = True
+                metadata['never_reached_sha256'] = 'wrong'
+                campaign.write_text(json.dumps(metadata))
+                with self.assertRaises(SystemExit):
+                    gaps.main()
 
 
 if __name__ == '__main__':
