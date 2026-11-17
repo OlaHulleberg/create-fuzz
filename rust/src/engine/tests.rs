@@ -488,3 +488,25 @@ fn sneaking_casing_on_a_belt_reaches_normal_item_placement() {
     assert_eq!(r.belt_observation([0, 8, 0]).unwrap().casing, "none");
     assert!(r.notes.is_empty());
 }
+
+#[test]
+fn empty_hand_on_an_unformed_shaft_has_no_transfer_or_adapter_gap() {
+    use crate::{actions::Face, transport::Input};
+    let sc = crate::transport::generate(31);
+    let mut r = super::Run::new(&sc);
+    for b in &sc.blocks {
+        r.place(b);
+    }
+    r.item_input(
+        [0, 8, 4],
+        &Input::Use {
+            stack: None,
+            face: Face::Up,
+            yaw: 0.,
+            sneaking: false,
+        },
+    );
+    assert!(r.item_outcomes[0].taken.is_empty());
+    assert!(r.item_outcomes[0].remainder.is_none());
+    assert!(r.notes.is_empty());
+}

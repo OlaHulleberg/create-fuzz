@@ -120,11 +120,9 @@ impl Run {
                         }),
                     );
                     remainder = None;
-                } else {
-                    self.notes.push(format!(
-                        "adapter gap: item use target at {p:?} requires a belt or depot"
-                    ));
                 }
+                // The remaining blocks in the bounded contract have no stack-transfer
+                // handler for these plain items. A refused use leaves the offered stack.
             }
         }
         let mut merged = BTreeMap::<String, u8>::new();
