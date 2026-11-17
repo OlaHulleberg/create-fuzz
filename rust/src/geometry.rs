@@ -464,3 +464,31 @@ mod tests {
         );
     }
 }
+
+/// RotationPropagator.getAxisModifier depends on the source face, not just the
+/// block axis. Drive both halves of split shafts and every gearbox input face.
+pub fn source_faces(seed: u64) -> Scenario {
+    let mut blocks = Vec::new();
+    let mut events = Vec::new();
+    let kind = ["gearbox", "clutch", "gearshift"][(seed / 32 % 3) as usize];
+    for (i, face) in FACES.into_iter().enumerate() {
+        let p = [(i as i32 % 3) * 6 - 6, 8, (i as i32 / 3) * 6 - 3];
+        let axis = if kind == "gearbox" { (face.axis + 1) % 3 } else { face.axis };
+        blocks.push(placed(p, format!("create:{kind}[axis={}]", ["x", "y", "z"][axis]), None));
+        for output in FACES {
+            if output != face && (output.axis != axis) == (kind == "gearbox") {
+                blocks.push(placed(add(p, output.offset()), format!("create:shaft[axis={}]", ["x", "y", "z"][output.axis]), None));
+            }
+        }
+        let motor = add(p, face.offset());
+        blocks.push(placed(motor, format!("create:creative_motor[facing={}]", face.opposite().name()), Some(if seed & 128 == 0 {32} else {-32})));
+        if kind != "gearbox" {
+            let signal = add(p, FACES[if axis == 1 {1} else {3}].offset());
+            for (tick, strength) in [(30,15), (50,0), (70,15), (90,0)] {
+                events.push(Change { tick, pos: signal, action: Some(crate::actions::Action::Signal { strength }), state: None, motor: None, turn: None });
+            }
+        }
+        events.push(Change::set(110, motor, "minecraft:air"));
+    }
+    Scenario { version: 3, seed, day_time: 0, ticks: 190, blocks, events, checkpoints: vec![29,31,51,71,91,111,180] }
+}
