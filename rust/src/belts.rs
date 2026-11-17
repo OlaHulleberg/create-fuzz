@@ -63,6 +63,27 @@ pub fn generate(seed: u64) -> Scenario {
         state: format!("create:creative_motor[facing={facing}]"),
         motor: Some(if n.is_multiple_of(2) { 32 } else { -32 }),
     });
+    // Cancel a selected first shaft, then start the normal two-click connection.
+    // Sneaking with the connector clears BELT_FIRST_SHAFT in Create's useOn.
+    if n.is_multiple_of(3) {
+        for (tick, sneaking) in [(5, false), (7, true)] {
+            sc.events.push(Change {
+                tick,
+                pos: a,
+                action: Some(Action::Use {
+                    item: "create:belt_connector".into(),
+                    face: Face::Up,
+                    hit: [0.5, 1., 0.5],
+                    yaw: 0.,
+                    pitch: 0.,
+                    sneaking,
+                }),
+                state: None,
+                motor: None,
+                turn: None,
+            });
+        }
+    }
     let use_item = |item: &str| Action::Use {
         item: item.into(),
         face: Face::Up,
