@@ -154,6 +154,33 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
         );
     }
     if mode == 4 {
+        // SharedDepotBlockMethods.onUse rejects side clicks before touching held items.
+        // Exercise both offered-stack and empty-hand rejection around a valid top use.
+        let side = [Face::North, Face::South, Face::East, Face::West, Face::Down]
+            [(seed as usize / 160) % 5];
+        for (tick, stack) in [
+            (
+                34,
+                Some(Stack {
+                    item: "minecraft:diamond".into(),
+                    count: 2,
+                }),
+            ),
+            (35, None),
+        ] {
+            event(
+                tick,
+                [0, 8, 5],
+                Action::Item {
+                    input: Input::Use {
+                        stack,
+                        face: side,
+                        yaw: 90.,
+                        sneaking: false,
+                    },
+                },
+            );
+        }
         event(
             36,
             [0, 8, 5],
