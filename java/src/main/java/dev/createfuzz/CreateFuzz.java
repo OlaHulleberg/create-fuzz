@@ -247,10 +247,12 @@ public class CreateFuzz {
                     throw new IllegalArgumentException("a batch's cases share one day time");
             }
             level.setDayTime(dayTime);
+
         }
 
         /** One tick of every case; true when all are done. */
         boolean step(ServerLevel level) {
+            if(tick==0) for(var c:cases) c.addProperty("_save_phase",Math.floorMod(level.getGameTime(),10));
             for (int i = 0; i < cases.size(); i++) {
                 JsonObject c = cases.get(i);
                 if (tick > c.get("ticks").getAsInt()) continue;

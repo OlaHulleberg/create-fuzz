@@ -72,8 +72,8 @@ final class Observations {
                         snap.add("conveyor_links",CreateFuzz.GSON.toJsonTree(links));
                     }
                     if (be instanceof KineticBlockEntity k) {
-                        snap.add("kinetic", kinetic(k));
                         snap.add("saved", Persistence.saved(k, origin));
+                        snap.add("kinetic", kinetic(k));
                         if (k.network != null) {
                             networks.computeIfAbsent(k.network, ignored -> new ArrayList<>())
                                     .add(key);
@@ -94,10 +94,12 @@ final class Observations {
                     if (be != null && !(be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity))
                         snap.addProperty(
                                 "debug", be.saveWithoutMetadata(level.registryAccess()).toString());
+                    if(be!=null) {var payload=Persistence.payload(be,origin);if(payload!=null) snap.add("payload",payload);}
                     blocks.add(key, snap);
                 }
         JsonObject out = new JsonObject();
         out.addProperty("side", "java");
+        out.add("save_phase",c.get("_save_phase"));
         out.add("item_outcomes",ItemInputs.outcomes(actor));
         out.add("blocks", blocks);
         var partitions = new ArrayList<java.util.List<String>>(networks.values());

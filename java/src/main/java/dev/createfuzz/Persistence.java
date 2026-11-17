@@ -40,8 +40,84 @@ final class Persistence {
             level.setBlockEntity(fresh);
         }
     }
+    private static net.minecraft.nbt.CompoundTag beltTag(com.simibubi.create.content.kinetics.belt.BeltBlockEntity b) {
+        var tag=new net.minecraft.nbt.CompoundTag();
+        tag.putFloat("Speed",b.getTheoreticalSpeed());tag.putBoolean("NeedsSpeedUpdate",b.needsSpeedUpdate());
+        if(b.source!=null) tag.put("Source",NbtUtils.writeBlockPos(b.source));
+        if(b.network!=null) {
+            var n=new net.minecraft.nbt.CompoundTag();
+            n.putFloat("Stress",TransportObservations.<Float>field(b,KineticBlockEntity.class,"stress"));
+            n.putFloat("Capacity",TransportObservations.<Float>field(b,KineticBlockEntity.class,"capacity"));
+            n.putInt("Size",TransportObservations.<Integer>field(b,KineticBlockEntity.class,"networkSize"));
+            n.putFloat("AddedStress",TransportObservations.<Float>field(b,KineticBlockEntity.class,"lastStressApplied"));
+            n.putFloat("AddedCapacity",TransportObservations.<Float>field(b,KineticBlockEntity.class,"lastCapacityProvided"));tag.put("Network",n);
+        }
+        tag.put("Controller",NbtUtils.writeBlockPos(b.getController()));tag.putBoolean("IsController",b.isController());
+        tag.putInt("Length",b.beltLength);tag.putInt("Index",b.index);tag.putString("Casing",b.casing.name());
+        if(b.isController()) {
+            var inv=b.getInventory();var owner=com.simibubi.create.content.kinetics.belt.transport.BeltInventory.class;
+            boolean positive=TransportObservations.<Boolean>field(inv,owner,"beltMovementPositive");
+            var items=new java.util.ArrayList<>(inv.getTransportedItems());
+            items.addAll(TransportObservations.<java.util.List<com.simibubi.create.content.kinetics.belt.transport.TransportedItemStack>>field(inv,owner,"toInsert"));
+            items.removeAll(TransportObservations.<java.util.List<com.simibubi.create.content.kinetics.belt.transport.TransportedItemStack>>field(inv,owner,"toRemove"));
+            items.sort(positive ? java.util.Comparator.naturalOrder() : java.util.Comparator.reverseOrder());
+            var saved=new net.minecraft.nbt.CompoundTag();var list=new net.minecraft.nbt.ListTag();
+            for(var item:items) list.add(item.serializeNBT(b.getLevel().registryAccess()));
+            saved.put("Items",list);saved.putBoolean("PositiveOrder",positive);tag.put("Inventory",saved);
+        }
+        return tag;
+    }
+    static JsonObject payload(net.minecraft.world.level.block.entity.BlockEntity be, BlockPos origin) {
+        var data=be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity b ? beltTag(b) : be.saveWithoutMetadata(be.getLevel().registryAccess());
+        var out=new JsonObject();
+        if(be instanceof com.simibubi.create.content.kinetics.transmission.sequencer.SequencedGearshiftBlockEntity) {
+            out.addProperty("kind","sequencer");
+            var instructions=new com.google.gson.JsonArray();
+            for(var element:data.getList("Instructions",10)) {
+                var tag=(net.minecraft.nbt.CompoundTag)element;
+                var instruction=new JsonObject();
+                instruction.addProperty("instruction",tag.getString("Type"));
+                instruction.addProperty("modifier",tag.getString("Modifier"));
+                instruction.addProperty("value",tag.getInt("Value")); instructions.add(instruction);
+            }
+            out.add("instructions",instructions);
+            out.addProperty("current",data.getInt("InstructionIndex"));
+            out.addProperty("duration",data.getInt("InstructionDuration"));
+            out.addProperty("progress",data.getFloat("InstructionProgress"));
+            out.addProperty("timer",data.getInt("Timer"));
+            out.addProperty("powered",data.getBoolean("PrevPowered"));
+        } else if(be instanceof com.simibubi.create.content.kinetics.crank.ValveHandleBlockEntity) {
+            out.addProperty("kind","valve");out.addProperty("selected",data.getInt("ScrollValue"));
+            out.addProperty("total",data.getInt("TotalUseTicks"));out.addProperty("target",data.getInt("TargetAngle"));
+        } else if(be instanceof com.simibubi.create.content.kinetics.crank.HandCrankBlockEntity) {
+            out.addProperty("kind","crank");
+        } else if(be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity belt) {
+            out.addProperty("kind","belt");
+            var controller=NbtUtils.readBlockPos(data,"Controller").orElseThrow().subtract(origin);
+            out.add("controller",CreateFuzz.GSON.toJsonTree(new int[]{controller.getX(),controller.getY(),controller.getZ()}));
+            out.addProperty("length",data.getInt("Length"));out.addProperty("index",data.getInt("Index"));
+            out.addProperty("casing",data.getString("Casing").toLowerCase(java.util.Locale.ROOT));
+            out.add("inventory",JsonNull.INSTANCE);
+            if(data.getBoolean("IsController")) {
+                var inventory=new JsonObject();var items=new com.google.gson.JsonArray();
+                var inv=data.getCompound("Inventory");
+                inventory.addProperty("positive",inv.getBoolean("PositiveOrder"));
+                for(var element:inv.getList("Items",10)) items.add(savedItem((net.minecraft.nbt.CompoundTag)element,be));
+                inventory.add("items",items);out.add("inventory",inventory);
+            }
+        } else if(be instanceof com.simibubi.create.content.logistics.depot.DepotBlockEntity) {
+            out.addProperty("kind","depot");out.add("held",JsonNull.INSTANCE);
+            if(data.contains("HeldItem")) out.add("held",savedItem(data.getCompound("HeldItem"),be).get("stack"));
+        } else return null;
+        return out;
+    }
+    private static JsonObject savedItem(net.minecraft.nbt.CompoundTag data, net.minecraft.world.level.block.entity.BlockEntity be) {
+        var out=new JsonObject();
+        out.add("stack",ItemInputs.stack(net.minecraft.world.item.ItemStack.parseOptional(be.getLevel().registryAccess(),data.getCompound("Item"))));
+        out.addProperty("position",data.getFloat("Pos"));out.addProperty("locked",data.getBoolean("Locked"));return out;
+    }
     static JsonObject saved(KineticBlockEntity be, BlockPos origin) {
-        var data = be.saveWithoutMetadata(be.getLevel().registryAccess());
+        var data = be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity b ? beltTag(b) : be.saveWithoutMetadata(be.getLevel().registryAccess());
         var out = new JsonObject();
         out.addProperty("speed", data.getFloat("Speed"));
         out.addProperty("needs_speed_update", data.getBoolean("NeedsSpeedUpdate"));

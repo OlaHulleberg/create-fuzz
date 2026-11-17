@@ -77,7 +77,7 @@ pub fn diffs(dir: &Path, cases: &[Scenario]) -> Vec<Vec<String>> {
     cases
         .iter()
         .zip(&java)
-        .map(|(sc, j)| compare::diff(j, &engine::run(sc)))
+        .map(|(sc, j)| compare::diff(j, &engine::run_at_phase(sc, j.save_phase)))
         .collect()
 }
 

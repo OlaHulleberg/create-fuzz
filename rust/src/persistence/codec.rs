@@ -323,3 +323,53 @@ pub fn sequencer_to_nbt(s: &seq::Sequencer) -> Compound {
         ("PrevPowered".into(), Tag::Byte(i8::from(s.powered_before))),
     ])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn kinetic_round_trip_preserves_ports_sequences_and_float_bits() {
+        let saved = SavedKineticState {
+            speed: -32.,
+            needs_speed_update: true,
+            source: Some(PartLocation {
+                pos: [-2, 8, 4],
+                sub: 1,
+            }),
+            network: Some(SavedNetwork {
+                id: 123,
+                stress: 24.,
+                capacity: 64.,
+                size: 3,
+                added_stress: 2.,
+                added_capacity: 8.,
+            }),
+            sequence: Some((
+                Context {
+                    distance: true,
+                    value: 12.,
+                    run: 42,
+                },
+                0.5,
+            )),
+        };
+        let bytes = serde_json::to_vec(&saved_to_nbt(saved)).unwrap();
+        let data: Compound = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(saved_from_nbt(&data), Some(saved));
+    }
+    #[test]
+    fn belt_reload_uses_persisted_fields_and_clears_runtime_insertion_context() {
+        let mut inv = create_engine::belt::Inventory::default();
+        let mut item = create_engine::belt::Item::new("minecraft:iron_ingot", 4, 180, false);
+        item.position = 1.25;
+        item.locked = true;
+        item.inserted_at = 2;
+        inv.add(item);
+        let tag = Compound::from([("belts".into(), belts_to_nbt(&[([0, 8, 0], inv.to_save())]))]);
+        let saved = belts_from_nbt(&tag);
+        assert_eq!(saved[0].1.items[0].position, 1.25);
+        assert!(saved[0].1.items[0].locked);
+        assert_eq!(saved[0].1.items[0].count, 4);
+        assert_eq!(saved[0].1.items[0].inserted_at, 0);
+    }
+}

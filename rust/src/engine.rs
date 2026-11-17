@@ -106,6 +106,7 @@ fn normal(s: &str) -> String {
 
 pub struct Run {
     w: CreateWorld,
+    persisted: persistence::Store,
     ids: HashMap<String, u32>,
     names: Vec<String>,
     world: HashMap<Pos, u32>,
@@ -147,6 +148,7 @@ impl Run {
             .collect();
         Run {
             w: CreateWorld::new(table),
+            persisted: Default::default(),
             ids,
             names,
             world: HashMap::new(),
@@ -204,6 +206,11 @@ impl Run {
     /// UPDATE_CLIENTS changes the state without notifying neighbours; UPDATE_ALL does both.
     fn commit(&mut self, p: Pos, new: u32, notify: bool) {
         let old = self.at(p);
+        if self.w.table.get(old).map(|(b, _)| b) != self.w.table.get(new).map(|(b, _)| b) {
+            self.persisted.kinetics.remove(&(p, 0));
+            self.persisted.kinetics.remove(&(p, 1));
+            self.persisted.sequences.remove(&p);
+        }
         if old == new {
             return;
         }
@@ -328,13 +335,23 @@ impl Run {
     }
 }
 
+#[cfg(test)]
 pub fn run(sc: &Scenario) -> Snapshot {
-    crate::trig::run(sc)
+    run_at_phase(sc, 0)
 }
 
+pub fn run_at_phase(sc: &Scenario, phase: u8) -> Snapshot {
+    crate::trig::run(sc, phase)
+}
+#[cfg(test)]
 pub(crate) fn run_trace(sc: &Scenario, java_ties: bool) -> Snapshot {
+    run_trace_at(sc, java_ties, 0)
+}
+pub(crate) fn run_trace_at(sc: &Scenario, java_ties: bool, phase: u8) -> Snapshot {
     let mut r = Run::new(sc);
     r.java_ties = java_ties;
+    r.persisted.clock = usize::from(phase);
+    r.persisted.phase = phase;
     let mut checkpoints = BTreeMap::new();
     for t in 0..sc.ticks {
         if sc.checkpoints.contains(&t) {

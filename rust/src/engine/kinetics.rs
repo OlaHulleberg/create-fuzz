@@ -3,6 +3,7 @@ use super::*;
 impl Run {
     /// One level tick: inputs, then the solve and what it breaks.
     pub(super) fn tick(&mut self) {
+        self.persisted.clock += 1;
         self.w.tick_cranks(0);
         for h in self.handles.values_mut() {
             h.remaining = h.remaining.saturating_sub(1);
@@ -45,11 +46,25 @@ impl Run {
             self.set(p, self.id(&next));
         }
         let mut steps = Vec::new();
+        let mut checked = Vec::new();
         for (p, running) in self.w.take_sequencer_checks(0) {
+            checked.push(p);
             let powered = self.signal(p) > 0;
             if let Some(step) = self.w.sequencer_redstone(0, p, powered, running) {
                 steps.push((p, step));
             }
+        }
+        if self.persisted.clock.is_multiple_of(10) {
+            checked.extend(
+                self.w.dims[0]
+                    .sequencers
+                    .iter()
+                    .filter(|(_, s)| s.ticks())
+                    .map(|(p, _)| *p),
+            );
+        }
+        for p in checked {
+            self.save_sequence(p);
         }
         for (p, step) in steps {
             self.sequencer_step(p, step);
@@ -69,10 +84,12 @@ impl Run {
                 self.set(pos, AIR);
             }
         }
+        self.flush_persistence();
     }
 
     /// The glue's commit of a sequencer step: its `state` (kept while powered at the end).
     pub(super) fn sequencer_step(&mut self, p: [i32; 3], step: create_engine::sequencer::Step) {
+        self.save_sequence(p);
         use create_engine::sequencer::Step;
         let n = match step {
             Step::Run(n) => n,

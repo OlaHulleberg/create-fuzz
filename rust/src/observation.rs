@@ -6,6 +6,8 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Snapshot {
     #[serde(default)]
+    pub save_phase: u8,
+    #[serde(default)]
     pub item_outcomes: Vec<crate::transport::Outcome>,
     pub side: String,
     /// Adapter gaps are explicit metadata, never inferred from equal speed/stress.
@@ -24,6 +26,8 @@ pub struct Snapshot {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct BlockSnap {
+    #[serde(default)]
+    pub payload: Option<crate::persistence::payload::Payload>,
     #[serde(default)]
     pub saved: Option<crate::persistence::Saved>,
     #[serde(default)]

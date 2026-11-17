@@ -49,7 +49,10 @@ fn main() {
             let generated: Vec<_> = (0..2000).map(generate::generate).collect();
             catalogue::report(&manual, &generated);
         }
-        "rust" => print(&engine::run(&load(&args[1]))),
+        "rust" => print(&engine::run_at_phase(
+            &load(&args[1]),
+            args.get(2).map_or(0, |s| s.parse().expect("phase 0..9")),
+        )),
         "java" => print(&java::run(&fuzz_dir(), &[load(&args[1])]).remove(0)),
         "gen" => println!(
             "{}",
@@ -86,7 +89,7 @@ fn check(cases: &[Scenario], names: &[String]) -> usize {
     let java = java::run(&fuzz_dir(), cases);
     let mut failed = 0;
     for ((sc, j), name) in cases.iter().zip(&java).zip(names) {
-        let r = engine::run(sc);
+        let r = engine::run_at_phase(sc, j.save_phase);
         let diffs = compare::diff(j, &r);
         if diffs.is_empty() {
             println!("{name}: match ({} blocks)", j.blocks.len());
@@ -161,7 +164,7 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) {
         .map(PathBuf::from)
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../found"));
     std::fs::create_dir_all(&found).unwrap();
-    let r = engine::run(sc);
+    let r = engine::run_at_phase(sc, j.save_phase);
     let diffs = compare::diff(j, &r);
     if diffs.is_empty() {
         counts.matched += 1;

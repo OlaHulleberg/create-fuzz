@@ -23,9 +23,12 @@ impl Run {
             blocks.insert(
                 key(p),
                 BlockSnap {
-                    saved: self.w.dims[0]
+                    payload: self.saved_payload(p),
+                    saved: self
+                        .persisted
                         .kinetics
-                        .saved_state(p, self.observed_sub(p))
+                        .get(&(p, self.observed_sub(p)))
+                        .and_then(crate::persistence::codec::saved_from_nbt)
                         .map(Into::into),
                     transport: self.transport_observation(p),
                     conveyor_links: self.chains.conveyors.get(&p).map(|c| {
@@ -63,6 +66,7 @@ impl Run {
         }
         partitions.sort();
         Snapshot {
+            save_phase: self.persisted.phase,
             item_outcomes: self.item_outcomes.clone(),
             side: "rust".into(),
             unavailable: Vec::new(),

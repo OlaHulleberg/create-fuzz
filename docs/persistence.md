@@ -1,48 +1,64 @@
-# Persistence observations (incomplete)
+# Persistence actions and saved observations
 
-Snapshots now compare a typed subset of the actual server save:
-Speed, NeedsSpeedUpdate, Source (relative to the case origin), and Network's
-Stress, Capacity, Size, AddedStress and AddedCapacity. Java calls
-saveWithoutMetadata with the registry provider; Rust calls the same saved_state
-entry that glue/kinetics.rs serializes through saved_to_nbt. Missing optional
-numeric tags normalize to zero. Network Id is deliberately never emitted.
-Floating values use the kinetic comparison tolerance. Sequence and all other
-subsystem save data remain outside this new observation.
+Version 3 events accept `{"kind":"reload"}`. This is an area action: its
+position participates in the usual scenario region bounds, while every block
+entity in that region reloads. The action runs in event-array order after
+initial placement and delayed motor settings, before the next world tick.
+World block states, scheduled block ticks, player state and external entities
+remain in place. There is no simulated offline time.
 
-This change does **not** implement save/reload actions. It cannot establish
-reload parity. No generated scenario reloads, and no reload API is advertised.
+Java saves all area entities with saveWithoutMetadata(registryAccess) before
+removing any. Type identity is added for BlockEntity.loadStatic. Each old entity
+receives onChunkUnloaded before removeBlockEntity marks it removed; this runs
+SmartBlockEntity's unload/invalidation path without treating it as destruction.
+Fresh loadStatic instances enter the level with setBlockEntity and initialize
+on their next normal entity tick. Chunk tickets are retained: forced chunks
+and the shared level make ticket removal an unsuitable area isolation primitive.
+This tests entity persistence, not chunk I/O or server restart durability.
 
-A faithful reload must recreate block entities through their server load path,
-not restore their visible snapshot into existing objects. SmartBlockEntity's
-chunk unload path differs from destruction: onChunkUnloaded sets chunkUnloaded,
-and setRemoved consequently skips remove. KineticBlockEntity.initialize restores
-network unloaded figures with initFromTE/addSilently; calling remove would
-propagate destruction instead. A replacement adapter must account for the
-network registry and the phase of the new entity's first tick.
+Rust uses the MIT glue codecs over a local typed NBT value tree. The encoded
+value tree crosses a byte serialization boundary; engine objects do not survive
+by cloning. End-of-tick kinetic changes populate persisted records, and motor
+settings/belt inventories populate column attachments. Reload calls
+column_unloaded, loads column settings/items, scans with block_loaded, restores
+kinetic ports with restore_state and then loads sequencer instructions/run.
+False restore_state returns are handled as the current glue handles them; no
+missing belt part is synthesized before the glue's normal settle_belts phase.
+Conveyor links use Chains::unload/add and set_far. Host slots and valve-use data
+cross the serialization boundary independently of engine state.
 
-The Rust counterpart must restore column attachments (motor/controller settings,
-belt contents and depot state) before block_loaded and restore_state, then invoke
-the sequencer load path. The old-save migration path is separate from a current
-save round trip. Retaining the current World or cloning driver caches across a
-reload would conceal missing persistence, particularly crank expiry, valve use,
-sequencer instruction progress, belt controller/inventory and depot buffers.
-These reload paths are outstanding, not unsupported engine claims.
+Sequencer records update at redstone checks, instruction steps and the glue's
+10-tick periodic save point. Java reports the batch's initial game-time modulo
+10 as snapshot `save_phase`; comparisons replay Rust at that phase. This is
+external timing input, not a compared result. `rust <case.json> [phase]` permits
+matching standalone replay (default phase 0). No world clock is reset.
 
-Version 3 `{"kind":"reload"}` is an area action; its event position participates
-in the normal region bounds but does not select a single entity. Java saves all
-entities in that region before removing any, calls onChunkUnloaded before
-removeBlockEntity (which marks the old entity removed), and installs fresh
-loadStatic entities with unchanged block states. Initialization runs on their
-next normal entity tick. This keeps scheduled world ticks and external entities;
-it is an entity reload, not a restart or a chunk-ticket test. Slots share forced
-chunks and the shared level, so chunk ticket removal cannot isolate an area.
+The additive saved records compare kinetic speed/update flag/source position
+and network stress/capacity/size/added contributions. Raw network ids are never
+emitted. Subsystem payloads compare sequencer instructions/run; valve selected
+angle/total use duration/target; belt controller/index/length/casing, persisted
+inventory order/stack/position/lock; and depot held slots. Floating fields use
+the existing kinetic tolerance. Random render angles and dependent offsets
+are excluded symmetrically. Belt save observations project write's committed
+queues without mutating the live inventory; the actual reload uses write.
 
-The Rust reload adapter now uses the MIT glue's kinetic, belt and sequencer NBT
-codecs over a local typed tag tree. It encodes and decodes the records before
-calling column_unloaded, load_settings/load_belt_items, block_loaded,
-restore_state, set_sequencer_instructions and restore_sequencer. Conveyor links
-use Chains::unload/add and set_far. Host inventory slots and valve use records
-cross the serialization boundary independently of the engine. Depot motion and
-engine crank timers are reset exactly where the current glue has no persisted
-restore entry; the driver does not invent one. Current-save round trips never
-enter legacy migration. Corrupt/old save injection remains a separate scope.
+Explicit boundaries:
+
+- The current glue has no persisted hand-crank countdown/direction restore
+  entry; its payload marker has no shared fields beyond saved kinetics.
+- Depot motion and processed output/incoming queues are not represented by the
+  current glue's persisted host inventory. Generated inputs cover its held slot;
+  reload observations still compare the supported live transport fields.
+- Valve engine countdown/cooldown restoration is absent from the glue. The
+  driver retains host ValveUse/ScrollValue data and does not invent that restore.
+- Belt insertion context is absent from the Rust persisted payload. Controller
+  formation still runs in the normal glue phase after load.
+- Old drawing-only legacy saves, corrupt saves, actual chunk ticket transitions,
+  disk durability, config profiles, unmodelled item components, machine work and
+  native item flight are not generated by this action.
+
+Half of generated seeds overlay a reload on an existing scenario family.
+Placement, post-action and settled boundaries are sampled; checkpoints cover
+the reload boundary and five following ticks. Handwritten reload histories cover
+propagation, sequencer/valve/crank use, belt/depot items, wrenching and break
+cascades. Original histories remain available in the corresponding ordinary cases.
