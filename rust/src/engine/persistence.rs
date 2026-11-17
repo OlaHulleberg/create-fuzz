@@ -10,6 +10,7 @@ pub(super) struct Store {
     pub sequences: HashMap<Pos, Compound>,
     pub columns: Compound,
     pub handles: HashMap<Pos, Compound>,
+    pub valve_pointers: HashMap<Pos, Compound>,
     pub depots: HashMap<Pos, Compound>,
     pub belts: HashMap<Pos, Compound>,
     pub fluid_columns: BTreeMap<(i32, i32), Compound>,
@@ -29,6 +30,7 @@ type ReloadData = (
     Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
     FluidReload,
+    Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
 );
 
@@ -90,7 +92,15 @@ impl Run {
                     .insert(p, codec::handle_to_nbt(saved));
             }
         }
+        self.persisted
+            .valve_pointers
+            .retain(|p, _| self.w.saved_valve_pointer(0, *p).is_some());
         for p in self.w.dims[0].kinetics.take_saved_changes() {
+            if let Some(pointer) = self.w.saved_valve_pointer(0, p) {
+                self.persisted
+                    .valve_pointers
+                    .insert(p, codec::valve_pointer_to_nbt(pointer));
+            }
             if self.w.dims[0].kinetics.awaiting_legacy_load(p) {
                 continue;
             }
@@ -292,6 +302,7 @@ impl Run {
                     .collect(),
             },
             self.persisted.chain_entities.iter().collect::<Vec<_>>(),
+            self.persisted.valve_pointers.iter().collect::<Vec<_>>(),
         ))
         .unwrap();
         let (
@@ -305,6 +316,7 @@ impl Run {
             saved_belts,
             fluids,
             chains,
+            valve_pointers,
         ): ReloadData = serde_json::from_slice(&bytes).unwrap();
         self.depot_stacks = slots.into_iter().collect();
         self.handles = handles.into_iter().collect();
@@ -329,6 +341,7 @@ impl Run {
         }
         self.persisted.fluid_entities = fluids.entities.into_iter().collect();
         let chains: HashMap<_, _> = chains.into_iter().collect();
+        let valve_pointers: HashMap<_, _> = valve_pointers.into_iter().collect();
         let saved_belts: HashMap<_, _> = saved_belts.into_iter().collect();
         let saved_depots: HashMap<_, _> = saved_depots.into_iter().collect();
         let saved_handles: HashMap<_, _> = saved_handles.into_iter().collect();
@@ -356,6 +369,10 @@ impl Run {
             }
             if let Some(data) = saved_handles.get(&p) {
                 self.w.restore_handle(0, p, codec::handle_from_nbt(data));
+            }
+            if let Some(data) = valve_pointers.get(&p) {
+                self.w
+                    .restore_valve_pointer(0, p, codec::valve_pointer_from_nbt(data));
             }
             for sub in 0..2 {
                 if let Some(saved) = entities.get(&(p, sub)).and_then(codec::saved_from_nbt) {
@@ -515,6 +532,50 @@ impl Run {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn valve_pointer_reload_restores_motion_and_only_publishes_changes() {
+        let state = "create:fluid_valve[facing=up,enabled=true]";
+        let sc: Scenario = serde_json::from_value(
+            serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,0],"state":state}]}),
+        )
+        .unwrap();
+        let mut r = Run::new(&sc);
+        let p = [0, 8, 0];
+        let id = r.id(state);
+        r.world.insert(p, id);
+        r.w.block_loaded(0, p, id);
+        let pointer = create_engine::fluids::Pointer {
+            value: 0.3,
+            target: 1.0,
+            speed: 0.1,
+        };
+        r.w.restore_valve_pointer(0, p, pointer);
+        r.save_kinetic_records();
+        r.reload();
+        assert_eq!(r.w.saved_valve_pointer(0, p), Some(pointer));
+        assert!(r.w.tick_valves(0, |_| Some(true)).is_empty());
+        r.save_kinetic_records();
+        assert_eq!(
+            codec::valve_pointer_from_nbt(&r.persisted.valve_pointers[&p]).value,
+            0.4
+        );
+        r.w.restore_valve_pointer(
+            0,
+            p,
+            create_engine::fluids::Pointer {
+                value: 1.0,
+                target: 0.0,
+                speed: 0.0,
+            },
+        );
+        r.save_kinetic_records();
+        r.reload();
+        assert_eq!(r.w.saved_valve_pointer(0, p).unwrap().value, 1.0);
+        assert!(r.w.tick_valves(0, |_| Some(true)).is_empty());
+        r.save_kinetic_records();
+        assert!(r.w.dims[0].kinetics.take_saved_changes().is_empty());
+    }
+
     #[test]
     fn crank_and_valve_use_round_trip_with_expiry_and_no_cooldown() {
         for valve in [false, true] {

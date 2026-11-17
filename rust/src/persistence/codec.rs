@@ -93,6 +93,26 @@ pub fn depot_from_nbt(data: &Compound) -> create_engine::depot::SavedDepot {
     }
 }
 
+/// FluidValveBlockEntity.write/read delegates Pointer to LerpedFloat's three float fields.
+pub fn valve_pointer_to_nbt(pointer: create_engine::fluids::Pointer) -> Compound {
+    Compound::from([
+        ("Value".into(), Tag::Float(pointer.value.to_bits())),
+        ("Target".into(), Tag::Float(pointer.target.to_bits())),
+        ("Speed".into(), Tag::Float(pointer.speed.to_bits())),
+    ])
+}
+pub fn valve_pointer_from_nbt(data: &Compound) -> create_engine::fluids::Pointer {
+    let float = |key: &str| match data.get(key) {
+        Some(Tag::Float(bits)) => f32::from_bits(*bits),
+        _ => 0.0,
+    };
+    create_engine::fluids::Pointer {
+        value: float("Value"),
+        target: float("Target"),
+        speed: float("Speed"),
+    }
+}
+
 pub fn handle_to_nbt(h: create_engine::valve::SavedHandle) -> Compound {
     Compound::from([
         ("InUse".into(), Tag::Int(i32::from(h.in_use))),
