@@ -15,6 +15,7 @@ impl Run {
                         value: *value,
                     },
                 );
+                self.publish_interaction();
             }
             Action::ValveSetting { row, value } => {
                 if let Some(h) = self.handles.get_mut(&p) {
@@ -26,6 +27,7 @@ impl Run {
                         180,
                     );
                 }
+                self.publish_interaction();
             }
             Action::Program { instructions } => {
                 // sequencer::client_message rejects late screen packets after replacement.
@@ -106,6 +108,7 @@ impl Run {
                     let selected = self.handles.get(&p).map_or(45, |h| h.selected);
                     if self.w.use_valve(0, p, sneaking, selected) {
                         self.handles.entry(p).or_default().started(sneaking);
+                        self.publish_interaction();
                     }
                 }
                 return;
@@ -113,6 +116,7 @@ impl Run {
         }
         if item == "minecraft:air" && own.is_some_and(|(b, _)| b == Block::HandCrank) {
             self.w.turn_crank(0, p, sneaking);
+            self.publish_interaction();
             return;
         }
         if let Some((block, _)) = own {

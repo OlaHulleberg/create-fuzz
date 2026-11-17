@@ -365,6 +365,7 @@ impl Run {
                 value: rpm.abs(),
             },
         );
+        self.publish_interaction();
     }
 
     fn signal(&self, p: Pos) -> u8 {

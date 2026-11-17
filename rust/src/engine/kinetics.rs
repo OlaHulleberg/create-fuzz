@@ -63,7 +63,6 @@ impl Run {
                 self.apply_chain_shapes();
             }
         }
-        self.save_kinetic_records();
         self.mark_package_columns();
         self.publish_entities();
         self.flush_persistence();

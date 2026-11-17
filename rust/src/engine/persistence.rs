@@ -127,6 +127,7 @@ impl Run {
     }
     /// Subsystem::write_entities: after all mutations, before column attachment flush.
     pub(super) fn publish_entities(&mut self) {
+        self.save_kinetic_records();
         for c in self.w.take_belt_saved_changes(0) {
             self.mark_column(c);
         }
@@ -135,6 +136,12 @@ impl Run {
         for p in positions {
             self.save_sequence(p);
         }
+    }
+    /// Interaction publication mirrors glue/persist.rs::publish; never runs on reload.
+    pub(super) fn publish_interaction(&mut self) {
+        self.persisted.dirty_columns.extend(self.w.take_unsaved(0));
+        self.publish_entities();
+        self.flush_persistence();
     }
     /// persist::flush: only marked column attachments, after entity publication.
     pub(super) fn flush_persistence(&mut self) {
@@ -532,6 +539,23 @@ impl Run {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn motor_interaction_publishes_before_reload_without_tick() {
+        let sc: Scenario = serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,0],"state":"create:creative_motor[facing=east]","motor":32}]})).unwrap();
+        let mut r = Run::new(&sc);
+        let p = [0, 8, 0];
+        r.place(&sc.blocks[0]);
+        r.tick();
+        r.set_motor(&sc.blocks[0]);
+        assert_eq!(
+            codec::saved_from_nbt(&r.persisted.kinetics[&(p, 0)])
+                .unwrap()
+                .speed,
+            32.0
+        );
+        r.reload();
+        assert_eq!(r.w.motor_setting(0, p), Some(32.0));
+    }
     #[test]
     fn valve_pointer_reload_restores_motion_and_only_publishes_changes() {
         let state = "create:fluid_valve[facing=up,enabled=true]";
