@@ -95,7 +95,8 @@ def main():
         report, count = generate(args.input, definitions, reasons, subsystem, provenance)
         if absent:
             report += '\n## Missing denominator packages\n\n' + '\n'.join('- `' + p + '`' for p in absent) + '\n\nThese packages were absent from classes.tsv; this report cannot establish their coverage.\n'
-            count += 1
+            print(f"{subsystem}: missing denominator packages: {absent}", file=sys.stderr)
+            missing += 1
         (args.output / (subsystem + '.md')).write_text(report)
         print(f'{subsystem}: {count} unexplained missed branches')
         missing += count
