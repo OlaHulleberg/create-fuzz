@@ -89,7 +89,7 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     }
     for entry in crate::catalogue::entries()
         .iter()
-        .filter(|e| e.id == "create:sequenced_gearshift")
+        .filter(|e| e.id == "create:sequenced_gearshift" || e.id.ends_with("_valve_handle"))
     {
         for spec in entry.specifications() {
             push(spec.state);
@@ -121,6 +121,7 @@ pub struct Run {
     names: Vec<String>,
     world: HashMap<Pos, u32>,
     notes: Vec<String>,
+    handles: HashMap<Pos, crate::handles::Handle>,
     chain_signals: HashMap<Pos, i32>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, crate::allow::MeasuredTrigState>,
@@ -155,6 +156,7 @@ impl Run {
             names,
             world: HashMap::new(),
             notes: Vec::new(),
+            handles: HashMap::new(),
             chain_signals: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
@@ -206,6 +208,16 @@ impl Run {
         }
         self.brackets.remove(&p);
         self.measured_trig.remove(&p);
+        let valve = self
+            .w
+            .table
+            .get(new)
+            .is_some_and(|(b, _)| create_engine::dye::is_valve_handle(b));
+        if valve {
+            self.handles.entry(p).or_default();
+        } else {
+            self.handles.remove(&p);
+        }
         self.w.block_changed(0, p, old, new);
         let mut fallen = Vec::new();
         for d in DIRS {
@@ -293,6 +305,17 @@ impl Run {
                     },
                 );
             }
+            Action::ValveSetting { row, value } => {
+                if let Some(h) = self.handles.get_mut(&p) {
+                    h.selected = create_engine::board::kinetic_value(
+                        create_engine::board::Settings {
+                            row: *row,
+                            value: *value,
+                        },
+                        180,
+                    );
+                }
+            }
             Action::Program { instructions } => {
                 self.w.set_sequencer_instructions(
                     0,
@@ -329,6 +352,31 @@ impl Run {
         use create_engine::{Block, board, place};
         let state = self.at(p);
         let own = self.w.table.get(state).map(|(b, i)| (b, *i));
+        if let Some((block, info)) = own.filter(|(b, _)| create_engine::dye::is_valve_handle(*b)) {
+            if !sneaking
+                && self.handles.get(&p).is_some_and(|h| h.remaining == 0)
+                && let Some(slot) = info.facing.and_then(|f| board::valve_slot(f, face))
+                && board::hits_valve_box(slot, hit)
+            {
+                return;
+            }
+            if !(sneaking && item == "create:wrench") {
+                if let Some(to) = create_engine::dye::DyeColor::of_item(item)
+                    .and_then(|c| create_engine::dye::recoloured(block, c))
+                {
+                    let (_, props) = parse_state(&self.name(state));
+                    let next =
+                        crate::scenario::format_state(&format!("create:{}", to.name()), &props);
+                    self.set(p, self.id(&next));
+                } else {
+                    let selected = self.handles.get(&p).map_or(45, |h| h.selected);
+                    if self.w.use_valve(0, p, sneaking, selected) {
+                        self.handles.entry(p).or_default().started(sneaking);
+                    }
+                }
+                return;
+            }
+        }
         if item == "minecraft:air" && own.is_some_and(|(b, _)| b == Block::HandCrank) {
             self.w.turn_crank(0, p, sneaking);
             return;
@@ -558,6 +606,9 @@ impl Run {
     /// One level tick: inputs, then the solve and what it breaks.
     fn tick(&mut self) {
         self.w.tick_cranks(0);
+        for h in self.handles.values_mut() {
+            h.remaining = h.remaining.saturating_sub(1);
+        }
         for p in self.w.take_redstone(0) {
             let state = self.at(p);
             let Some(was) = self.w.powered(state) else {
@@ -736,6 +787,10 @@ impl Run {
                 .map(|g| create_engine::gauge::analog_output(g.shown.dial)),
             sequence_angle: k.sequence_limit(p, sub, false),
             sequence_distance: k.sequence_limit(p, sub, true),
+            valve: self
+                .handles
+                .get(&p)
+                .map(|h| h.observe(info.facing.is_some_and(|f| f.positive()))),
             sequencer: self
                 .w
                 .sequencer_run(0, p)

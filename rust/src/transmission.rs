@@ -153,3 +153,39 @@ pub fn sequence(seed: u64) -> Scenario {
         {"pos":[2,8,0],"state":"create:mechanical_press[facing=east]"}],"events":events}))
     .unwrap()
 }
+
+pub fn valve(seed: u64) -> Scenario {
+    let mut events = Vec::new();
+    for (i, value) in [0, 1, 45, 90, 135, 136, 180].into_iter().enumerate() {
+        let t = 10 + i as u32 * 35;
+        events.push(serde_json::json!({"tick":t,"pos":[0,8,0],"action":{"kind":"valve_setting","row":(seed+i as u64)%2,"value":value}}));
+        for offset in [1, 2] {
+            let mut event = use_block(
+                t + offset,
+                [0, 8, 0],
+                "minecraft:air",
+                0.,
+                0.,
+                seed & 16 != 0,
+            );
+            event["action"]["hit"] = serde_json::json!([0.1, 1, 0.1]);
+            events.push(event);
+        }
+    }
+    for (i, color) in create_engine::dye::DyeColor::ALL.into_iter().enumerate() {
+        let mut event = use_block(
+            260 + i as u32 * 2,
+            [0, 8, 0],
+            &format!("minecraft:{}_dye", color.name()),
+            0.,
+            0.,
+            true,
+        );
+        event["action"]["hit"] = serde_json::json!([0.1, 1, 0.1]);
+        events.push(event);
+    }
+    serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":370,"checkpoints":(10..300).collect::<Vec<_>>(),"blocks":[
+        {"pos":[0,7,0],"state":"minecraft:stone"},
+        {"pos":[0,8,0],"state":"create:copper_valve_handle[facing=up,waterlogged=false]"},
+        {"pos":[0,9,0],"state":"create:shaft[axis=y,waterlogged=false]"}],"events":events})).unwrap()
+}

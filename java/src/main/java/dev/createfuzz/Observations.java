@@ -120,6 +120,13 @@ final class Observations {
     static JsonObject kinetic(KineticBlockEntity k) {
         JsonObject o = new JsonObject();
         o.addProperty("speed", k.getSpeed());
+        if (k instanceof com.simibubi.create.content.kinetics.crank.ValveHandleBlockEntity valve) {
+            JsonObject v=new JsonObject();
+            v.addProperty("selected",valve.angleInput.getValue());
+            v.addProperty("in_use",valve.inUse);
+            v.addProperty("angle",valve.getIndependentAngle(0));
+            o.add("valve",v);
+        }
         if (k instanceof com.simibubi.create.content.kinetics.chainDrive.ChainGearshiftBlockEntity chain)
             o.addProperty("chain_modifier", chain.getModifier());
         if (k instanceof com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity motor)

@@ -58,6 +58,12 @@ final class Actions {
                         InteractionHand.MAIN_HAND,
                         new BlockHitResult(point, face, pos, false));
             }
+            case "valve_setting" -> {
+                int row=action.get("row").getAsInt(), value=action.get("value").getAsInt();
+                if (row<0 || row>1 || value<0 || value>180) throw new IllegalArgumentException("valve board coordinates");
+                if (level.getBlockEntity(pos) instanceof com.simibubi.create.content.kinetics.crank.ValveHandleBlockEntity valve)
+                    valve.angleInput.setValueSettings(player,new com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBehaviour.ValueSettings(row,value),false);
+            }
             case "program" -> {
                 var list = new java.util.Vector<com.simibubi.create.content.kinetics.transmission.sequencer.Instruction>();
                 for (var element : action.getAsJsonArray("instructions")) {

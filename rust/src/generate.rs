@@ -31,6 +31,9 @@ impl Rng {
 pub const SETTLE: u32 = 70;
 
 pub fn generate(seed: u64) -> Scenario {
+    if seed % 16 == 10 {
+        return crate::transmission::valve(seed);
+    }
     if seed % 16 == 11 {
         return crate::transmission::sequence(seed);
     }

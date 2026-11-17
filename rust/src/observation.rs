@@ -42,6 +42,8 @@ pub struct Kinetic {
     #[serde(default)]
     pub sequencer: Option<SequenceRun>,
     #[serde(default)]
+    pub valve: Option<crate::handles::Observation>,
+    #[serde(default)]
     pub speed_setting: Option<f32>,
     #[serde(default)]
     pub chain_modifier: Option<f32>,

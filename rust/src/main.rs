@@ -8,6 +8,7 @@ mod engine;
 mod generate;
 mod geometry;
 mod guided;
+mod handles;
 mod java;
 mod mutate;
 mod observation;

@@ -183,3 +183,14 @@ progress, timer and previous power; the block state remains compared too.
 Sequence angle/distance limits continue to compare propagated context at every
 kinetic block. Per-tick program traces include pulses during turns and await,
 configuration while running, restart, both turn kinds and both modifier signs.
+
+Valve handles accept `valve_setting {row,value}` (two sign rows, columns 0..180)
+through angleInput.setValueSettings on Java. Rust stores the same entity-owned
+scroll selection using board::kinetic_value; empty-hand use calls use_valve.
+Dyes run through the ordinary `use` pipeline; Rust uses dye::recoloured and
+commits the corresponding state while retaining the angle selection. The handle
+snapshot compares selected angle, in-use ticks and getIndependentAngle(0).
+Rust maintains the glue's accepted-use data (target, duration, direction) and
+uses valve::drawn_angle; the world does not expose its private crank countdown.
+Generated traces exercise busy use, angle thresholds, both directions/sneaking
+and all sixteen dye items, with per-tick observations and propagated context.

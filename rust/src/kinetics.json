@@ -292,7 +292,7 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null,
+    "excluded": "Player chain traces cover topology; independent static shape injection excluded",
     "observation_scope": {}
   },
   {
@@ -324,7 +324,7 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null,
+    "excluded": "Player chain traces cover topology; independent static shape injection excluded",
     "observation_scope": {}
   },
   {

@@ -18,6 +18,10 @@ pub enum Action {
         row: i32,
         value: i32,
     },
+    ValveSetting {
+        row: i32,
+        value: i32,
+    },
     Program {
         instructions: Vec<crate::program::Instruction>,
     },
@@ -80,6 +84,9 @@ pub const ITEMS: &[&str] = &[
 impl Action {
     pub fn validate(&self) {
         match self {
+            Self::ValveSetting { row, value } => {
+                assert!((0..=1).contains(row) && (0..=180).contains(value));
+            }
             Self::SpeedSetting { row, value } => {
                 assert!((0..=1).contains(row) && (0..=256).contains(value));
             }
@@ -93,7 +100,9 @@ impl Action {
                 ..
             } => {
                 assert!(
-                    BLOCKS.contains(&item.as_str()) || ITEMS.contains(&item.as_str()),
+                    BLOCKS.contains(&item.as_str())
+                        || ITEMS.contains(&item.as_str())
+                        || create_engine::dye::DyeColor::of_item(item).is_some(),
                     "unsupported use item {item}"
                 );
                 assert!(yaw.is_finite() && pitch.is_finite() && pitch.abs() <= 90.);

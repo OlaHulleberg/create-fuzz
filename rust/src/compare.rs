@@ -131,6 +131,12 @@ fn kinetic_diff(j: &Kinetic, r: &Kinetic) -> Vec<String> {
             }
         }
     }
+    match (&j.valve, &r.valve) {
+        (Some(a), Some(b))
+            if a.selected == b.selected && a.in_use == b.in_use && close(a.angle, b.angle) => {}
+        (None, None) => {}
+        _ => out.push(format!("valve: java {:?} rust {:?}", j.valve, r.valve)),
+    }
     match (&j.sequencer, &r.sequencer) {
         (Some(a), Some(b)) => {
             if (a.current, a.duration, a.timer, a.powered_before)
