@@ -1,6 +1,6 @@
 # Unfiled observations from kinetics-gen
 
-Compared against create-horizon `34c781e89feb33133ce44076526291a63046a892` using the shared Java server. Both cases were reduced with `prlimit --as=3000000000` and reproduced in three consecutive checks. No comparison exceptions or engine changes were made.
+Initially reduced against create-horizon `34c781e89feb33133ce44076526291a63046a892`, then confirmed against main `018563314d21c0a8d0353a6edd75d7871c26d5ef` using the shared Java server. Both confirmed cases were reduced with `prlimit --as=3000000000` and reproduced in three consecutive checks on the final main revision. No comparison exceptions or engine changes were made.
 
 ## Admission after an early network reload
 
@@ -26,6 +26,12 @@ Original seeds 1578, 1642 and 1898 also alternated between matches and differenc
 
 The relevant Java bookkeeping is `KineticNetwork.getSize`, which returns `members.size() + unloadedMembers`; `addSilently` decrements and clamps `unloadedMembers` while admitting a restored entity. `KineticBlockEntity.initialize` supplies the saved network size. The independent angle-loss symptom is already filed as #56.
 
-The final sweep separately detected genuine Java snapshot variation for seeds 1338 and 1466. Its unstable records are retained under `/mnt/lanes/agent-kgen/final-sweep-found/`.
+These membership observations are historical results from `34c781e`; seeds 1578, 1642, 1770 and 1898 did not differ in the refreshed sweep against `0185633`. The earlier sweep separately detected Java snapshot variation for seeds 1338 and 1466. Its records are retained under `/mnt/lanes/agent-kgen/final-sweep-found/`.
 
 Existing issues #7 and #55–#58 were checked separately and are not presented here as new findings.
+
+## Final main sweep repeatability limit
+
+Against `0185633`, seed 1466 initially reported valve capacity Java 524288 versus port 0 after external power was removed. Its address-space-capped shrink attempt matched immediately (`/mnt/lanes/agent-kgen/latest-found/1466.min.json`, empty difference list), so this is not a confirmed port finding. Java source paths relevant to further investigation are `RotationPropagator.handleRemoved` and `GeneratingKineticBlockEntity.applyNewSpeed`, which remove dependent sources and update source capacity. The sweep also saved a Java-unstable record for seed 378 in `/mnt/lanes/agent-kgen/latest-found/`.
+
+Final sweep totals: 1990 matched, nine differed, one Java-unstable. Six differences correspond to known #55/#56 traces; two are the confirmed unfiled cases above; the remaining capacity candidate is inconclusive. All 76 manual cases retained their statuses: 75 matched and only the known #7 case differed.
