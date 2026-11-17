@@ -259,6 +259,28 @@ mod tests {
         assert!(r.w.value_box_active(0, p));
     }
     #[test]
+    fn cold_depot_glue_load_has_slots_but_no_saved_motion() {
+        let sc:Scenario=serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,1,0],"state":"create:depot[waterlogged=false]"}]})).unwrap();
+        let mut r = Run::new(&sc);
+        let p = [0, 1, 0];
+        let state = r.id("create:depot[waterlogged=false]");
+        r.w.block_loaded(0, p, state);
+        let mut held =
+            create_engine::depot::Held::put_by_player(180, false, create_engine::depot::Side::East);
+        for _ in 0..9 {
+            held.slide(false);
+        }
+        assert!(held.position < 0.5);
+        r.w.depot_put(0, p, Some(held));
+        r.w.column_unloaded(0, 0, 0);
+        r.w.block_loaded(0, p, state);
+        assert_eq!(r.w.dims[0].depots[&p], None);
+        // tick_depots initializes an occupied host slot using Held::new, not the old motion.
+        let loaded = create_engine::depot::Held::new(180, false);
+        assert_eq!(loaded.position, 0.5);
+        assert_ne!(loaded.position, held.position);
+    }
+    #[test]
     fn reload_histories_run_without_reusing_live_belt_entities() {
         for seed in [41, 43, 47] {
             let sc = crate::generate::generate(seed);
