@@ -242,11 +242,14 @@ impl Run {
         if id != self.id(&b.state) {
             return;
         }
-        let settings = Settings {
-            motor_rpm: rpm as f32,
-            ..Settings::default()
-        };
-        self.w.set_settings(0, b.pos, id, settings);
+        self.w.board_motor(
+            0,
+            b.pos,
+            create_engine::board::Settings {
+                row: i32::from(rpm >= 0),
+                value: rpm.abs(),
+            },
+        );
     }
 
     fn signal(&self, p: Pos) -> u8 {
@@ -262,6 +265,16 @@ impl Run {
     fn action(&mut self, p: Pos, action: &crate::actions::Action) {
         use crate::actions::Action;
         match action {
+            Action::SpeedSetting { row, value } => {
+                self.w.board_motor(
+                    0,
+                    p,
+                    create_engine::board::Settings {
+                        row: *row,
+                        value: *value,
+                    },
+                );
+            }
             Action::Remove => self.set(p, AIR),
             Action::Signal { strength } => self.set(p, 3 + u32::from(*strength)),
             Action::Use {
@@ -290,6 +303,10 @@ impl Run {
         use create_engine::{Block, board, place};
         let state = self.at(p);
         let own = self.w.table.get(state).map(|(b, i)| (b, *i));
+        if item == "minecraft:air" && own.is_some_and(|(b, _)| b == Block::HandCrank) {
+            self.w.turn_crank(0, p, sneaking);
+            return;
+        }
         if let Some((block, _)) = own {
             let name = format!("create:{}", block.name());
             if !crate::actions::BLOCKS.contains(&name.as_str())
@@ -421,6 +438,9 @@ impl Run {
                     },
                 );
             }
+            return;
+        }
+        if item == "minecraft:air" {
             return;
         }
         // No override of the clicked position: air replaces itself; solid clicks place adjacent.
@@ -657,6 +677,7 @@ impl Run {
                 .map(|g| create_engine::gauge::analog_output(g.shown.dial)),
             sequence_angle: k.sequence_limit(p, sub, false),
             sequence_distance: k.sequence_limit(p, sub, true),
+            speed_setting: self.w.motor_setting(0, p),
             faces,
         })
     }

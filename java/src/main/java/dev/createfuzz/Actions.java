@@ -15,6 +15,19 @@ import net.minecraft.world.phys.Vec3;
 
 /** Player inputs enter the game-mode pipeline, including RightClickBlock and item placement. */
 final class Actions {
+    static void speedSetting(ServerLevel level, ServerPlayer player, BlockPos pos, int row, int value) {
+        if (row < 0 || row > 1 || value < 0 || value > 256)
+            throw new IllegalArgumentException("invalid kinetic board selection");
+        var be = level.getBlockEntity(pos);
+        com.simibubi.create.foundation.blockEntity.behaviour.scrollValue.ScrollValueBehaviour behaviour;
+        if (be instanceof com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity motor)
+            behaviour = motor.generatedSpeed;
+        else if (be instanceof com.simibubi.create.content.kinetics.speedController.SpeedControllerBlockEntity controller)
+            behaviour = controller.targetSpeed;
+        else return;
+        behaviour.setValueSettings(player,
+                new com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBehaviour.ValueSettings(row, value), false);
+    }
     static void apply(ServerLevel level, ServerPlayer player, BlockPos pos, JsonObject action) {
         player.setShiftKeyDown(false);
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
@@ -45,6 +58,8 @@ final class Actions {
                         InteractionHand.MAIN_HAND,
                         new BlockHitResult(point, face, pos, false));
             }
+            case "speed_setting" -> speedSetting(level, player, pos,
+                    action.get("row").getAsInt(), action.get("value").getAsInt());
             case "remove" -> player.gameMode.destroyBlock(pos);
             case "signal" -> {
                 int strength = action.get("strength").getAsInt();

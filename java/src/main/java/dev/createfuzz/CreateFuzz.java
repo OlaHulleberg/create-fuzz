@@ -271,13 +271,13 @@ public class CreateFuzz {
                     place(level, origins.get(i), blocks.get(tick).getAsJsonObject());
                 // A player sets a motor's speed after placing it, on the next tick.
                 if (tick >= 1 && tick - 1 < blocks.size())
-                    setMotor(level, origins.get(i), blocks.get(tick - 1).getAsJsonObject());
+                    setMotor(level, actors.get(i), origins.get(i), blocks.get(tick - 1).getAsJsonObject());
                 if (!c.has("events")) continue;
                 for (JsonElement ev : c.getAsJsonArray("events")) {
                     JsonObject o = ev.getAsJsonObject();
                     // A motor placed the tick before gets its speed now.
                     if (o.get("tick").getAsInt() + 1 == tick && o.has("state"))
-                        setMotor(level, origins.get(i), o);
+                        setMotor(level, actors.get(i), origins.get(i), o);
                 }
                 for (JsonElement ev : c.getAsJsonArray("events")) {
                     JsonObject o = ev.getAsJsonObject();
@@ -344,7 +344,7 @@ public class CreateFuzz {
             level.setBlock(pos, state, 3);
         }
 
-        static void setMotor(ServerLevel level, BlockPos origin, JsonObject b) {
+        static void setMotor(ServerLevel level, ServerPlayer player, BlockPos origin, JsonObject b) {
             if (!b.has("motor")
                     || !(level.getBlockEntity(at(origin, b)) instanceof CreativeMotorBlockEntity m))
                 return;
@@ -356,7 +356,8 @@ public class CreateFuzz {
                                         false)
                                 .blockState();
                 if (level.getBlockState(at(origin, b)) == expected)
-                    m.generatedSpeed.setValue(b.get("motor").getAsInt());
+                    Actions.speedSetting(level, player, at(origin, b),
+                            b.get("motor").getAsInt() < 0 ? 0 : 1, Math.abs(b.get("motor").getAsInt()));
             } catch (Exception ex) {
                 throw new IllegalArgumentException("bad motor placement state", ex);
             }

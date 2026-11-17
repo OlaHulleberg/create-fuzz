@@ -120,6 +120,10 @@ final class Observations {
     static JsonObject kinetic(KineticBlockEntity k) {
         JsonObject o = new JsonObject();
         o.addProperty("speed", k.getSpeed());
+        if (k instanceof com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity motor)
+            o.addProperty("speed_setting", motor.generatedSpeed.getValue());
+        if (k instanceof com.simibubi.create.content.kinetics.speedController.SpeedControllerBlockEntity controller)
+            o.addProperty("speed_setting", controller.targetSpeed.getValue());
         o.addProperty("theoretical", k.getTheoreticalSpeed());
         o.addProperty("overstressed", k.isOverStressed());
         o.addProperty("stress", field(k, "stress"));

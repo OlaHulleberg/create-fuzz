@@ -187,7 +187,9 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
             if e.id == "create:hand_crank" {
                 "turn"
             } else if e.id == "create:creative_motor" {
-                "motor setting"
+                "kinetic value board (legacy motor and v3 speed_setting)"
+            } else if e.id == "create:rotation_speed_controller" {
+                "v3 speed_setting; static controller/cog fixtures"
             } else if crate::actions::BLOCKS.contains(&e.id.as_str()) {
                 "v3 item use/break; isolated adjacent signal"
             } else {

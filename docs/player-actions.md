@@ -145,3 +145,21 @@ tracked state pair and subsequent wrench rotations. Exact angles remain generate
 and mutated, raw states remain visible, and all kinetic/network/bracket figures
 remain compared. `RuntimeProbe.java` writes binary measurements at server startup;
 the port probe includes the MIT place.rs module in a separate ignored test binary.
+
+### Kinetic speed board submissions
+
+Version 3 additionally accepts `{"kind":"speed_setting","row":0,"value":128}`
+at a motor or rotation speed controller. Row 0 is negative, row 1 positive;
+columns are 0..256. Column zero selects magnitude one, as Create's screen does.
+Java calls the selected `KineticScrollValueBehaviour.setValueSettings` with the
+ordinary case actor, the same behaviour entry used by the value-settings packet.
+Rust calls `CreateWorld::board_motor`. Legacy `motor` placement settings now
+use this path too. `speed_setting` is compared for both block types, including
+unpowered controllers. Mutation changes both board coordinates.
+
+`minecraft:air` is accepted as an empty hand use; the Rust adapter dispatches it
+to `turn_crank` on hand cranks. `transmission-crank-expiry.json` checks refresh
+before expiry, refresh at expiry, release, and reversal with per-tick checkpoints.
+These additions do not implement sequencer programming, valve settings/use/dye,
+chain shape commits or player placement of controllers and transmission blocks.
+Those remain explicit unimplemented transmission scope.

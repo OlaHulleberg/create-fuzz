@@ -14,6 +14,10 @@ pub enum Action {
         pitch: f32,
         sneaking: bool,
     },
+    SpeedSetting {
+        row: i32,
+        value: i32,
+    },
     Remove,
     Signal {
         strength: u8,
@@ -61,6 +65,7 @@ pub const BLOCKS: &[&str] = &[
     "create:flywheel",
 ];
 pub const ITEMS: &[&str] = &[
+    "minecraft:air",
     "create:wrench",
     "create:andesite_casing",
     "create:brass_casing",
@@ -70,6 +75,9 @@ pub const ITEMS: &[&str] = &[
 impl Action {
     pub fn validate(&self) {
         match self {
+            Self::SpeedSetting { row, value } => {
+                assert!((0..=1).contains(row) && (0..=256).contains(value));
+            }
             Self::Signal { strength } => assert!(*strength <= 15, "signal outside 0..15"),
             Self::Use {
                 item,

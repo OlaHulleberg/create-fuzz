@@ -39,6 +39,8 @@ pub struct BlockSnap {
 pub struct Kinetic {
     /// `getSpeed()`: 0 when overstressed.
     pub speed: f32,
+    #[serde(default)]
+    pub speed_setting: Option<f32>,
     /// `getTheoreticalSpeed()`.
     pub theoretical: f32,
     pub overstressed: bool,

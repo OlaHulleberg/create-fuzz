@@ -48,3 +48,8 @@ KineticNetwork.getSize adds unloadedMembers to members.size. Reflection is confi
 to the MIT registry field; a missing named network fails rather than constructing
 one. Partitions still use block-entity network ids. Split-shaft member-count
 differences remain findings: Java owns one KineticBlockEntity per split shaft.
+
+Motor and controller kinetic-board selections now appear as `kinetic.speed_setting`
+in both snapshots and are compared with the ordinary numeric tolerance, including
+presence versus absence. No transmission state exclusions were removed: chain
+shape, sequencer execution and valve observations still require their adapters.

@@ -13,6 +13,7 @@ mod mutate;
 mod observation;
 mod scenario;
 mod shrink;
+mod transmission;
 
 use scenario::{Scenario, Snapshot};
 use std::path::{Path, PathBuf};
