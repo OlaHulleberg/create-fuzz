@@ -84,14 +84,12 @@ impl Run {
             return;
         }
         if self.fluid_use(p, item, face, hit, sneaking) {
-            self.publish_interaction();
             return;
         }
         if self.world_bucket(p, item, face) {
             return;
         }
         if self.pipe_use(p, item, face, hit, sneaking) {
-            self.publish_interaction();
             return;
         }
         let state = self.at(p);

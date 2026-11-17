@@ -408,6 +408,35 @@ mod tests {
         assert!(matches!(data.get("create_fluids"), Some(Tag::Compound(_))));
     }
     #[test]
+    fn fluid_click_waits_for_the_glues_column_publication() {
+        let mut sc = crate::fluid_inputs::generate(19);
+        sc.blocks.clear();
+        sc.events.clear();
+        let mut run = Run::new(&sc);
+        let p = [0, 4, 0];
+        run.set(
+            p,
+            run.id("create:creative_fluid_tank[bottom=true,shape=window,top=true]"),
+        );
+        run.publish_interaction(); // Previously completed frame's attachment.
+        run.use_item(
+            p,
+            "minecraft:water_bucket",
+            create_engine::kinetics::Dir::Up,
+            [0.5, 1., 0.5],
+            0.,
+            0.,
+            false,
+        );
+        assert_eq!(
+            run.w.creative_tank(0, p).unwrap().1.tank.fluid,
+            Some(create_engine::tank::Fluid::Water)
+        );
+        run.reload(); // No fluid write_entities/flush occurred between the click and save.
+        assert_eq!(run.w.creative_tank(0, p).unwrap().1.tank.fluid, None);
+    }
+
+    #[test]
     fn moving_valve_commits_a_registered_enabled_state() {
         let mut sc = crate::fluids::generate(8);
         sc.blocks.clear();

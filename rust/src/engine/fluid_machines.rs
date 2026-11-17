@@ -64,7 +64,6 @@ impl Run {
                 }
             }
         }
-        self.publish_interaction();
         Some(Outcome {
             pos: p,
             offered,
