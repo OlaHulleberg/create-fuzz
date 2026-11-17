@@ -198,4 +198,5 @@ without constructing networks; partitions still group block entities by network 
 Version 3 routes typed item uses through the player interaction chain, including
 clicked positions, face hit points, orientation and sneaking. It also exposes block
 breaks and controlled analog input for a bounded subset of blocks. See [player actions](docs/player-actions.md) for
-schema, exact entry points and explicit remaining exclusions.
+schema, exact entry points, the ordinary ServerPlayer with packet-discarding
+connection, the Create FakePlayer audit and explicit remaining exclusions.

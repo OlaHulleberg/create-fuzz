@@ -6,12 +6,11 @@ import com.google.gson.JsonObject;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
 
 /** Binary-only measurement: never consult Minecraft implementation sources. */
 final class RuntimeProbe {
     static JsonArray angles(ServerLevel level) {
-        var player = FakePlayerFactory.getMinecraft(level);
+        var player = PlayerActor.create(level, -2);
         JsonArray result = new JsonArray();
         for (float yaw : new float[] {0, 45, 90, 135, 180, 225, 270, 315}) {
             player.setYRot(yaw);

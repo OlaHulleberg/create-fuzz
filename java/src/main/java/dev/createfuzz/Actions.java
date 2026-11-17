@@ -7,16 +7,15 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
 
 /** Player inputs enter the game-mode pipeline, including RightClickBlock and item placement. */
 final class Actions {
-    static void apply(ServerLevel level, BlockPos pos, JsonObject action) {
-        var player = FakePlayerFactory.getMinecraft(level);
+    static void apply(ServerLevel level, ServerPlayer player, BlockPos pos, JsonObject action) {
         player.setShiftKeyDown(false);
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
         player.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);

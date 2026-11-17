@@ -14,6 +14,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.IEventBus;
@@ -70,6 +71,9 @@ public class CreateFuzz {
         try {
             Catalogue.audit();
             Files.createDirectories(dir);
+            Files.writeString(
+                    dir.resolve("actor-probe.json"),
+                    GSON.toJson(PlayerActor.probe(e.getServer().overworld())));
             Files.writeString(
                     dir.resolve("runtime-probe.json"),
                     GSON.toJson(RuntimeProbe.angles(e.getServer().overworld())));
@@ -206,6 +210,7 @@ public class CreateFuzz {
         final String name;
         final List<JsonObject> cases = new ArrayList<>();
         final List<BlockPos> origins = new ArrayList<>();
+        final List<ServerPlayer> actors = new ArrayList<>();
         final JsonArray results = new JsonArray();
         final List<JsonObject> traces = new ArrayList<>();
         int tick, maxTicks;
@@ -221,6 +226,7 @@ public class CreateFuzz {
                 if (i >= SLOTS)
                     throw new IllegalArgumentException("a batch holds at most " + SLOTS + " cases");
                 origins.add(slot(i));
+                actors.add(PlayerActor.create(level, i));
                 maxTicks = Math.max(maxTicks, in.get(i).getAsJsonObject().get("ticks").getAsInt());
                 results.add(new JsonObject());
                 traces.add(new JsonObject());
@@ -277,7 +283,11 @@ public class CreateFuzz {
                     JsonObject o = ev.getAsJsonObject();
                     if (o.get("tick").getAsInt() != tick) continue;
                     if (o.has("action"))
-                        Actions.apply(level, at(origins.get(i), o), o.getAsJsonObject("action"));
+                        Actions.apply(
+                                level,
+                                actors.get(i),
+                                at(origins.get(i), o),
+                                o.getAsJsonObject("action"));
                     else if (o.has("state")) place(level, origins.get(i), o);
                     // HandCrankBlock.useWithoutItem: turn(sneaking).
                     else if (o.has("turn")

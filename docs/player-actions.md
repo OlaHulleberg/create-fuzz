@@ -19,13 +19,13 @@ Events retain array order and checkpoints observe completed ticks.
 
 `pos` is the clicked block for `use`. `hit` is a point relative to that block's
 lower corner, on the named unit-cube face. Yaw/pitch are degrees. The Java adapter
-sets the fake player's body/head rotation, sneak state and held item, and calls
+sets an ordinary ServerPlayer's body/head rotation, sneak state and held item, and calls
 **ServerPlayerGameMode.useItemOn**. This runs RightClickBlock, the block's item
 interaction, the held item's use, and normal BlockItem placement. There are no
 direct adapter calls to Create's wrench/casing/bracket methods, placement
 callbacks or overridden clicked positions. A sneaking wrench use removes casing
 or picks up an ordinary block through that same chain. `remove` remains a
-separate game-mode block break. The fake player holds 64 items for each independent
+separate game-mode block break. The player holds 64 items for each independent
 use; inventory, drops, sounds, reach validation and client screens are not observed.
 
 Rust mirrors the supported glue dispatch in order:
@@ -54,12 +54,82 @@ lever/wire/conductor simulation, sequencer programs and chain-shape processing
 remain outside this driver's supported transactions; the manifest names these
 limits. The standalone binary cannot instantiate the SDK host glue itself.
 
-Java Create's **FakePlayer** path deliberately skips value-box `testHit`: on any
-active motor side it cancels even an off-centre click and calls onShortInteract.
-The port's player glue uses the geometric hit test. Centre and off-centre motor
-cases are both retained. The latter is an explicit adapter limitation and is not
-allowed or disguised as a port bug. The motor centre regression confirms that the
-RightClickBlock handler consumes the wrench before it can rotate the motor.
+The Java actor is exactly `ServerPlayer`, not a subclass and not a `FakePlayer`.
+Each case owns its actor for its batch. `PlayerActor` attaches an ordinary
+`ServerGamePacketListenerImpl` to a `Connection` subclass that overrides all three
+public `send` overloads: outgoing packets are discarded and optional send
+callbacks complete successfully. No socket, inbound packet processing, login,
+player-list/world registration or client screen is simulated. Server-side item
+use and block break remain the normal player game-mode calls. The runtime
+`actor-probe.json` asserts the actor's exact class and verifies that a normal
+player message reaches the packet sink. `RuntimeProbe` uses the same actor
+factory for the angle measurements.
+
+The motor's centre and off-centre regressions both use ordinary-player hit tests:
+a centre hit is consumed before the wrench, and an off-centre hit reaches the
+wrench. The old fake-player gap notes have been removed, without removing those
+cases or relaxing their comparisons.
+
+### Public API construction
+
+Only published API signatures and binary experiments were used, without reading
+Minecraft or NeoForge implementation sources. The documented constructors are
+[ServerPlayer](https://mappings.dev/1.21.1/net/minecraft/server/level/ServerPlayer.html),
+[ServerGamePacketListenerImpl](https://mappings.dev/1.21.1/net/minecraft/server/network/ServerGamePacketListenerImpl.html)
+and [Connection(PacketFlow)](https://mappings.dev/1.21.1/net/minecraft/network/Connection.html).
+The listener uses [CommonListenerCookie.createInitial](https://mappings.dev/1.21.1/net/minecraft/server/network/CommonListenerCookie.html)
+and the public `ServerPlayer.connection` field. The sink overrides the three
+public `Connection.send` overloads and completes the documented
+[PacketSendListener.onSuccess](https://lexxie.dev/neoforge/1.21.1/net/minecraft/network/PacketSendListener.html)
+callback. There is no reflection, bytecode inspection, access transformer,
+private-field access or copied host implementation in this construction.
+
+### Create FakePlayer audit
+
+The audit searches Create's MIT `src/main/java` for `FakePlayer`, including
+`DeployerFakePlayer` and constructions/imports, then follows the generated
+use/break/placement paths. Paths below are relative to that source directory.
+
+| Reachable check | How this adapter relates to it |
+|---|---|
+| `foundation/blockEntity/behaviour/ValueSettingsInputHandler.java:75`, `onBlockActivated` | Every eligible generated use reaches the event handler. `instanceof FakePlayer` is false, so `testHit` is required and the fake-player short-interact branch is not selected. This fixes the off-centre motor artifact. |
+| `foundation/blockEntity/behaviour/scrollValue/ScrollValueBehaviour.java:183`, `onShortInteract` | The method's fake-player fallback to the block's `useItemOn` is false for our actor. The motor's ordinary value-settings branch does not call that fake-player fallback; any ordinary short interaction remains a no-op here. |
+| `foundation/advancement/AdvancementBehaviour.java:127`, `setPlacedBy` | Kinetic block placement calls this helper. The fake-player early return is false and the ordinary ServerPlayer branch is eligible. Its separate world-player lookup cannot resolve an unregistered headless actor, so ownership/advancement delivery is not established by this suite and is not compared. |
+| `foundation/mixin/BlockItemMixin.java:21`, `create$fixDeployerPlacement` | Applies at the normal BlockItem placement entry point. Our actor is not a DeployerFakePlayer, so its deployer-only rejection of clicks on non-replaceable blocks is not selected. |
+| `content/kinetics/deployer/DeployerFakePlayer.java:110`, `deployerHasEyesOnHisFeet` | The globally registered dimensions-event handler can run during actor construction/dimension refresh. Its subtype check is false; ordinary player eye height is retained. |
+
+The complete search also finds the following guarded or out-of-scope checks;
+none is silently treated as ordinary-player interaction coverage:
+
+- `content/redstone/link/LinkHandler.java:52` is in a global RightClickBlock
+  subscriber, but returns before its fake-player slot-selection check when the
+  target has no LinkBehaviour (all current generated use targets). The actor
+  would take geometric, rather than fake-player slot selection if this subsystem
+  were added.
+- `content/kinetics/chainConveyor/ChainConveyorConnectionHandler.java:77` is
+  client-only and requires a conveyor target and chain item; these uses are not
+  generated and no client is simulated.
+- Target-specific checks in `RedstoneRequesterBlockEntity.java:150`,
+  `PackagePortBlockEntity.java:140`, `PackagerBlock.java:81`,
+  `ItemHatchBlock.java:98`, `BlazeBurnerBlock.java:164`,
+  `ToolboxBlock.java:95,154`, `ClipboardBlock.java:131`,
+  `BlueprintEntity.java:345`, `BacktankBlock.java:152`,
+  `SeatBlock.java:133` and `SeatEntity.java:120` require targets/entities outside
+  generated player uses. Static kinetic-state injection is not a player click
+  on those targets.
+- `BeehiveBlockMixin.java:17`, `MinecartContraptionItem.java:223` and
+  `DeployerHandler.java:189` concern bee anger, mounted contraption items and
+  deployer/villager trading; no such actions/entities are generated.
+- `DeployerFakePlayer.java:118,140,146` checks drop/XP ownership and retaliation
+  targets; block use/break cases do not perform living-entity attacks.
+  `DeployerMovingInteraction.java:47` and
+  `DeployerMovementBehaviour.java:277` test a moving contraption's stored
+  temporary actor, not our player; moving contraption interactions are excluded.
+  Autonomous Create deployers may construct their own fake players during static
+  machine ticks; those do not replace the scenario actor.
+- `PloughBlock.PloughFakePlayer` and the potato cannon's zombie-converter actor
+  are constructions/subclasses rather than additional generated-player checks.
+
 
 Signals use `createfuzz:signal[strength=0..15]`, whose real Java getSignal and
 getDirectSignal supply the requested strength to Create's neighbour queries. Rust

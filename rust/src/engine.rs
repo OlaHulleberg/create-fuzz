@@ -306,11 +306,9 @@ impl Run {
         if !sneaking
             && let Some((Block::CreativeMotor, info)) = own
             && let Some(slot) = info.facing.and_then(|f| board::motor_slot(f, face))
+            && board::hits_box(slot, hit)
         {
-            if board::hits_box(slot, hit) {
-                return;
-            }
-            self.notes.push(format!("adapter gap: Java FakePlayer skips value-box testHit at {p:?}; Rust uses board::hits_box (case retained)"));
+            return;
         }
         if !sneaking {
             // decor/brackets.rs runs before the wrench item's use_on.
