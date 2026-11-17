@@ -20,6 +20,27 @@ pub struct Entry {
     pub id: String,
     pub properties: std::collections::BTreeMap<String, Vec<String>>,
 }
+impl Entry {
+    pub fn specifications(&self) -> Vec<String> {
+        let mut combinations = vec![Vec::new()];
+        for (key, values) in &self.properties {
+            combinations = combinations
+                .into_iter()
+                .flat_map(|props| {
+                    values.iter().map(move |value| {
+                        let mut next = props.clone();
+                        next.push((key.clone(), value.clone()));
+                        next
+                    })
+                })
+                .collect();
+        }
+        combinations
+            .into_iter()
+            .map(|props| crate::scenario::format_state(&self.id, &props))
+            .collect()
+    }
+}
 pub fn contract() -> &'static Contract {
     static CONTRACT: std::sync::OnceLock<Contract> = std::sync::OnceLock::new();
     CONTRACT
@@ -27,6 +48,11 @@ pub fn contract() -> &'static Contract {
 }
 pub fn validate_state(id: &str, props: &[(String, String)]) -> Option<Result<(), String>> {
     let entry = contract().blocks.iter().find(|e| e.id == id)?;
+    if props.iter().any(|(k, v)| k == "waterlogged" && v == "true") {
+        return Some(Err(
+            "waterlogged fluid blocks require the fluid-world phase".into(),
+        ));
+    }
     let mut seen = std::collections::BTreeSet::new();
     Some(
         if props.iter().all(|(k, v)| {

@@ -12,6 +12,7 @@ mod interaction;
 mod kinetics;
 mod observation;
 mod persistence;
+mod pipes;
 mod transport;
 
 use crate::scenario::{
@@ -65,20 +66,9 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             push(spec.state);
         }
     }
-    for top in ["true", "false"] {
-        for bottom in ["true", "false"] {
-            for shape in [
-                "plain",
-                "window",
-                "window_nw",
-                "window_sw",
-                "window_ne",
-                "window_se",
-            ] {
-                push(normal(&format!(
-                    "create:fluid_tank[top={top},bottom={bottom},shape={shape}]"
-                )));
-            }
+    for entry in &crate::fluids::contract().blocks {
+        for state in entry.specifications() {
+            push(state);
         }
     }
     push("create:depot[waterlogged=false]".into());

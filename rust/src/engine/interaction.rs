@@ -82,6 +82,9 @@ impl Run {
         if self.belt_use(p, item, face, hit, sneaking) {
             return;
         }
+        if self.pipe_use(p, item, face, hit, sneaking) {
+            return;
+        }
         if self.fluid_use(p, item, sneaking) {
             return;
         }
@@ -121,7 +124,11 @@ impl Run {
         }
         if let Some((block, _)) = own {
             let name = format!("create:{}", block.name());
-            if !crate::actions::BLOCKS.contains(&name.as_str())
+            if !crate::fluids::contract()
+                .blocks
+                .iter()
+                .any(|entry| entry.id == name)
+                && !crate::actions::BLOCKS.contains(&name.as_str())
                 && name != "create:andesite_encased_shaft"
                 && name != "create:brass_encased_shaft"
                 && name != "create:brass_casing"
@@ -287,6 +294,9 @@ impl Run {
         face: create_engine::kinetics::Dir,
         sneaking: bool,
     ) {
+        if self.place_pipe(p, block, yaw, pitch, sneaking) {
+            return;
+        }
         if block == "create:fluid_tank" {
             self.set(
                 p,

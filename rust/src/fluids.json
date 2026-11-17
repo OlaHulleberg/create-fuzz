@@ -1,13 +1,178 @@
 {
-  "blocks": [{
-    "id": "create:fluid_tank",
-    "properties": {"top":["false","true"],"bottom":["false","true"],"shape":["plain","window","window_nw","window_sw","window_ne","window_se"]},
-    "source": "FluidTankBlock.createBlockStateDefinition; FluidTankBlockEntity; ConnectivityHandler",
-    "inputs": ["use placement", "wrench windows", "sneak wrench removal", "break"],
-    "observations": ["controller", "width", "height", "capacity", "fluid", "amount", "block shape"]
-  }],
+  "blocks": [
+    {
+      "id": "create:fluid_tank",
+      "properties": {
+        "top": [
+          "false",
+          "true"
+        ],
+        "bottom": [
+          "false",
+          "true"
+        ],
+        "shape": [
+          "plain",
+          "window",
+          "window_nw",
+          "window_sw",
+          "window_ne",
+          "window_se"
+        ]
+      },
+      "source": "FluidTankBlock.createBlockStateDefinition; FluidTankBlockEntity; ConnectivityHandler",
+      "inputs": [
+        "use placement",
+        "wrench windows",
+        "sneak wrench removal",
+        "break"
+      ],
+      "observations": [
+        "controller",
+        "width",
+        "height",
+        "capacity",
+        "fluid",
+        "amount",
+        "block shape"
+      ]
+    },
+    {
+      "id": "create:fluid_pipe",
+      "properties": {
+        "down": [
+          "false",
+          "true"
+        ],
+        "up": [
+          "false",
+          "true"
+        ],
+        "north": [
+          "false",
+          "true"
+        ],
+        "south": [
+          "false",
+          "true"
+        ],
+        "west": [
+          "false",
+          "true"
+        ],
+        "east": [
+          "false",
+          "true"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "Create content/fluids/pipes and pump; glue/fluids/place, pipes, plumbing, clicks",
+      "inputs": [
+        "player placement (pipe/pump)",
+        "wrench",
+        "copper casing"
+      ],
+      "observations": [
+        "all block state properties"
+      ]
+    },
+    {
+      "id": "create:encased_fluid_pipe",
+      "properties": {
+        "down": [
+          "false",
+          "true"
+        ],
+        "up": [
+          "false",
+          "true"
+        ],
+        "north": [
+          "false",
+          "true"
+        ],
+        "south": [
+          "false",
+          "true"
+        ],
+        "west": [
+          "false",
+          "true"
+        ],
+        "east": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "Create content/fluids/pipes and pump; glue/fluids/place, pipes, plumbing, clicks",
+      "inputs": [
+        "player placement (pipe/pump)",
+        "wrench",
+        "copper casing"
+      ],
+      "observations": [
+        "all block state properties"
+      ]
+    },
+    {
+      "id": "create:glass_fluid_pipe",
+      "properties": {
+        "axis": [
+          "x",
+          "y",
+          "z"
+        ],
+        "alt": [
+          "false",
+          "true"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "Create content/fluids/pipes and pump; glue/fluids/place, pipes, plumbing, clicks",
+      "inputs": [
+        "player placement (pipe/pump)",
+        "wrench",
+        "copper casing"
+      ],
+      "observations": [
+        "all block state properties"
+      ]
+    },
+    {
+      "id": "create:mechanical_pump",
+      "properties": {
+        "facing": [
+          "down",
+          "up",
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "Create content/fluids/pipes and pump; glue/fluids/place, pipes, plumbing, clicks",
+      "inputs": [
+        "player placement (pipe/pump)",
+        "wrench",
+        "copper casing"
+      ],
+      "observations": [
+        "all block state properties"
+      ]
+    }
+  ],
   "unimplemented": {
-    "pipes/pumps": "Harness lacks glue pipe cells, pump reach/transfer and transient flow phases; no differential fluid transfer claims.",
+    "pipes/pumps": "Placement, topology and wrench/casing/glass are driven; reach/transfer and flow phases follow in step 3.",
     "buckets": "Regular tank's item exchange requires creative player; existing actor is survival. Creative tank adapter is not implemented.",
     "open ends/world": "Host fluid-state and world mutation callbacks are absent; native fluid spread cannot be inferred from a static map.",
     "smart pipes": "FilteringBehaviour input and filter observation adapter absent.",

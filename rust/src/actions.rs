@@ -73,6 +73,8 @@ impl Face {
     }
 }
 pub const BLOCKS: &[&str] = &[
+    "create:fluid_pipe",
+    "create:mechanical_pump",
     "create:fluid_tank",
     "create:rotation_speed_controller",
     "create:encased_chain_drive",
@@ -85,6 +87,7 @@ pub const BLOCKS: &[&str] = &[
     "create:flywheel",
 ];
 pub const ITEMS: &[&str] = &[
+    "create:copper_casing",
     "create:belt_connector",
     "minecraft:air",
     "create:wrench",

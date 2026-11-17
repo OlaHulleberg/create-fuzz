@@ -7,6 +7,7 @@ mod corpus;
 mod coverage;
 mod defaults;
 mod engine;
+mod fluid_pipes;
 mod fluids;
 mod generate;
 mod geometry;
