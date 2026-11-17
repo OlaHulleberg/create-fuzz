@@ -141,8 +141,10 @@ impl Run {
     }
     pub(super) fn tick_transport(&mut self) {
         self.w.tick_depots(0, |_| false);
-        // Exactly the glue's busy_belts snapshot, taken before any transfer this phase.
-        for c in self.w.busy_belts(0) {
+        // The glue's walk over controllers (`BeltBlockEntity.tick`): empty ones only update their
+        // direction bit; one that received items earlier in this phase moves them in its turn.
+        let mut phase = self.w.belt_ticks(0);
+        while let Some(c) = phase.next(&mut self.w) {
             let b = self.w.dims[0].belts.get_mut(&c).unwrap();
             let (seg, length, mut items) = (
                 b.segment,

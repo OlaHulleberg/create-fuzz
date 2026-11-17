@@ -230,7 +230,7 @@ fn player_chain_placement_keeps_declared_default_properties() {
 }
 
 #[test]
-fn item_driver_uses_glue_busy_belts_without_initializing_empty_order() {
+fn an_empty_running_belt_sets_its_direction_before_the_first_landing() {
     let sc = crate::transport::generate(31);
     let snap = super::run(&sc);
     let t = &snap.checkpoints[&41].blocks["0,8,0"]
@@ -239,8 +239,8 @@ fn item_driver_uses_glue_busy_belts_without_initializing_empty_order() {
         .unwrap()
         .items;
     assert_eq!(t.len(), 1);
-    // glue put_on_from_above reads positive=false: +1/16. tick_belts then moves 32/480.
-    assert!((t[0].position - (1.5 + 1. / 16. + 32. / 480.)).abs() < 0.00001);
+    // BeltInventory.tick set beltMovementPositive while empty: -1/16, then the tick moves 32/480.
+    assert!((t[0].position - (1.5 - 1. / 16. + 32. / 480.)).abs() < 0.00001);
     assert!(
         snap.item_outcomes[1].remainder.is_some(),
         "immediate second landing is refused"
@@ -286,7 +286,7 @@ fn depot_use_put_swap_and_take_are_glue_owned_motion_and_stacks() {
 }
 
 #[test]
-fn transport_between_empty_belts_waits_for_next_busy_snapshot() {
+fn an_empty_belt_receives_and_moves_within_the_tick() {
     let snap = super::run(&crate::transport::generate(95));
     let second = snap
         .checkpoints
@@ -295,8 +295,8 @@ fn transport_between_empty_belts_waits_for_next_busy_snapshot() {
         .find(|s| !s.items.is_empty())
         .unwrap();
     assert!(
-        second.items[0].pending,
-        "receiving empty belt was not in glue busy_belts snapshot"
+        !second.items[0].pending,
+        "the receiving belt ticks after the sender and takes its insert in the same tick"
     );
     assert!(
         snap.blocks["0,8,5"]
