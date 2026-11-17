@@ -17,6 +17,7 @@ pub fn mutate(parent: &Scenario, seed: u64) -> Scenario {
         1 => {
             let mut b = rng.pick(&donor.blocks).clone();
             b.pos = sc.blocks[i].pos;
+            sc.events.retain(|e| e.pos != b.pos || e.turn.is_none());
             sc.blocks[i] = b;
         }
         2 => {
@@ -47,7 +48,7 @@ pub fn mutate(parent: &Scenario, seed: u64) -> Scenario {
         .max()
         .unwrap_or(0)
         .max(sc.blocks.len() as u32);
-    sc.ticks = last + generate::SETTLE;
+    sc.ticks = (last + generate::SETTLE).max(sc.checkpoints.iter().copied().max().unwrap_or(0));
     sc
 }
 #[cfg(test)]
@@ -56,6 +57,7 @@ mod tests {
     fn mutations_stay_bounded_and_settle() {
         for seed in 0..1000 {
             let sc = super::mutate(&crate::generate::generate(seed / 5), seed);
+            crate::catalogue::scenario(&sc);
             assert!(!sc.blocks.is_empty());
             assert!(sc.blocks.iter().all(|b| b.pos[0].abs() <= 10
                 && b.pos[2].abs() <= 10

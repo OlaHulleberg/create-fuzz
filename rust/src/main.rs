@@ -5,6 +5,7 @@ mod corpus;
 mod coverage;
 mod engine;
 mod generate;
+mod geometry;
 mod guided;
 mod java;
 mod mutate;

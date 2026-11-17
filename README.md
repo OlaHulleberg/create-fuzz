@@ -150,3 +150,25 @@ The shrinker tries contiguous block/event chunks before individual removals so l
 histories remain practical to minimize. It still finishes with the individual candidates; reducing
 case duration never drops a requested checkpoint. Submission counts in `manifest` distinguish
 crank-turn and motor-setting actions from state specifications.
+
+Static geometry now comes from each manifest entry's typed `connection` rules (`geometry.rs`):
+axis selection, shaft face predicate and small/large cog classification. The Java startup audit
+checks these rules against every generated block state's actual `IRotate` and `ICogWheel`
+methods. Adding a block requires its manifest contract, rather than a generator kind list.
+
+The seed schedule alternates catalogue domain enumeration with weighted crank stress boundaries
+and networks grown through compatible shaft faces. Geometry cases probe all six adjacent faces
+(including nonconnections), output shafts, planar and diagonal gears and perpendicular large
+gears. Repeated domain passes reverse insertion order. Motors reverse after a source removal;
+a settled checkpoint preserves the initial drive observation. Every eighth seed tests loads
+4, 8 or 12 per source rpm against crank capacity 8, with a 2:1 cog speed ratio. These are the
+adjacent load steps in that fixture. Static specifications include waterlogging; resulting Java
+fluid spread is observed as a difference because the Rust adapter has no fluid world simulation.
+No fluid differences are suppressed. This is state injection, not player placement coverage.
+
+`manifest` includes an explicit static exclusion reason for each omitted id: belt/conveyor
+links (group 5), environmental generators (group 6), moving/assembling machines (group 7),
+and transmission settings/topology requiring group 4 adapters. Generated valve handles are
+passive nodes only; inherited crank turns are never used as valve activation. Machine work,
+fluid transfer, crafting, inventory, crushing entities and equipment filling remain outside the
+static solver tests. The scenario JSON format and comparisons are unchanged.

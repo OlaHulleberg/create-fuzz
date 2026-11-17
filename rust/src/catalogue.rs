@@ -7,6 +7,8 @@ pub struct Entry {
     pub id: String,
     pub properties: BTreeMap<String, Vec<String>>,
     pub source: String,
+    pub connection: crate::geometry::Connection,
+    pub excluded: Option<String>,
 }
 pub fn entries() -> &'static [Entry] {
     static ENTRIES: std::sync::OnceLock<Vec<Entry>> = std::sync::OnceLock::new();
@@ -140,12 +142,12 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
     let m = collect(manual);
     let g = collect(generated);
     println!(
-        "id\tdomain states\tgenerated specifications\tmanual specifications\tinteraction support"
+        "id\tdomain states\tgenerated specifications\tmanual specifications\tinteraction support\tstatic scope"
     );
     for e in entries() {
         let domain: usize = e.properties.values().map(Vec::len).product();
         println!(
-            "{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}",
             e.id,
             domain,
             g.get(&e.id).map_or(0, BTreeSet::len),
@@ -156,7 +158,10 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
                 "motor setting"
             } else {
                 "excluded: no interaction adapter"
-            }
+            },
+            e.excluded
+                .as_deref()
+                .unwrap_or("static node; machine work and player interactions excluded")
         );
         assert!(!e.source.is_empty());
     }
