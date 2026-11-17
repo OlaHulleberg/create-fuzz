@@ -14,6 +14,16 @@ pub enum Action {
     Wrench {
         face: Face,
     },
+    Bracket {
+        wooden: bool,
+        face: Face,
+        yaw: f32,
+        pitch: f32,
+    },
+    Casing {
+        brass: bool,
+        remove: bool,
+    },
     Remove,
     Signal {
         strength: u8,
@@ -70,6 +80,23 @@ impl Action {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn bracket_removal_and_casing_history_are_observed() {
+        let sc = crate::generate::generate(3);
+        let snap = crate::engine::run(&sc);
+        assert!(snap.checkpoints[&73].blocks["2,8,0"].bracket.is_some());
+        assert!(snap.checkpoints[&75].blocks["2,8,0"].bracket.is_none());
+        assert!(
+            snap.checkpoints[&77].blocks["2,8,0"]
+                .state
+                .contains("encased_shaft")
+        );
+        assert!(
+            snap.checkpoints[&79].blocks["2,8,0"]
+                .state
+                .starts_with("create:shaft[")
+        );
+    }
     #[test]
     fn versioned_actions_validate_and_reject_unknown_inputs() {
         let action: super::Action =

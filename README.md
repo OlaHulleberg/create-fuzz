@@ -116,8 +116,8 @@ The Java adapter audits every id/property/value against the loaded Create binary
 including detecting additional kinetic registrations. The audit corrected the research table:
 `rope_pulley` has only `axis`; waterlogging belongs to its nested rope/magnet blocks.
 Unknown ids, properties, values and external inputs fail before either adapter runs.
-Direct state placement is manual solver coverage, not player interaction coverage. Only motor
-settings and hand-crank turns currently have interaction adapters. The manifest does not claim
+Direct state placement is manual solver coverage, not player interaction coverage. Motor settings, hand-crank turns and the version 2 inputs documented below have
+interaction adapters. The manifest does not claim
 execution of any omitted subsystem or player-reachable state closure.
 
 Scenarios additionally accept `checkpoints: [0, 1, 2, ...]`, measured after that many completed
@@ -146,7 +146,7 @@ network sizes. Rust reads the selected part's actual membership through
 figures. Raw network ids are used only to group positions within each snapshot and are never
 serialized or compared. An empty network observation is emitted as empty partitions and sizes.
 Dynamic settings other than the currently driven motor/crank inputs and readable steam output,
-sequencer/valve programs, environment sensing, belt/conveyor links, player placement and machine
+sequencer/valve programs, environment sensing, belt/conveyor links, placement outside the version 2 subset and machine
 work remain outside differential coverage until their action adapters and required accessors exist.
 
 The shrinker tries contiguous block/event chunks before individual removals so long checkpoint

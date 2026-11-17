@@ -44,7 +44,7 @@ fn actions(seed: u64) -> Scenario {
         version: 2,
         seed,
         ticks: 180,
-        checkpoints: vec![10, 30, 60],
+        checkpoints: vec![10, 30, 60, 73, 75, 77, 79],
         blocks: vec![
             Placed {
                 pos: [0, 8, 0],
@@ -107,6 +107,33 @@ fn actions(seed: u64) -> Scenario {
         },
     );
     event(70, [2, 8, 0], Action::Wrench { face: Face::Up });
+    event(
+        72,
+        [2, 8, 0],
+        Action::Bracket {
+            wooden: seed % 8 == 3,
+            face: Face::Up,
+            yaw: 90.,
+            pitch: 0.,
+        },
+    );
+    event(74, [2, 8, 0], Action::Wrench { face: Face::Up });
+    event(
+        76,
+        [2, 8, 0],
+        Action::Casing {
+            brass: seed % 8 == 3,
+            remove: false,
+        },
+    );
+    event(
+        78,
+        [2, 8, 0],
+        Action::Casing {
+            brass: false,
+            remove: true,
+        },
+    );
     event(90, [1, 8, 0], Action::Remove);
     sc
 }

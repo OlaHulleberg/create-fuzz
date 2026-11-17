@@ -22,6 +22,8 @@ pub struct Snapshot {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct BlockSnap {
+    #[serde(default)]
+    pub bracket: Option<String>,
     pub state: String,
     /// Present for kinetic blocks only.
     #[serde(default, skip_serializing_if = "Option::is_none")]

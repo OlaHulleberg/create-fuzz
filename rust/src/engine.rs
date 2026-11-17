@@ -3,7 +3,7 @@
 //! `settle_belts`, the solve, and the blocks the solve breaks.
 //!
 //! The world outside the engine is a map of positions to state strings. Redstone is only what
-//! the scenarios use: a `minecraft:redstone_block` powers the blocks beside it.
+//! the scenarios use: adjacent redstone blocks or controlled 0..15 signal sources.
 
 use crate::scenario::{
     BlockSnap, Kinetic, Placed, Pos, Scenario, Snapshot, key, parse_state, with_prop,
@@ -69,6 +69,11 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             }
         }
     }
+    for axis in ["x", "y", "z"] {
+        for material in ["brass", "andesite"] {
+            push(format!("create:{material}_encased_shaft[axis={axis}]"));
+        }
+    }
     for face in ["up", "down", "north", "south", "east", "west"] {
         push(format!("create:creative_motor[facing={face}]"));
     }
@@ -98,6 +103,7 @@ pub struct Run {
     names: Vec<String>,
     world: HashMap<Pos, u32>,
     notes: Vec<String>,
+    brackets: HashMap<Pos, create_engine::decor::Bracket>,
     _guard: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -129,6 +135,7 @@ impl Run {
             names,
             world: HashMap::new(),
             notes: Vec::new(),
+            brackets: HashMap::new(),
             _guard: guard,
         }
     }
@@ -175,6 +182,7 @@ impl Run {
         } else {
             self.world.insert(p, new);
         }
+        self.brackets.remove(&p);
         self.w.block_changed(0, p, old, new);
         let mut fallen = Vec::new();
         for d in DIRS {
@@ -249,12 +257,58 @@ impl Run {
     fn action(&mut self, p: Pos, action: &crate::actions::Action) {
         use crate::actions::Action;
         match action {
+            Action::Bracket {
+                wooden,
+                face,
+                yaw,
+                pitch,
+            } => {
+                if let Some((create_engine::Block::Shaft, info)) = self.w.table.get(self.at(p)) {
+                    let toward =
+                        create_engine::place::ordered_by_nearest(*yaw, *pitch)[0].opposite();
+                    if let Some(b) = create_engine::decor::bracket_for_click(
+                        *wooden,
+                        info.axis,
+                        create_engine::decor::BracketKind::Shaft,
+                        face.dir(),
+                        toward,
+                    ) {
+                        self.brackets.insert(p, b);
+                    }
+                }
+            }
+            Action::Casing { brass, remove } => {
+                let (name, props) = parse_state(&self.name(self.at(p)));
+                if let Some((_, axis)) = props.iter().find(|(k, _)| k == "axis") {
+                    let next = if *remove
+                        && (name == "create:andesite_encased_shaft"
+                            || name == "create:brass_encased_shaft")
+                    {
+                        Some(format!("create:shaft[axis={axis},waterlogged=false]"))
+                    } else if !*remove && name == "create:shaft" {
+                        Some(format!(
+                            "create:{}_encased_shaft[axis={axis}]",
+                            if *brass { "brass" } else { "andesite" }
+                        ))
+                    } else {
+                        None
+                    };
+                    if let Some(next) = next {
+                        self.set(p, self.id(&next));
+                    }
+                }
+            }
             Action::Remove => self.set(p, AIR),
             Action::Signal { strength } => self.set(p, 3 + u32::from(*strength)),
             Action::Wrench { face } => {
+                if self.brackets.remove(&p).is_some() {
+                    return;
+                }
                 let (name, props) = parse_state(&self.name(self.at(p)));
                 assert!(
-                    crate::actions::BLOCKS.contains(&name.as_str()) || name == "minecraft:air",
+                    crate::actions::BLOCKS.contains(&name.as_str())
+                        || name.ends_with("_encased_shaft")
+                        || name == "minecraft:air",
                     "wrench requires unsupported glue override: {name}"
                 );
                 let rotated =
@@ -371,6 +425,15 @@ impl Run {
             blocks.insert(
                 key(p),
                 BlockSnap {
+                    bracket: self.brackets.get(&p).map(|b| {
+                        format!(
+                            "{}[axis_along_first={},facing={},type={}]",
+                            b.block(),
+                            b.along_first,
+                            format!("{:?}", b.facing).to_lowercase(),
+                            b.kind.name()
+                        )
+                    }),
                     state,
                     kinetic,
                     debug: None,

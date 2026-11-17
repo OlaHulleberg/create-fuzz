@@ -18,11 +18,29 @@ import net.neoforged.neoforge.common.util.FakePlayerFactory;
 /** Version 2 player inputs; the actual Create block handles placement and wrenching. */
 final class Actions {
     static void apply(ServerLevel level, BlockPos pos, JsonObject a) {
-        var player = new net.minecraft.server.level.ServerPlayer(level.getServer(),level,
-            new com.mojang.authlib.GameProfile(java.util.UUID.fromString("00000000-0000-0000-0000-000000000123"),"FuzzPlayer"),net.minecraft.server.level.ClientInformation.createDefault());
+        var player = FakePlayerFactory.getMinecraft(level);
         player.setShiftKeyDown(false);
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
         switch (a.get("kind").getAsString()) {
+            case "bracket" -> {
+                Direction face=Direction.byName(a.get("face").getAsString());
+                player.setYRot(a.get("yaw").getAsFloat()); player.setYHeadRot(a.get("yaw").getAsFloat()); player.setXRot(a.get("pitch").getAsFloat());
+                String item=a.get("wooden").getAsBoolean()?"create:wooden_bracket":"create:metal_bracket";
+                var stack=new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse(item)));
+                player.setItemInHand(InteractionHand.MAIN_HAND,stack);
+                stack.getItem().useOn(new UseOnContext(level,player,InteractionHand.MAIN_HAND,stack,new BlockHitResult(Vec3.atCenterOf(pos),face,pos,false)));
+            }
+            case "casing" -> {
+                var state=level.getBlockState(pos);
+                var hit=new BlockHitResult(Vec3.atCenterOf(pos),Direction.UP,pos,false);
+                if(a.get("remove").getAsBoolean()) {
+                    if(state.getBlock() instanceof com.simibubi.create.content.kinetics.simpleRelays.encased.EncasedShaftBlock w)
+                        w.onSneakWrenched(state,new UseOnContext(level,player,InteractionHand.MAIN_HAND,ItemStack.EMPTY,hit));
+                } else if(state.getBlock() instanceof com.simibubi.create.content.decoration.encasing.EncasableBlock e) {
+                    var stack=new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse(a.get("brass").getAsBoolean()?"create:brass_casing":"create:andesite_casing")));
+                    e.tryEncase(state,level,pos,stack,player,InteractionHand.MAIN_HAND,hit);
+                }
+            }
             case "remove" -> FakePlayerFactory.getMinecraft(level).gameMode.destroyBlock(pos);
             case "signal" -> {
                 int strength=a.get("strength").getAsInt();

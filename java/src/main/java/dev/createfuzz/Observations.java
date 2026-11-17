@@ -48,6 +48,8 @@ final class Observations {
                     sizes.addProperty(key, networkSize(k));
                 }
             }
+            var bracket=com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour.get(level,pos,com.simibubi.create.content.decoration.bracket.BracketedBlockEntityBehaviour.TYPE);
+            if(bracket!=null && bracket.getBracket()!=null) snap.addProperty("bracket",BlockStateParser.serialize(bracket.getBracket()));
             // For reading mismatches only; never compared.
             if (be != null)
                 snap.addProperty("debug", be.saveWithoutMetadata(level.registryAccess()).toString());

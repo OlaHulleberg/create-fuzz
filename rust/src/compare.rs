@@ -34,6 +34,12 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
             (Some(j), None) => out.push(format!("{k}: java has {}, rust has air", j.state)),
             (None, Some(r)) => out.push(format!("{k}: java has air, rust has {}", r.state)),
             (Some(j), Some(r)) => {
+                if j.bracket != r.bracket {
+                    out.push(format!(
+                        "{k}: bracket: java {:?} rust {:?}",
+                        j.bracket, r.bracket
+                    ));
+                }
                 if let Some(d) = state_diff(&j.state, &r.state) {
                     out.push(format!("{k}: state {d}"));
                 }

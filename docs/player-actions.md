@@ -13,7 +13,7 @@ in the existing before-tick event phase. Checkpoints and shrinking retain them.
 ]}
 ```
 
-Placement uses Create getStateForPlacement and setPlacedBy with a player and
+Placement uses Create getStateForPlacement and setPlacedBy with a fake player (body and head rotation set) and
 face-centred hit. The target is explicitly selected; item placement helpers,
 reach checks and replacement of non-air blocks are outside this adapter.
 Rust calls the same place::axis/facing and world::has_shaft_towards entry points
@@ -32,8 +32,14 @@ provide 15. This is a controlled external source, not a vanilla wire simulation.
 Lever support, weak conduction through other blocks and wire propagation are
 not reproduced. Use isolated adjacent source fixtures.
 
-Remaining group 3 work: casing application/removal, bracket application/removal
-and bracket observations, sneak wrench, encased cog shaft toggles, other placement
+Shaft casings use Create EncasableBlock.tryEncase / EncasedShaftBlock.onSneakWrenched
+and the same state swap and world entry points as transmission glue. Both materials
+are supported. Brackets on shafts call BracketBlockItem.useOn and Rust
+decor::bracket_for_click. Bracket state is a separate compared observation; a
+normal wrench removes the bracket before rotating. Block changes clear brackets.
+
+Remaining group 3 work: cog casing, cog/pipe brackets, general sneak wrench,
+encased cog shaft toggles, other placement
 overrides and arbitrary hit positions, sequencer redstone clocking/ticks, chain
 shape application. Their port implementations live in private game glue; this
 engine-only binary does not invoke them. They are explicitly excluded here,
