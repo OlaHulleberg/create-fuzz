@@ -17,6 +17,7 @@ impl Run {
         };
         if conveyor(old) && !conveyor(new) {
             self.chains.remove(p, &mut vec![]);
+            self.mark_column(p); // packages::GONE marks the removed conveyor column.
             self.w.dims[0].kinetics.set_far(p, vec![]);
             self.sync_conveyors();
         } else if conveyor(new) && !conveyor(old) {

@@ -11,6 +11,9 @@ pub(super) struct Store {
     pub columns: Compound,
     pub handles: HashMap<Pos, Compound>,
     pub depots: HashMap<Pos, Compound>,
+    pub dirty_columns: std::collections::BTreeSet<(i32, i32)>,
+    pub brackets: HashMap<Pos, create_engine::decor::Bracket>,
+    pub conveyors: HashMap<Pos, Vec<Pos>>,
 }
 type ReloadData = (
     Compound,
@@ -24,13 +27,20 @@ type ReloadData = (
 
 impl Run {
     pub(super) fn save_sequence(&mut self, p: Pos) {
-        if let Some(s) = self.w.dims[0].sequencers.get(&p) {
-            self.persisted
-                .sequences
-                .insert(p, codec::sequencer_to_nbt(s));
+        if let Some(seq) = self.w.dims[0].sequencers.get(&p) {
+            let old = self.persisted.sequences.get(&p).and_then(codec::run_of_tag);
+            if old == Some(seq.saved_run()) {
+                return;
+            }
+            let mut run = codec::sequencer_to_nbt(seq);
+            run.remove("Instructions");
+            self.persisted.sequences.entry(p).or_default().extend(run);
         }
     }
-    pub(super) fn flush_persistence(&mut self) {
+    pub(super) fn mark_column(&mut self, p: Pos) {
+        self.persisted.dirty_columns.insert((p[0] >> 4, p[2] >> 4));
+    }
+    pub(super) fn save_depot_records(&mut self) {
         self.persisted
             .depots
             .retain(|p, _| self.w.saved_depot(0, *p).is_some());
@@ -39,6 +49,8 @@ impl Run {
                 self.persisted.depots.insert(p, codec::depot_to_nbt(saved));
             }
         }
+    }
+    pub(super) fn save_kinetic_records(&mut self) {
         self.persisted
             .handles
             .retain(|p, _| self.w.saved_handle(0, *p).is_some());
@@ -50,6 +62,9 @@ impl Run {
             }
         }
         for p in self.w.dims[0].kinetics.take_saved_changes() {
+            if self.w.dims[0].kinetics.awaiting_legacy_load(p) {
+                continue;
+            }
             for sub in 0..2 {
                 if let Some(saved) = self.w.dims[0].kinetics.saved_state(p, sub) {
                     self.persisted
@@ -60,16 +75,53 @@ impl Run {
                 }
             }
         }
-        let columns: std::collections::BTreeSet<_> =
-            self.world.keys().map(|p| (p[0] >> 4, p[2] >> 4)).collect();
-        let mut motors = Vec::new();
-        let mut belts = Vec::new();
+    }
+    /// persist::flush: only marked column attachments, after all subsystem ticks.
+    pub(super) fn flush_persistence(&mut self) {
+        for p in self.chains.take_changed() {
+            self.mark_column(p);
+        }
+        let columns = std::mem::take(&mut self.persisted.dirty_columns);
+        if columns.is_empty() {
+            return;
+        }
+        let outside = |p: Pos| !columns.contains(&(p[0] >> 4, p[2] >> 4));
+        self.persisted.brackets.retain(|p, _| outside(*p));
+        self.persisted.conveyors.retain(|p, _| outside(*p));
+        self.persisted.brackets.extend(
+            self.brackets
+                .iter()
+                .filter(|(p, _)| !outside(**p))
+                .map(|(&p, &b)| (p, b)),
+        );
+        self.persisted.conveyors.extend(
+            self.chains
+                .conveyors
+                .iter()
+                .filter(|(p, _)| !outside(**p))
+                .map(|(&p, c)| (p, c.connections.clone())),
+        );
+        let mut motors = match self.persisted.columns.get("motors") {
+            Some(Tag::IntArray(v)) => v
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|v| ([v[0], v[1], v[2]], v[3]))
+                .filter(|(p, _)| outside(*p))
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
+        let mut belts = codec::belts_from_nbt(&self.persisted.columns)
+            .into_iter()
+            .filter(|(p, _)| outside(*p))
+            .collect::<Vec<_>>();
         for (cx, cz) in columns {
             motors.extend(self.w.column_settings(0, cx, cz));
             belts.extend(self.w.column_belts(0, cx, cz));
         }
-        self.persisted.columns = Compound::from([
-            (
+        self.persisted.columns = Compound::new();
+        if !motors.is_empty() {
+            self.persisted.columns.insert(
                 "motors".into(),
                 Tag::IntArray(
                     motors
@@ -77,13 +129,18 @@ impl Run {
                         .flat_map(|(p, v)| [p[0], p[1], p[2], *v])
                         .collect(),
                 ),
-            ),
-            ("belts".into(), codec::belts_to_nbt(&belts)),
-        ]);
+            );
+        }
+        if !belts.is_empty() {
+            self.persisted
+                .columns
+                .insert("belts".into(), codec::belts_to_nbt(&belts));
+        }
     }
     pub(super) fn reload(&mut self) {
         // decor/saved.rs: column bracket entries; belt casing is host entity data.
         let brackets: Vec<[i32; 7]> = self
+            .persisted
             .brackets
             .iter()
             .map(|(p, b)| {
@@ -130,15 +187,16 @@ impl Run {
         let columns: std::collections::BTreeSet<_> =
             blocks.iter().map(|(p, _)| (p[0] >> 4, p[2] >> 4)).collect();
         let connections: Vec<_> = self
-            .chains
+            .persisted
             .conveyors
             .iter()
-            .map(|(&p, c)| (p, c.connections.clone()))
+            .map(|(&p, c)| (p, c.clone()))
             .collect();
         let connections: Vec<(Pos, Vec<Pos>)> =
             serde_json::from_slice(&serde_json::to_vec(&connections).unwrap()).unwrap();
-        for (p, _) in &connections {
-            self.chains.unload(*p);
+        let unloaded: Vec<_> = self.chains.conveyors.keys().copied().collect();
+        for p in unloaded {
+            self.chains.unload(p);
         }
 
         let mut entities = Vec::new();
@@ -242,15 +300,23 @@ impl Run {
         let block = self.w.block_at(0, p)?;
         Some(match block {
             Block::SequencedGearshift => {
-                let live = &self.w.dims[0].sequencers[&p];
                 let data = self
                     .persisted
                     .sequences
                     .get(&p)
                     .cloned()
-                    .unwrap_or_else(|| codec::sequencer_to_nbt(live));
-                let run = codec::run_of_tag(&data).unwrap();
-                let saved_instructions = codec::of_tag(&data);
+                    .unwrap_or_default();
+                let run = codec::run_of_tag(&data).unwrap_or(create_engine::sequencer::Run {
+                    current: -1,
+                    duration: -1,
+                    progress: 0.,
+                    timer: 0,
+                    powered_before: false,
+                });
+                let mut saved_instructions = codec::of_tag(&data);
+                if saved_instructions.is_empty() {
+                    saved_instructions = create_engine::sequencer::default_instructions();
+                }
                 let instructions=saved_instructions.iter().map(|i|serde_json::from_value(serde_json::json!({"instruction":i.kind.name(),"modifier":i.speed.name(),"value":i.value})).unwrap()).collect();
                 Payload::Sequencer {
                     instructions,
@@ -363,7 +429,7 @@ mod tests {
                 }
                 r.w.tick_cranks(0);
                 r.w.tick(0, &mut Vec::new());
-                r.flush_persistence();
+                r.save_kinetic_records();
                 let saved = r.w.saved_handle(0, p).unwrap();
                 assert_eq!(saved.in_use, if valve { 6 } else { 9 });
                 let rpm = if back ^ valve { -32. } else { 32. };
@@ -383,12 +449,12 @@ mod tests {
                 assert_eq!(r.w.dims[0].kinetics.network_membership(p, 0).unwrap().1, 2);
                 for _ in 1..saved.in_use {
                     r.w.tick_cranks(0);
-                    r.flush_persistence();
+                    r.save_kinetic_records();
                 }
                 assert_eq!(r.w.dims[0].kinetics.generated(p, 0), Some(rpm));
                 r.w.tick_cranks(0);
                 r.w.tick(0, &mut Vec::new());
-                r.flush_persistence();
+                r.save_kinetic_records();
                 assert_eq!(r.w.saved_handle(0, p).unwrap().in_use, 0);
                 assert_eq!(r.w.dims[0].kinetics.generated(p, 0), Some(0.));
                 if valve {
@@ -465,14 +531,14 @@ mod tests {
         );
         for _ in 0..9 {
             r.w.tick_depots(0, |_| false);
-            r.flush_persistence();
+            r.save_depot_records();
         }
         let saved = r.w.saved_depot(0, p).unwrap();
         r.reload();
         assert_eq!(r.w.saved_depot(0, p), Some(saved));
         for expected in [0.48592162, 0.48944122, 0.49208093] {
             r.w.tick_depots(0, |_| false);
-            r.flush_persistence();
+            r.save_depot_records();
             let actual = codec::depot_from_nbt(&r.persisted.depots[&p])
                 .held
                 .unwrap()
@@ -481,7 +547,7 @@ mod tests {
         }
         r.w.depot_put(0, p, None);
         r.depot_stacks.remove(&p);
-        r.flush_persistence();
+        r.save_depot_records();
         assert!(r.persisted.depots[&p].is_empty());
         r.reload();
         assert_eq!(r.w.saved_depot(0, p).unwrap().held, None);
@@ -504,12 +570,12 @@ mod tests {
         r.reload();
         assert_eq!(r.w.saved_depot(0, p).unwrap().held.unwrap().position, 0.5);
         r.w.depot_put(0, p, None);
-        r.flush_persistence();
+        r.save_depot_records();
         r.reload();
         assert_eq!(r.w.saved_depot(0, p).unwrap().held, None);
     }
     #[test]
-    fn cold_belt_load_forms_controller_after_the_logistics_phase() {
+    fn cold_belt_load_forms_controller_before_first_inventory_tick() {
         let sc:Scenario=serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,0],"state":"create:belt[casing=false,facing=east,part=start,slope=horizontal,waterlogged=false]"}]})).unwrap();
         let mut r = Run::new(&sc);
         let c = [0, 8, 0];
@@ -526,8 +592,7 @@ mod tests {
         }
         assert!(!r.w.dims[0].kinetics.has_part(c, 0));
         let mut phase = r.w.belt_ticks(0);
-        assert_eq!(phase.next(&mut r.w), None);
-        r.w.settle_belts(0);
+        assert_eq!(phase.next(&mut r.w), Some(c));
         assert_eq!(r.w.dims[0].belts[&c].items.items[0].position, 1.4);
         assert!(r.w.dims[0].kinetics.has_part(c, 0));
     }
@@ -539,5 +604,107 @@ mod tests {
             assert_eq!(snap.checkpoints.len(), sc.checkpoints.len());
             assert!(!snap.blocks.is_empty());
         }
+    }
+}
+
+#[cfg(test)]
+mod write_phase_tests {
+    use super::*;
+    #[test]
+    fn depot_handoff_is_not_saved_after_its_phase_and_reload_exposes_35() {
+        let mut sc = crate::transport::generate(63);
+        sc.events.retain(|e| e.tick <= 40);
+        let mut r = Run::new(&sc);
+        let p = [0, 8, 5];
+        for t in 0_u32..150 {
+            if let Some(b) = sc.blocks.get(t as usize) {
+                r.place(b);
+            }
+            if let Some(b) = t.checked_sub(1).and_then(|i| sc.blocks.get(i as usize)) {
+                r.set_motor(b);
+            }
+            for e in sc.events.iter().filter(|e| e.tick == t) {
+                if let Some(a) = &e.action {
+                    r.action(e.pos, a);
+                }
+            }
+            r.tick();
+            if r.depot_stacks.contains_key(&p) {
+                assert_eq!(t + 1, 90);
+                assert_eq!(r.w.saved_depot(0, p).unwrap().held.unwrap().position, 0.);
+                assert!(r.persisted.depots[&p].is_empty());
+                r.reload();
+                assert_eq!(r.w.saved_depot(0, p).unwrap().held, None);
+                r.tick();
+                assert_eq!(r.w.saved_depot(0, p).unwrap().held.unwrap().position, 0.5);
+                return;
+            }
+        }
+        panic!("no handoff");
+    }
+    #[test]
+    fn kinetic_cache_calculation_without_dirty_event_is_not_written() {
+        let sc: Scenario = serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[
+            {"pos":[0,7,0],"state":"minecraft:stone"},
+            {"pos":[0,8,0],"state":"create:hand_crank[facing=down]"},
+            {"pos":[0,9,0],"state":"create:creative_motor[facing=down]","motor":32}]}))
+        .unwrap();
+        let mut r = Run::new(&sc);
+        let p = [0, 8, 0];
+        for b in &sc.blocks {
+            r.place(b);
+            r.set_motor(b);
+        }
+        r.tick();
+        let written = serde_json::to_vec(&r.persisted.kinetics[&(p, 0)]).unwrap();
+        assert_eq!(
+            r.w.dims[0]
+                .kinetics
+                .saved_state(p, 0)
+                .unwrap()
+                .network
+                .unwrap()
+                .added_capacity,
+            0.
+        );
+        assert_eq!(
+            r.w.dims[0].kinetics.calculate_added_stress_capacity(p, 0),
+            Some(8.)
+        );
+        r.save_kinetic_records();
+        assert_eq!(
+            serde_json::to_vec(&r.persisted.kinetics[&(p, 0)]).unwrap(),
+            written
+        );
+        assert_eq!(
+            r.w.dims[0]
+                .kinetics
+                .saved_state(p, 0)
+                .unwrap()
+                .network
+                .unwrap()
+                .added_capacity,
+            8.
+        );
+    }
+    #[test]
+    fn column_flush_cannot_capture_unmarked_live_inventory_changes() {
+        let sc:Scenario=serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,0],"state":"create:creative_motor[facing=east]","motor":32}]})).unwrap();
+        let mut r = Run::new(&sc);
+        r.place(&sc.blocks[0]);
+        r.set_motor(&sc.blocks[0]);
+        r.tick();
+        let written = serde_json::to_vec(&r.persisted.columns).unwrap();
+        r.w.board_motor(
+            0,
+            [0, 8, 0],
+            create_engine::board::Settings { row: 1, value: 64 },
+        );
+        // World changes become eligible when kinetics::Solve drains take_unsaved,
+        // rather than through an unconditional late getter scan.
+        r.flush_persistence();
+        assert_eq!(serde_json::to_vec(&r.persisted.columns).unwrap(), written);
+        r.tick();
+        assert_ne!(serde_json::to_vec(&r.persisted.columns).unwrap(), written);
     }
 }

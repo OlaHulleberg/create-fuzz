@@ -52,9 +52,10 @@ Explicit boundaries:
 - DepotState records persist engine-owned held motion, insertion side, angle,
   offset, lock and fan progress independently of host slot identity/count.
   Records flush every tick, including empty records and movement without client
-  notifications. Reload restores them after block_loaded. Only legacy slots
-  without a DepotState record initialize at rest. Processing output/incoming
-  queues remain outside generated inputs.
+  notifications. Reload restores them after block_loaded; only missing records
+  take the reload-time legacy initialization. The following ordinary depot tick
+  still runs the glue's occupied-slot fallback, including #35. Processing
+  output/incoming queues remain outside generated inputs.
 - Belt insertion context is absent from the Rust persisted payload. Controller
   formation still runs in the normal glue phase after load.
 - Old drawing-only legacy saves, corrupt saves, actual chunk ticket transitions,
@@ -100,3 +101,31 @@ from that path, and could conceal the separately observed sequencer-save lag.
 The regression current_sequencer_fields_can_differ_from_last_glue_write preserves
 this distinction. #34's generation identity is independently checked by requiring
 live registry size two while the restored entity's cached saved size remains one.
+
+## Save record scheduling
+
+The adapter captures each record at its owning glue write point. A late flush
+must not refresh an earlier entity record or serialize an unmarked column.
+
+| Record | Capture point |
+|---|---|
+| DepotState | After depot tick and occupied-slot fallback, before belt break/movement/handoff; every registered depot, including empty records |
+| HandleState | After solve, sequencer steps and world effects; only take_handle_changes |
+| Kinetic ports | Same solve phase, after handles; only take_saved_changes, excluding pending legacy migration |
+| Sequencer run | Redstone checks, periodic pre-solve ten-tick saves, and actual instruction steps; save_run writes only its five run fields |
+| Sequencer instructions | Immediately in an accepted program message, independently of run saves |
+| Motor settings and belt inventories | End-of-level persist::flush, only marked columns; collect engine unsaved columns at the solve's actual drain point |
+| Brackets and conveyor topology | Same marked column flush; bracket mutations and the packages changed/gone journal mark their columns |
+| Host slots, belt casing and valve selection/use metadata | Their existing immediate host writes; reload round-trips those host records without refreshing engine state |
+
+Belt inventory motion and direction changes enqueue belt_changes during the
+logistics phase, then mark their controller columns. A chain formed later by
+settle_belts is not spuriously captured before its later change notification.
+Kinetic callbacks occurring after take_unsaved remain pending until the next
+solve, matching the glue. Reload consumes the saved records as they stand.
+
+The #35 regression is cases/persistence-depot-belt-save-order.json. After the
+completed-tick-90 belt handoff the engine depot holds a stack at position zero,
+but its earlier DepotState record is empty. Reload restores that empty record;
+the actual glue's occupied-slot fallback produces position 0.5, versus Java's
+0.125 at completed tick 91. This difference is retained, not normalized away.

@@ -39,6 +39,12 @@ impl Run {
                     true,
                 ) {
                     self.sequencer_step(p, step);
+                    let list = &self.w.dims[0].sequencers[&p].instructions;
+                    self.persisted.sequences.entry(p).or_default().insert(
+                        "Instructions".into(),
+                        crate::persistence::codec::to_tag(list),
+                    );
+                    self.mark_column(p);
                 }
             }
             Action::ChainLink { target, connect } => self.chain_link(p, *target, *connect),
@@ -132,7 +138,13 @@ impl Run {
         }
         if !sneaking {
             // decor/brackets.rs runs before the wrench item's use_on.
-            if item == "create:wrench" && self.brackets.remove(&p).is_some() {
+            if item == "create:wrench" && {
+                let removed = self.brackets.remove(&p).is_some();
+                if removed {
+                    self.mark_column(p);
+                }
+                removed
+            } {
                 return;
             }
             // transmission.rs Clicked: casing, then the shaft placement helper.
@@ -187,6 +199,7 @@ impl Run {
                     toward,
                 ) {
                     self.brackets.insert(p, b);
+                    self.mark_column(p);
                 }
             } else if own.is_some() {
                 self.notes.push(format!(

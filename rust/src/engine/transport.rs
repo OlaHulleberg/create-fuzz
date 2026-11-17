@@ -143,6 +143,17 @@ impl Run {
     }
     pub(super) fn tick_transport(&mut self) {
         self.w.tick_depots(0, |_| false);
+        let changed = self.w.take_depot_changes(0);
+        for p in changed {
+            if self.w.dims[0].depots.get(&p) == Some(&None) && self.depot_stacks.contains_key(&p) {
+                if let Some(h) = self.w.dims[0].depots.get_mut(&p) {
+                    *h = Some(depot::Held::new(180, false));
+                }
+                self.w.wake_depot(0, p);
+            }
+        }
+        self.save_depot_records();
+        self.belt_breaks();
         // The glue's walk over controllers (`BeltBlockEntity.tick`): empty ones only update their
         // direction bit; one that received items earlier in this phase moves them in its turn.
         let mut phase = self.w.belt_ticks(0);
@@ -173,8 +184,15 @@ impl Run {
                     b.items.add(i);
                 }
             }
+            if ticked.changed {
+                self.w.dims[0].belt_changes.push(c);
+            }
             // Native dropped-entity flight after an open end is outside this adapter.
             let _ = ticked;
+        }
+        let changed = std::mem::take(&mut self.w.dims[0].belt_changes);
+        for p in changed {
+            self.w.mark_unsaved(0, p);
         }
     }
     fn insert_transport(&mut self, p: Pos, side: Dir, item: &belt::Item) -> Option<u8> {

@@ -246,7 +246,9 @@ impl Run {
         {
             self.depot_stacks.remove(&p);
         }
-        self.brackets.remove(&p);
+        if self.brackets.remove(&p).is_some() {
+            self.mark_column(p);
+        }
         if self.w.table.get(old).map(|(b, _)| b) != self.w.table.get(new).map(|(b, _)| b) {
             self.measured_trig.remove(&p);
         }

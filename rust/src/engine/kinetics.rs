@@ -70,11 +70,11 @@ impl Run {
             self.sequencer_step(p, step);
         }
         let mut events = Vec::new();
-        self.belt_breaks();
         self.tick_transport();
         self.w.settle_belts(0);
         // CreateWorld::tick: the solve, then sequencer instructions (committed after it).
         let (_, steps) = self.w.tick(0, &mut events);
+        self.persisted.dirty_columns.extend(self.w.take_unsaved(0));
         for (p, step) in steps {
             self.sequencer_step(p, step);
         }
@@ -84,6 +84,7 @@ impl Run {
                 self.set(pos, AIR);
             }
         }
+        self.save_kinetic_records();
         self.flush_persistence();
     }
 
