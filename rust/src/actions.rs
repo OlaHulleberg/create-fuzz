@@ -121,6 +121,23 @@ mod tests {
         }
     }
     #[test]
+    fn wrench_uses_switching_block_state_before_commit() {
+        let sc=serde_json::from_str(r#"{"version": 3, "ticks": 160, "checkpoints": [69, 71, 75, 77, 79], "blocks": [{"pos": [0, 8, 0], "state": "create:creative_motor[facing=east]", "motor": 32}, {"pos": [1, 8, 0], "state": "create:gearshift[axis=x,powered=false]"}, {"pos": [2, 8, 0], "state": "create:shaft[axis=x,waterlogged=false]"}], "events": [{"tick": 70, "pos": [2, 8, 0], "action": {"kind": "use", "item": "create:wrench", "face": "up", "hit": [0.5, 1.0, 0.5], "yaw": 0.0, "pitch": 0.0, "sneaking": false}}]}"#).unwrap();
+        let snap = crate::engine::run(&sc);
+        assert_eq!(
+            snap.checkpoints[&69].networks.as_ref().unwrap().sizes["0,8,0"],
+            3
+        );
+        assert_eq!(
+            snap.checkpoints[&75].networks.as_ref().unwrap().sizes["0,8,0"],
+            2
+        );
+        assert_eq!(
+            snap.checkpoints[&75].networks.as_ref().unwrap().sizes["1,8,0"],
+            2
+        );
+    }
+    #[test]
     fn shaft_interaction_history() {
         let snap = crate::engine::run(&crate::generate::generate(3));
         assert!(snap.checkpoints[&73].blocks["2,8,0"].bracket.is_some());

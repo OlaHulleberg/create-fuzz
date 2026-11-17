@@ -69,7 +69,72 @@ mod measured_tests {
             Some(&m)
         ));
         assert!(!super::trig_state(&m.java, &m.port, None));
-        let sc = serde_json::from_str(include_str!("../../cases/actions-angle-45.json")).unwrap();
+        let sc = serde_json::from_str(
+            r#"{
+  "version": 3,
+  "ticks": 140,
+  "blocks": [
+    {
+      "pos": [
+        2,
+        7,
+        0
+      ],
+      "state": "minecraft:stone"
+    }
+  ],
+  "checkpoints": [
+    10,
+    73
+  ],
+  "events": [
+    {
+      "tick": 4,
+      "pos": [
+        2,
+        7,
+        0
+      ],
+      "action": {
+        "kind": "use",
+        "item": "create:shaft",
+        "face": "up",
+        "hit": [
+          0.5,
+          1.0,
+          0.5
+        ],
+        "yaw": 45.0,
+        "pitch": 0.0,
+        "sneaking": false
+      }
+    },
+    {
+      "tick": 70,
+      "pos": [
+        2,
+        8,
+        0
+      ],
+      "action": {
+        "kind": "use",
+        "item": "create:wrench",
+        "face": "up",
+        "hit": [
+          0.5,
+          1.0,
+          0.5
+        ],
+        "yaw": 0.0,
+        "pitch": 0.0,
+        "sneaking": false
+      }
+    }
+  ]
+}
+"#,
+        )
+        .unwrap();
         let snap = crate::engine::run(&sc);
         let r = &snap.blocks["2,8,0"];
         let m = r.measured_trig.as_ref().unwrap();

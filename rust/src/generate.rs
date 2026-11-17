@@ -132,7 +132,14 @@ fn actions(seed: u64) -> Scenario {
     event(78, [2, 8, 0], usage("create:wrench", Face::Up, true));
     event(90, [1, 8, 0], Action::Remove);
     if seed % 32 == 3 {
-        let hit = Face::South.point(if (seed / 32) % 2 == 0 { 0.5 } else { 0.1 }, 0.5);
+        let hit = Face::South.point(
+            if (seed / 32).is_multiple_of(2) {
+                0.5
+            } else {
+                0.1
+            },
+            0.5,
+        );
         event(
             100,
             [0, 8, 0],

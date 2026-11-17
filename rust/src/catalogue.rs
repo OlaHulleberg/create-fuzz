@@ -169,7 +169,7 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
         println!("{label} version 3 action submissions: {counts:?}");
     }
     println!(
-        "use limits: shaft casing/bracket only; motor value-box geometry via board::motor_slot/hits_box; Java FakePlayer skips testHit off-centre (retained); unsupported host interactions produce notes, never an allow"
+        "use limits: shaft casing/bracket only; motor value-box geometry via board::motor_slot/hits_box; other value boxes/block-use overrides, fluid collision, inventories, sequencer/chain topology unsupported (cases retained with notes); Java FakePlayer skips testHit off-centre (retained); no allowance for these gaps"
     );
     let m = collect(manual);
     let g = collect(generated);

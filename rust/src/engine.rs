@@ -69,6 +69,8 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             }
         }
     }
+    push("create:brass_casing".into());
+    push("create:andesite_casing".into());
     for axis in ["x", "y", "z"] {
         for material in ["brass", "andesite"] {
             push(format!("create:{material}_encased_shaft[axis={axis}]"));
@@ -288,6 +290,18 @@ impl Run {
         use create_engine::{Block, board, place};
         let state = self.at(p);
         let own = self.w.table.get(state).map(|(b, i)| (b, *i));
+        if let Some((block, _)) = own {
+            let name = format!("create:{}", block.name());
+            if !crate::actions::BLOCKS.contains(&name.as_str())
+                && name != "create:andesite_encased_shaft"
+                && name != "create:brass_encased_shaft"
+                && name != "create:brass_casing"
+                && name != "create:andesite_casing"
+            {
+                self.notes.push(format!("adapter gap: RightClickBlock/value-box and block-use handlers for {name} at {p:?} are outside the supported subset; input retained"));
+                return;
+            }
+        }
         // interaction/values.rs: the motor's active value box consumes the click first.
         if !sneaking
             && let Some((Block::CreativeMotor, info)) = own
@@ -380,7 +394,9 @@ impl Run {
                 }
                 return;
             }
-            if !crate::actions::BLOCKS.contains(&name.as_str()) && !name.ends_with("_encased_shaft")
+            if !crate::actions::BLOCKS.contains(&name.as_str())
+                && !name.ends_with("_encased_shaft")
+                && !name.ends_with("_casing")
             {
                 self.notes.push(format!(
                     "adapter gap: unsupported wrench override at {p:?}: {name}"
@@ -409,13 +425,6 @@ impl Run {
             }
             return;
         }
-        if !crate::actions::BLOCKS.contains(&item) {
-            // A casing without an encasable target would place its own block. Keep the input.
-            self.notes.push(format!(
-                "adapter gap: block-item placement of {item} at {p:?} is outside kinetic catalogue"
-            ));
-            return;
-        }
         // No override of the clicked position: air replaces itself; solid clicks place adjacent.
         let p = if state == AIR {
             p
@@ -441,6 +450,10 @@ impl Run {
         face: create_engine::kinetics::Dir,
         sneaking: bool,
     ) {
+        if block == "create:brass_casing" || block == "create:andesite_casing" {
+            self.set(p, self.id(block));
+            return;
+        }
         let b = create_engine::Block::ALL
             .iter()
             .copied()
