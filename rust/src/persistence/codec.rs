@@ -1,4 +1,73 @@
 //! MIT glue codecs over a local NBT value tree.
+pub fn depot_to_nbt(saved: create_engine::depot::SavedDepot) -> Compound {
+    let Some(h) = saved.held else {
+        return Compound::new();
+    };
+    let mut held = Compound::from([
+        ("Pos".into(), Tag::Float(h.position.to_bits())),
+        ("Offset".into(), Tag::Float(h.side_offset.to_bits())),
+        ("Angle".into(), Tag::Int(h.angle)),
+        (
+            "InDirection".into(),
+            Tag::Int(h.from.map_or(-1, |s| i32::from(s.index()))),
+        ),
+        ("Locked".into(), Tag::Byte(i8::from(h.locked))),
+    ]);
+    if let Some(by) = h.fan.by {
+        use create_engine::fan::Kind;
+        let id = match by {
+            Kind::Splashing => "create:splashing",
+            Kind::Haunting => "create:haunting",
+            Kind::Smoking => "create:smoking",
+            Kind::Blasting => "create:blasting",
+        };
+        held.insert("FanProcessingType".into(), Tag::String(id.into()));
+        held.insert("FanProcessingTime".into(), Tag::Int(h.fan.time));
+    }
+    Compound::from([("HeldItem".into(), Tag::Compound(held))])
+}
+
+pub fn depot_from_nbt(data: &Compound) -> create_engine::depot::SavedDepot {
+    let Some(Tag::Compound(h)) = data.get("HeldItem") else {
+        return create_engine::depot::SavedDepot { held: None };
+    };
+    let int = |k: &str| match h.get(k) {
+        Some(Tag::Int(v)) => *v,
+        _ => 0,
+    };
+    let float = |k: &str| match h.get(k) {
+        Some(Tag::Float(v)) => f32::from_bits(*v),
+        _ => 0.0,
+    };
+    create_engine::depot::SavedDepot {
+        held: Some(create_engine::depot::Held {
+            position: float("Pos"),
+            side_offset: float("Offset"),
+            angle: int("Angle"),
+            from: u8::try_from(int("InDirection"))
+                .ok()
+                .and_then(create_engine::depot::Side::from_index),
+            locked: matches!(h.get("Locked"), Some(Tag::Byte(v)) if *v != 0),
+            fan: create_engine::fan::Progress {
+                by: match h.get("FanProcessingType") {
+                    Some(Tag::String(id)) => {
+                        use create_engine::fan::Kind;
+                        match id.as_str() {
+                            "create:splashing" => Some(Kind::Splashing),
+                            "create:haunting" => Some(Kind::Haunting),
+                            "create:smoking" => Some(Kind::Smoking),
+                            "create:blasting" => Some(Kind::Blasting),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                },
+                time: int("FanProcessingTime"),
+            },
+        }),
+    }
+}
+
 pub fn handle_to_nbt(h: create_engine::valve::SavedHandle) -> Compound {
     Compound::from([
         ("InUse".into(), Tag::Int(i32::from(h.in_use))),
@@ -423,5 +492,47 @@ mod handle_tests {
             handle_from_nbt(&serde_json::from_slice(&bytes).unwrap()),
             saved
         );
+    }
+}
+
+#[cfg(test)]
+mod depot_tests {
+    use super::*;
+    #[test]
+    fn depot_record_preserves_transport_and_fan_state_and_clears_empty() {
+        use create_engine::{
+            depot::{Held, SavedDepot, Side},
+            fan::{Kind, Progress},
+        };
+        for by in [
+            None,
+            Some(Kind::Splashing),
+            Some(Kind::Haunting),
+            Some(Kind::Smoking),
+            Some(Kind::Blasting),
+        ] {
+            for side in [None, Some(Side::West)] {
+                let mut h = Held::put_by_player(73, false, Side::West);
+                h.position = 0.48592162;
+                h.side_offset = -0.0;
+                h.from = side;
+                h.locked = true;
+                h.fan = Progress {
+                    by,
+                    time: if by.is_some() { 37 } else { 0 },
+                };
+                let saved = SavedDepot { held: Some(h) };
+                let bytes = serde_json::to_vec(&depot_to_nbt(saved)).unwrap();
+                let restored = depot_from_nbt(&serde_json::from_slice(&bytes).unwrap());
+                assert_eq!(restored, saved);
+                assert_eq!(
+                    restored.held.unwrap().side_offset.to_bits(),
+                    h.side_offset.to_bits()
+                );
+            }
+        }
+        let empty = depot_to_nbt(SavedDepot { held: None });
+        assert!(empty.is_empty());
+        assert_eq!(depot_from_nbt(&empty).held, None);
     }
 }

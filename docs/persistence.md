@@ -49,9 +49,12 @@ Explicit boundaries:
   countdown-only changes, and restored after block_loaded before kinetic ports. InUse and
   Backwards are compared for both, and StartAngle for valves. Cooldown is
   deliberately absent from the codec, matching Java's fresh-entity lifecycle.
-- Depot motion and processed output/incoming queues are not represented by the
-  current glue's persisted host inventory. Generated inputs cover its held slot;
-  reload observations still compare supported live transport fields.
+- DepotState records persist engine-owned held motion, insertion side, angle,
+  offset, lock and fan progress independently of host slot identity/count.
+  Records flush every tick, including empty records and movement without client
+  notifications. Reload restores them after block_loaded. Only legacy slots
+  without a DepotState record initialize at rest. Processing output/incoming
+  queues remain outside generated inputs.
 - Belt insertion context is absent from the Rust persisted payload. Controller
   formation still runs in the normal glue phase after load.
 - Old drawing-only legacy saves, corrupt saves, actual chunk ticket transitions,

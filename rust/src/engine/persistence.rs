@@ -10,6 +10,7 @@ pub(super) struct Store {
     pub sequences: HashMap<Pos, Compound>,
     pub columns: Compound,
     pub handles: HashMap<Pos, Compound>,
+    pub depots: HashMap<Pos, Compound>,
 }
 type ReloadData = (
     Compound,
@@ -17,6 +18,7 @@ type ReloadData = (
     Vec<(Pos, Compound)>,
     Vec<(Pos, crate::transport::Stack)>,
     Vec<(Pos, crate::handles::Handle)>,
+    Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
 );
 
@@ -29,6 +31,14 @@ impl Run {
         }
     }
     pub(super) fn flush_persistence(&mut self) {
+        self.persisted
+            .depots
+            .retain(|p, _| self.w.saved_depot(0, *p).is_some());
+        for &p in self.w.dims[0].depots.keys() {
+            if let Some(saved) = self.w.saved_depot(0, p) {
+                self.persisted.depots.insert(p, codec::depot_to_nbt(saved));
+            }
+        }
         self.persisted
             .handles
             .retain(|p, _| self.w.saved_handle(0, *p).is_some());
@@ -154,9 +164,10 @@ impl Run {
             self.depot_stacks.iter().collect::<Vec<_>>(),
             self.handles.iter().collect::<Vec<_>>(),
             self.persisted.handles.iter().collect::<Vec<_>>(),
+            self.persisted.depots.iter().collect::<Vec<_>>(),
         ))
         .unwrap();
-        let (data, entities, sequences, slots, handles, saved_handles): ReloadData =
+        let (data, entities, sequences, slots, handles, saved_handles, saved_depots): ReloadData =
             serde_json::from_slice(&bytes).unwrap();
         self.depot_stacks = slots.into_iter().collect();
         self.handles = handles.into_iter().collect();
@@ -177,6 +188,11 @@ impl Run {
             .load_belt_items(0, codec::belts_from_nbt(&data).into_iter());
         for &(p, s) in &blocks {
             self.w.block_loaded(0, p, s);
+        }
+        let restored_depots: std::collections::HashSet<_> =
+            saved_depots.iter().map(|(p, _)| *p).collect();
+        for (p, data) in saved_depots {
+            self.w.restore_depot(0, p, codec::depot_from_nbt(&data));
         }
         for (p, data) in saved_handles {
             self.w.restore_handle(0, p, codec::handle_from_nbt(&data));
@@ -208,10 +224,10 @@ impl Run {
             self.chains.add(p, links);
         }
         self.sync_conveyors();
-        // Depot slot contents belong to the host entity. The glue does not persist its
-        // motion in the column; a newly loaded occupied depot is initialized at rest.
+        // Only legacy host slots without DepotState initialize at rest. An explicit
+        // empty record must not resurrect an old held transport state.
         for &p in self.depot_stacks.keys() {
-            if self.w.dims[0].depots.contains_key(&p) {
+            if !restored_depots.contains(&p) && self.w.dims[0].depots.contains_key(&p) {
                 self.w
                     .depot_put(0, p, Some(create_engine::depot::Held::new(180, false)));
             }
@@ -400,26 +416,71 @@ mod tests {
         assert_eq!(r.w.saved_handle(0, p).unwrap().in_use, 0);
     }
     #[test]
-    fn cold_depot_glue_load_has_slots_but_no_saved_motion() {
+    fn depot_motion_byte_round_trip_matches_java_after_reload() {
+        let sc:Scenario=serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,5],"state":"create:depot[waterlogged=false]"}]})).unwrap();
+        let mut r = Run::new(&sc);
+        let p = [0, 8, 5];
+        r.place(&sc.blocks[0]);
+        r.depot_stacks.insert(
+            p,
+            crate::transport::Stack {
+                item: "minecraft:diamond".into(),
+                count: 2,
+            },
+        );
+        r.w.depot_put(
+            0,
+            p,
+            Some(create_engine::depot::Held::put_by_player(
+                90,
+                false,
+                create_engine::depot::Side::West,
+            )),
+        );
+        for _ in 0..9 {
+            r.w.tick_depots(0, |_| false);
+            r.flush_persistence();
+        }
+        let saved = r.w.saved_depot(0, p).unwrap();
+        r.reload();
+        assert_eq!(r.w.saved_depot(0, p), Some(saved));
+        for expected in [0.48592162, 0.48944122, 0.49208093] {
+            r.w.tick_depots(0, |_| false);
+            r.flush_persistence();
+            let actual = codec::depot_from_nbt(&r.persisted.depots[&p])
+                .held
+                .unwrap()
+                .position;
+            assert!((actual - expected).abs() < 0.0000001);
+        }
+        r.w.depot_put(0, p, None);
+        r.depot_stacks.remove(&p);
+        r.flush_persistence();
+        assert!(r.persisted.depots[&p].is_empty());
+        r.reload();
+        assert_eq!(r.w.saved_depot(0, p).unwrap().held, None);
+        r.set(p, AIR);
+        assert!(!r.persisted.depots.contains_key(&p));
+    }
+    #[test]
+    fn only_missing_depot_records_use_legacy_slot_initialization() {
         let sc:Scenario=serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,1,0],"state":"create:depot[waterlogged=false]"}]})).unwrap();
         let mut r = Run::new(&sc);
         let p = [0, 1, 0];
-        let state = r.id("create:depot[waterlogged=false]");
-        r.w.block_loaded(0, p, state);
-        let mut held =
-            create_engine::depot::Held::put_by_player(180, false, create_engine::depot::Side::East);
-        for _ in 0..9 {
-            held.slide(false);
-        }
-        assert!(held.position < 0.5);
-        r.w.depot_put(0, p, Some(held));
-        r.w.column_unloaded(0, 0, 0);
-        r.w.block_loaded(0, p, state);
-        assert_eq!(r.w.dims[0].depots[&p], None);
-        // tick_depots initializes an occupied host slot using Held::new, not the old motion.
-        let loaded = create_engine::depot::Held::new(180, false);
-        assert_eq!(loaded.position, 0.5);
-        assert_ne!(loaded.position, held.position);
+        r.place(&sc.blocks[0]);
+        r.depot_stacks.insert(
+            p,
+            crate::transport::Stack {
+                item: "minecraft:diamond".into(),
+                count: 1,
+            },
+        );
+        r.reload();
+        assert_eq!(r.w.saved_depot(0, p).unwrap().held.unwrap().position, 0.5);
+        r.w.depot_put(0, p, None);
+        r.flush_persistence();
+        r.reload();
+        assert_eq!(r.w.saved_depot(0, p).unwrap().held, None);
     }
     #[test]
     fn cold_belt_load_forms_controller_after_the_logistics_phase() {

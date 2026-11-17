@@ -210,6 +210,7 @@ impl Run {
             self.persisted.kinetics.remove(&(p, 0));
             self.persisted.kinetics.remove(&(p, 1));
             self.persisted.sequences.remove(&p);
+            self.persisted.depots.remove(&p);
             if !self
                 .w
                 .table
