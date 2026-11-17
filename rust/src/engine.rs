@@ -139,6 +139,7 @@ pub struct Run {
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
     java_ties: bool,
+    native_origin: Pos,
     creative: bool,
     fluid_runs: HashMap<Pos, pumps::Running>,
     fluid_pressures: HashMap<(Pos, create_engine::kinetics::Dir), [f32; 2]>,
@@ -194,6 +195,7 @@ impl Run {
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
             java_ties: false,
+            native_origin: [0; 3],
             creative: false,
             fluid_runs: HashMap::new(),
             fluid_pressures: HashMap::new(),
@@ -445,15 +447,19 @@ pub fn run(sc: &Scenario) -> Snapshot {
 }
 
 pub fn run_at_phase(sc: &Scenario, phase: u8) -> Snapshot {
-    crate::trig::run(sc, phase)
+    crate::trig::run(sc, phase, [0; 3])
+}
+pub fn run_like(sc: &Scenario, reference: &Snapshot) -> Snapshot {
+    crate::trig::run(sc, reference.save_phase, reference.origin)
 }
 #[cfg(test)]
 pub(crate) fn run_trace(sc: &Scenario, java_ties: bool) -> Snapshot {
-    run_trace_at(sc, java_ties, 0)
+    run_trace_at(sc, java_ties, 0, [0; 3])
 }
-pub(crate) fn run_trace_at(sc: &Scenario, java_ties: bool, phase: u8) -> Snapshot {
+pub(crate) fn run_trace_at(sc: &Scenario, java_ties: bool, phase: u8, origin: Pos) -> Snapshot {
     let mut r = Run::new(sc);
     r.java_ties = java_ties;
+    r.native_origin = origin;
     r.persisted.clock = usize::from(phase);
     r.persisted.phase = phase;
     execute(sc, r)

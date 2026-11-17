@@ -5,6 +5,9 @@ use std::collections::BTreeMap;
 /// What both sides write after the last tick.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Snapshot {
+    /// Native reference frame for reconstructing the host's rounded hit point.
+    #[serde(default)]
+    pub origin: crate::scenario::Pos,
     #[serde(default)]
     pub save_phase: u8,
     #[serde(default)]

@@ -127,6 +127,7 @@ final class Observations {
                 }
         JsonObject out = new JsonObject();
         out.addProperty("side", "java");
+        out.add("origin", CreateFuzz.GSON.toJsonTree(new int[]{origin.getX(), origin.getY(), origin.getZ()}));
         out.add("save_phase",c.get("_save_phase"));
         out.add("item_outcomes",ItemInputs.outcomes(actor));
         out.add("blocks", blocks);

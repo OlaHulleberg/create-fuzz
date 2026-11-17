@@ -160,10 +160,10 @@ pub fn attach(actual: &mut Snapshot, alternative: &Snapshot) {
     }
 }
 
-pub fn run(sc: &Scenario, phase: u8) -> Snapshot {
-    let mut actual = crate::engine::run_trace_at(sc, false, phase);
+pub fn run(sc: &Scenario, phase: u8, origin: crate::scenario::Pos) -> Snapshot {
+    let mut actual = crate::engine::run_trace_at(sc, false, phase, origin);
     if has_roots(&actual) {
-        let alternative = crate::engine::run_trace_at(sc, true, phase);
+        let alternative = crate::engine::run_trace_at(sc, true, phase, origin);
         attach(&mut actual, &alternative);
     }
     actual

@@ -280,3 +280,37 @@ impl Run {
         true
     }
 }
+
+#[cfg(test)]
+mod hit_context_tests {
+    use super::*;
+    use crate::actions::{Action, Face};
+    #[test]
+    fn glass_wrench_uses_the_native_world_hit_precision() {
+        for (x, axis) in [(0, "y"), (64, "x"), (256, "y")] {
+            let mut sc = crate::fluid_inputs::generate(19);
+            sc.blocks.clear();
+            sc.events.clear();
+            let mut run = Run::new(&sc);
+            run.native_origin = [x, 0, 0];
+            let p = [1, 4, 0];
+            run.set(p,run.id("create:fluid_pipe[down=true,east=true,north=false,south=false,up=false,waterlogged=false,west=false]"));
+            run.action(
+                p,
+                &Action::Use {
+                    item: "create:wrench".into(),
+                    face: Face::South,
+                    hit: [0.9, 0.1, 1.],
+                    yaw: 0.,
+                    pitch: 0.,
+                    sneaking: false,
+                },
+            );
+            assert!(
+                run.name(run.at(p)).contains(&format!("axis={axis}")),
+                "origin {x}: {}",
+                run.name(run.at(p))
+            );
+        }
+    }
+}

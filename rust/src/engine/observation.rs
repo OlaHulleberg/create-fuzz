@@ -76,6 +76,7 @@ impl Run {
         }
         partitions.sort();
         Snapshot {
+            origin: self.native_origin,
             save_phase: self.persisted.phase,
             item_outcomes: self.item_outcomes.clone(),
             side: "rust".into(),

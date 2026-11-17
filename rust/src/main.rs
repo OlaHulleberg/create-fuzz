@@ -115,7 +115,7 @@ fn check(cases: &[Scenario], names: &[String]) -> usize {
     for range in java::batches(cases, 128) {
         let java = java::run(&fuzz_dir(), &cases[range.clone()]);
         for ((sc, j), name) in cases[range.clone()].iter().zip(&java).zip(&names[range]) {
-            let r = engine::run_at_phase(sc, j.save_phase);
+            let r = engine::run_like(sc, j);
             let diffs = compare::diff(j, &r);
             if diffs.is_empty() {
                 println!("{name}: match ({} blocks)", j.blocks.len());
@@ -209,7 +209,7 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) -> bool {
         .map(PathBuf::from)
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../found"));
     std::fs::create_dir_all(&found).unwrap();
-    let r = engine::run_at_phase(sc, j.save_phase);
+    let r = engine::run_like(sc, j);
     let diffs = compare::diff(j, &r);
     if [j, &r].iter().any(|snapshot| {
         snapshot

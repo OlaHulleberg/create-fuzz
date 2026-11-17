@@ -426,23 +426,19 @@ mod tests {
         run.creative = true;
         run.w
             .fill_tank(0, p, create_engine::tank::Fluid::Water, 2000);
-        run.use_item(
+        run.fluid_use(
             p,
             "minecraft:bucket",
             create_engine::kinetics::Dir::Up,
             [0.5, 1., 0.5],
-            0.,
-            0.,
             true,
         );
         assert_eq!(run.w.tank(0, p).unwrap().1.tank.amount, 2000);
-        run.use_item(
+        run.fluid_use(
             p,
             "minecraft:bucket",
             create_engine::kinetics::Dir::Up,
             [0.5, 1., 0.5],
-            0.,
-            0.,
             false,
         );
         assert_eq!(run.w.tank(0, p).unwrap().1.tank.amount, 1000);

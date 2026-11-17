@@ -67,3 +67,16 @@ queue/end stalled flag on Rust; machine-held stillness can differ by representat
 comparisons remain enabled and are reported as an observation-model limit, separately from
 cycle, contents, lock and position differences. The driver does not infer a port bug from that
 flag alone.
+
+World bucket input uses the same native peer. Vanilla block use (including cauldrons and
+secondary-use bypass) and the bucket's real item raycast run synchronously without advancing
+a tick. Create block-use handlers run exclusively in Rust; the peer skips them. It returns
+only environmental states/facts and waterlogging, never Java tank/filter/flow contents. This
+also handles an occluding source above the originally clicked block when an empty bucket
+raycasts it. The ordinary and sneaking cauldron fixture checks both paths.
+
+Snapshots retain the native batch `origin` as adapter context. Before a use callback, Rust
+reconstructs `(origin + block + hit) - (origin + block)` so its glue receives the host's actual
+double-precision hit. This matters for equal-distance glass-wrench choices at decimal hits:
+the same local decimal can round differently in different batch slots. Comparisons remain
+strict; there is no geometric tie allowance. Dry standalone Rust traces use origin zero.

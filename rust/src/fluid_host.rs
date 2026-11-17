@@ -30,6 +30,15 @@ pub struct Frame {
     pub states: Vec<Cell>,
     pub rules: crate::fluid_world::Rules,
 }
+#[derive(Serialize)]
+pub struct Bucket {
+    pub pos: Pos,
+    pub item: String,
+    pub face: String,
+    pub hit: [f64; 3],
+    pub creative: bool,
+    pub sneaking: bool,
+}
 pub struct Host {
     owner: String,
     first: bool,
@@ -81,7 +90,19 @@ impl Host {
         native: Vec<Pos>,
         region: Vec<Pos>,
     ) -> Result<Frame, String> {
-        let mut request = serde_json::json!({"owner":self.owner,"clock":clock,"changes":changes,"manual":manual,"native":native,"region":region});
+        self.frame(serde_json::json!({"clock":clock,"changes":changes,"manual":manual,"native":native,"region":region}))
+    }
+    pub fn bucket(
+        &mut self,
+        clock: usize,
+        changes: Vec<State>,
+        region: Vec<Pos>,
+        bucket: Bucket,
+    ) -> Result<Frame, String> {
+        self.frame(serde_json::json!({"clock":clock,"changes":changes,"manual":[],"native":[],"region":region,"bucket":bucket}))
+    }
+    fn frame(&mut self, mut request: serde_json::Value) -> Result<Frame, String> {
+        request["owner"] = self.owner.clone().into();
         if self.first {
             request["begin"] = true.into();
             self.first = false;

@@ -16,6 +16,7 @@ final class FluidHost {
     private static final BlockPos ORIGIN = new BlockPos(2048, 0, 2048);
     private static String owner;
     private static long epoch;
+    private static net.minecraft.server.level.ServerPlayer actor;
     static void reapStale(ServerLevel level) {
         if(owner==null)return;
         try {
@@ -30,7 +31,7 @@ final class FluidHost {
             for(int z=(ORIGIN.getZ()-24)>>4;z<=(ORIGIN.getZ()+24)>>4;z++) level.setChunkForced(x,z,true);
     }
     static void abortIfOwner(ServerLevel level,String key) {if(key.equals(owner)) abort(level);}
-    static void abort(ServerLevel level) {clear(level);owner=null;level.getServer().tickRateManager().setFrozen(false);}
+    static void abort(ServerLevel level) {clear(level);owner=null;actor=null;level.getServer().tickRateManager().setFrozen(false);}
     static void clear(ServerLevel level) {
         for(var p:BlockPos.betweenClosed(ORIGIN.offset(-24,0,-24),ORIGIN.offset(24,24,24)))
             if(!level.getBlockState(p).isAir()) level.setBlock(p,Blocks.AIR.defaultBlockState(),3);
@@ -43,33 +44,37 @@ final class FluidHost {
         if(request.has("begin")) {
             if(owner!=null&&!owner.equals(key)) throw new IllegalStateException("fluid host already owned by "+owner);
             level.getServer().tickRateManager().setFrozen(true);
-            owner=key;epoch=level.getGameTime();clear(level);
+            owner=key;epoch=level.getGameTime();clear(level);actor=PlayerActor.create(level,16);
         }
         if(!key.equals(owner)) throw new IllegalStateException("fluid host owner mismatch");
-        if(request.has("close")) {clear(level);owner=null;level.getServer().tickRateManager().setFrozen(false);return new JsonObject();}
+        if(request.has("close")) {clear(level);owner=null;actor=null;level.getServer().tickRateManager().setFrozen(false);return new JsonObject();}
         long clock=request.get("clock").getAsLong();
         var data=(ServerLevelData)level.getLevelData();
-        data.setGameTime(epoch+clock-1);
+        data.setGameTime(epoch+clock-(request.has("bucket")?0:1));
         for(var value:request.getAsJsonArray("changes")) {
             var change=value.getAsJsonObject();var xyz=change.getAsJsonArray("pos");
             var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());
             var state=BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK.asLookup(),change.get("state").getAsString(),false).blockState();
             level.setBlock(pos,state,3);
         }
-        for(var value:request.getAsJsonArray("native")) {
-            var xyz=value.getAsJsonArray();var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());
-            var state=level.getFluidState(pos);if(!state.isEmpty()) level.scheduleTick(pos,state.getType(),state.getType().getTickDelay(level));
+        if(request.has("bucket")) {
+            WorldBucketInput.apply(level,actor,ORIGIN,request.getAsJsonObject("bucket"));
+        } else {
+            for(var value:request.getAsJsonArray("native")) {
+                var xyz=value.getAsJsonArray();var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());
+                var state=level.getFluidState(pos);if(!state.isEmpty()) level.scheduleTick(pos,state.getType(),state.getType().getTickDelay(level));
+            }
+            data.setGameTime(epoch+clock);
+            level.getFluidTicks().tick(epoch+clock,65536,(pos,fluid)-> {
+                var state=level.getFluidState(pos);
+                if(state.getType()==fluid) state.tick(level,pos);
+            });
+            for(var value:request.getAsJsonArray("manual")) {
+                var xyz=value.getAsJsonArray();var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());
+                var state=level.getFluidState(pos);if(!state.isEmpty()) state.tick(level,pos);
+            }
+            FluidBounds.check(level,ORIGIN,request.getAsJsonArray("region"));
         }
-        data.setGameTime(epoch+clock);
-        level.getFluidTicks().tick(epoch+clock,65536,(pos,fluid)-> {
-            var state=level.getFluidState(pos);
-            if(state.getType()==fluid) state.tick(level,pos);
-        });
-        for(var value:request.getAsJsonArray("manual")) {
-            var xyz=value.getAsJsonArray();var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());
-            var state=level.getFluidState(pos);if(!state.isEmpty()) state.tick(level,pos);
-        }
-        FluidBounds.check(level,ORIGIN,request.getAsJsonArray("region"));
         var out=new JsonObject();var states=new JsonArray();
         for(var value:request.getAsJsonArray("region")) {
             var xyz=value.getAsJsonArray();var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());

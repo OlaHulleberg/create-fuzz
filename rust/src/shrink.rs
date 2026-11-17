@@ -78,7 +78,7 @@ pub fn diffs(dir: &Path, cases: &[Scenario]) -> Vec<Vec<String>> {
         .map(|sc| {
             let mut snapshots = java::run(dir, std::slice::from_ref(sc));
             let java = snapshots.pop().unwrap();
-            compare::diff(&java, &engine::run_at_phase(sc, java.save_phase))
+            compare::diff(&java, &engine::run_like(sc, &java))
         })
         .collect()
 }

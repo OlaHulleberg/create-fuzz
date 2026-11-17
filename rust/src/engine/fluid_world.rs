@@ -78,60 +78,49 @@ impl Run {
             });
         }
     }
-    pub(super) fn world_bucket(&mut self, p: Pos, item: &str, face: Dir) -> bool {
+    pub(super) fn world_bucket(
+        &mut self,
+        p: Pos,
+        item: &str,
+        face: Dir,
+        hit: [f64; 3],
+        sneaking: bool,
+    ) -> bool {
         let contained = Fluid::of_bucket(item);
         if item != "minecraft:bucket" && contained.is_none() {
             return false;
         }
-        if contained.is_some_and(|fluid| !fluid.placeable()) {
+        if contained.is_some_and(|f| !f.placeable()) {
             return true;
         }
-        let (block, props) = parse_state(&self.name(self.at(p)));
-        if block.ends_with("cauldron") {
-            let next = match item {
-                "minecraft:water_bucket" => Some("minecraft:water_cauldron[level=3]"),
-                "minecraft:lava_bucket" => Some("minecraft:lava_cauldron"),
-                "minecraft:bucket"
-                    if block == "minecraft:lava_cauldron"
-                        || props.iter().any(|(k, v)| k == "level" && v == "3") =>
-                {
-                    Some("minecraft:cauldron")
-                }
-                _ => None,
-            };
-            if let Some(state) = next {
-                self.set_world_state(p, state);
-                return true;
+        assert!(
+            self.fluid_host_enabled,
+            "world bucket input requires the private native host"
+        );
+        let mut host = self
+            .fluid_host
+            .take()
+            .unwrap_or_else(crate::fluid_host::Host::new);
+        let results = host.bucket(
+            self.persisted.clock,
+            std::mem::take(&mut self.fluid_host_changes),
+            self.fluid_domain.iter().copied().collect(),
+            crate::fluid_host::Bucket {
+                pos: p,
+                item: item.into(),
+                face: format!("{face:?}").to_lowercase(),
+                hit,
+                creative: self.creative,
+                sneaking,
+            },
+        );
+        self.fluid_host = Some(host);
+        match results {
+            Ok(frame) => self.apply_native_frame(frame),
+            Err(error) => {
+                self.notes.push(error);
+                self.native_failed = true;
             }
-            if item == "minecraft:bucket" {
-                return true;
-            }
-        }
-        if item == "minecraft:bucket" {
-            if let Some((fluid, 0)) = self.world_fluid(p)
-                && (fluid == Fluid::Water || fluid == Fluid::Lava)
-            {
-                if self.waterloggable(p) {
-                    let next = with_prop(&self.name(self.at(p)), "waterlogged", "false");
-                    self.set_world_state(p, &next);
-                } else {
-                    self.set(p, AIR);
-                }
-            }
-            return true;
-        }
-        let fluid = contained.unwrap();
-        let target = if self.waterloggable(p) && fluid == Fluid::Water {
-            p
-        } else {
-            add(p, face.offset())
-        };
-        if self.waterloggable(target) && fluid == Fluid::Water {
-            let next = with_prop(&self.name(self.at(target)), "waterlogged", "true");
-            self.set_world_state(target, &next);
-            self.fluid_native_schedule.push(target);
-        } else if self.replaceable(target) {
-            self.set_world_state(target, &format!("{}[level=0]", fluid.id()));
         }
         true
     }
@@ -208,6 +197,9 @@ impl Run {
             }
         };
         self.fluid_host = Some(host);
+        self.apply_native_frame(results);
+    }
+    fn apply_native_frame(&mut self, results: crate::fluid_host::Frame) {
         self.fluid_rules = results.rules;
         for state in results.states {
             self.fluid_facts

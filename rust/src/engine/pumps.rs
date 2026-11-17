@@ -363,10 +363,22 @@ impl Run {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The native bucket integration is tested separately. Seed its observed vanilla
+    // post-input state here so the fluid/glue proof remains independent of the host.
+    pub(super) fn seed_native_cauldron_fill(sc: &mut crate::scenario::Scenario) {
+        for event in &mut sc.events {
+            if matches!(&event.action, Some(crate::actions::Action::Use { item, .. }) if item == "minecraft:water_bucket")
+            {
+                event.action = None;
+                event.state = Some("minecraft:water_cauldron[level=3]".into());
+            }
+        }
+    }
     #[test]
     fn cauldron_transfer_conserves_fluid_without_native_peer() {
         for reload in [false, true] {
             let mut sc = crate::fluid_pumps::generate(18);
+            seed_native_cauldron_fill(&mut sc);
             if reload {
                 sc.events.push(crate::scenario::Change {
                     tick: 99,
@@ -472,8 +484,9 @@ mod conversion_fidelity {
     use super::*;
     #[test]
     fn live_conversion_buffer_follows_world_block_change_api() {
-        let sc = crate::fluid_pumps::generate(1554);
+        let mut sc = crate::fluid_pumps::generate(1554);
         let fill=sc.events.iter().find(|e|matches!(&e.action,Some(crate::actions::Action::Use{item,..})if item=="minecraft:water_bucket")).unwrap().tick;
+        super::tests::seed_native_cauldron_fill(&mut sc);
         let mut run = Run::new(&sc);
         run.fluid_host_enabled = false;
         let snapshot = super::super::execute(&sc, run);

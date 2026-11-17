@@ -60,7 +60,15 @@ impl Run {
                 yaw,
                 pitch,
                 sneaking,
-            } => self.use_item(p, item, face.dir(), *hit, *yaw, *pitch, *sneaking),
+            } => {
+                // The native host constructs an absolute hit, then the glue subtracts
+                // the clicked block. Preserve that rounding in every batch slot.
+                let point = [0, 1, 2].map(|i| {
+                    let base = f64::from(self.native_origin[i] + p[i]);
+                    (base + hit[i]) - base
+                });
+                self.use_item(p, item, face.dir(), point, *yaw, *pitch, *sneaking);
+            }
         }
     }
 
@@ -86,7 +94,7 @@ impl Run {
         if self.fluid_use(p, item, face, hit, sneaking) {
             return;
         }
-        if self.world_bucket(p, item, face) {
+        if self.world_bucket(p, item, face, hit, sneaking) {
             return;
         }
         if self.pipe_use(p, item, face, hit, sneaking) {
