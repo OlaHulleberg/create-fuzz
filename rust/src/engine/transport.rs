@@ -146,7 +146,6 @@ impl Run {
         });
     }
     pub(super) fn tick_transport(&mut self) {
-        self.w.tick_depots(0, |_| false);
         let changed = self.w.take_depot_changes(0);
         for p in changed {
             if self.w.dims[0].depots.get(&p) == Some(&None) && self.depot_stacks.contains_key(&p) {
@@ -157,10 +156,17 @@ impl Run {
             }
         }
         self.belt_breaks();
-        // The glue's walk over controllers (`BeltBlockEntity.tick`): empty ones only update their
-        // direction bit; one that received items earlier in this phase moves them in its turn.
-        let mut phase = self.w.belt_ticks(0);
-        while let Some(c) = phase.next(&mut self.w) {
+        // The glue's shared level registration walk (BeltBlockEntity.tick and
+        // DepotBehaviour.tick): apply transfers before the next entity's turn.
+        let mut phase = self.w.transport_ticks(0);
+        while let Some(turn) = phase.next(&mut self.w) {
+            let c = match turn {
+                create_engine::world::TransportTick::Depot(p) => {
+                    self.w.tick_depot(0, p, false);
+                    continue;
+                }
+                create_engine::world::TransportTick::Belt(c) => c,
+            };
             let b = self.w.dims[0].belts.get_mut(&c).unwrap();
             let (seg, length, mut items) = (
                 b.segment,

@@ -641,14 +641,14 @@ mod tests {
             )),
         );
         for _ in 0..9 {
-            r.w.tick_depots(0, |_| false);
+            r.tick_transport();
             r.save_depot_records();
         }
         let saved = r.w.saved_depot(0, p).unwrap();
         r.reload();
         assert_eq!(r.w.saved_depot(0, p), Some(saved));
         for expected in [0.48592162, 0.48944122, 0.49208093] {
-            r.w.tick_depots(0, |_| false);
+            r.tick_transport();
             r.save_depot_records();
             let actual = codec::depot_from_nbt(&r.persisted.depots[&p])
                 .held
@@ -702,8 +702,11 @@ mod tests {
             r.w.block_loaded(0, [x, 8, 0], state);
         }
         assert!(!r.w.dims[0].kinetics.has_part(c, 0));
-        let mut phase = r.w.belt_ticks(0);
-        assert_eq!(phase.next(&mut r.w), Some(c));
+        let mut phase = r.w.transport_ticks(0);
+        assert_eq!(
+            phase.next(&mut r.w),
+            Some(create_engine::world::TransportTick::Belt(c))
+        );
         assert_eq!(r.w.dims[0].belts[&c].items.items[0].position, 1.4);
         assert!(r.w.dims[0].kinetics.has_part(c, 0));
     }
