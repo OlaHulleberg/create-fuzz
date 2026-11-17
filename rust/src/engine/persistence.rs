@@ -139,6 +139,17 @@ impl Run {
     }
     /// Interaction publication mirrors glue/persist.rs::publish; never runs on reload.
     pub(super) fn publish_interaction(&mut self) {
+        loop {
+            let events = self.w.dims[0].kinetics.take_pending_events();
+            if events.is_empty() {
+                break;
+            }
+            for event in events {
+                if let create_engine::kinetics::Event::Break { pos } = event {
+                    self.set(pos, AIR);
+                }
+            }
+        }
         self.persisted.dirty_columns.extend(self.w.take_unsaved(0));
         self.publish_entities();
         self.flush_persistence();
@@ -731,6 +742,35 @@ mod tests {
         assert!(!r.persisted.handles.contains_key(&p));
         assert_eq!(r.w.saved_handle(0, p).unwrap().in_use, 0);
     }
+    #[test]
+    fn depot_interaction_reload_keeps_first_slide() {
+        let sc: Scenario = serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,5],"state":"create:depot[waterlogged=false]"}]})).unwrap();
+        let mut r = Run::new(&sc);
+        let p = [0, 8, 5];
+        r.place(&sc.blocks[0]);
+        r.tick();
+        r.item_input(
+            p,
+            &crate::transport::Input::Use {
+                stack: Some(crate::transport::Stack {
+                    item: "minecraft:diamond".into(),
+                    count: 2,
+                }),
+                face: crate::actions::Face::Up,
+                yaw: 90.0,
+                sneaking: false,
+            },
+        );
+        r.reload();
+        for expected in [0.3125, 0.359375, 0.39453125] {
+            r.tick_transport();
+            assert_eq!(
+                r.w.saved_depot(0, p).unwrap().held.unwrap().position,
+                expected
+            );
+        }
+    }
+
     #[test]
     fn depot_motion_byte_round_trip_matches_java_after_reload() {
         let sc:Scenario=serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,5],"state":"create:depot[waterlogged=false]"}]})).unwrap();

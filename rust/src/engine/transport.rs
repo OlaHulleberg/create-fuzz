@@ -131,6 +131,8 @@ impl Run {
                 // handler for these plain items. A refused use leaves the offered stack.
             }
         }
+        // Mirror the depot interaction's publication of HeldItem, including motion.
+        self.publish_interaction();
         let mut merged = BTreeMap::<String, u8>::new();
         for s in taken {
             *merged.entry(s.item).or_default() += s.count;
