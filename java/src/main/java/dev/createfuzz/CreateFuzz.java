@@ -57,6 +57,7 @@ public class CreateFuzz {
 	int poll;
 
 	public CreateFuzz(IEventBus modBus) {
+        SignalBlock.REGISTRY.register(modBus);
 		String env = System.getenv("FUZZ_DIR");
 		dir = Path.of(env != null ? env : "fuzz");
 		NeoForge.EVENT_BUS.addListener(this::started);
@@ -187,6 +188,8 @@ public class CreateFuzz {
 			this.name = name;
 			for (int i = 0; i < in.size(); i++) {
 				cases.add(in.get(i).getAsJsonObject());
+                int version=cases.get(i).has("version") ? cases.get(i).get("version").getAsInt():1;
+                if(version<1 || version>2) throw new IllegalArgumentException("unsupported scenario version");
 				if (i >= SLOTS)
 					throw new IllegalArgumentException("a batch holds at most " + SLOTS + " cases");
 				origins.add(slot(i));
@@ -236,7 +239,8 @@ public class CreateFuzz {
                     JsonObject o = ev.getAsJsonObject();
 					if (o.get("tick").getAsInt() != tick)
 						continue;
-					if (o.has("state"))
+					if(o.has("action")) Actions.apply(level,at(origins.get(i),o),o.getAsJsonObject("action"));
+                    else if (o.has("state"))
 						place(level, origins.get(i), o);
 					// HandCrankBlock.useWithoutItem: turn(sneaking).
 					else if (o.has("turn") && level.getBlockEntity(at(origins.get(i), o)) instanceof HandCrankBlockEntity h)

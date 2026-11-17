@@ -7,6 +7,18 @@ pub fn mutate(parent: &Scenario, seed: u64) -> Scenario {
     let mut rng = Rng::new(seed);
     let mut sc = parent.clone();
     sc.seed = seed;
+    if sc.version == 2 {
+        for e in &mut sc.events {
+            if let Some(crate::actions::Action::Signal { strength }) = &mut e.action {
+                *strength = rng.below(16) as u8;
+            }
+            if let Some(crate::actions::Action::Place { yaw, sneaking, .. }) = &mut e.action {
+                *yaw = rng.below(360) as f32;
+                *sneaking = rng.chance(0.5);
+            }
+        }
+        return sc;
+    }
     let donor = generate::generate(seed);
     let i = rng.below(sc.blocks.len() as u32) as usize;
     match rng.below(5) {

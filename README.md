@@ -193,3 +193,7 @@ vanilla water ticks; the standalone driver has no fluid world. The manifest reta
 the full binary domain for auditing. Fluid-world tests require a separate adapter.
 Network sizes read the existing TorquePropagator registry's KineticNetwork.getSize(),
 without constructing networks; partitions still group block entities by network id.
+
+Version 2 adds typed player placement, wrench, removal and controlled analog input
+for a bounded subset of blocks. See [player actions](docs/player-actions.md) for
+schema, exact entry points and explicit remaining exclusions.

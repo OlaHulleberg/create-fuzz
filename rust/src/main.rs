@@ -1,3 +1,4 @@
+mod actions;
 mod allow;
 mod catalogue;
 mod compare;

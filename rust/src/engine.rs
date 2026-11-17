@@ -14,7 +14,7 @@ use create_engine::world::{CreateWorld, StateTable};
 use std::collections::{BTreeMap, HashMap};
 
 /// Create's state ids start here; below are the few vanilla ones the scenarios use.
-const FIRST: u32 = 16;
+const FIRST: u32 = 32;
 const AIR: u32 = 0;
 const REDSTONE_BLOCK: u32 = 1;
 const OTHER: u32 = 2;
@@ -47,6 +47,31 @@ fn create_states(sc: &Scenario) -> Vec<String> {
         .cloned()
         .chain(sc.events.iter().filter_map(|e| e.placed()))
         .collect();
+    // Register the full reachable orientation closure for supported player blocks.
+    for block in crate::actions::BLOCKS {
+        for axis in ["x", "y", "z"] {
+            if *block == "create:creative_motor" {
+                continue;
+            }
+            if *block == "create:clutch" || *block == "create:gearshift" {
+                for power in ["true", "false"] {
+                    push(format!("{block}[axis={axis},powered={power}]"));
+                }
+            } else {
+                push(format!(
+                    "{block}[axis={axis}{}]",
+                    if *block == "create:shaft" {
+                        ",waterlogged=false"
+                    } else {
+                        ""
+                    }
+                ));
+            }
+        }
+    }
+    for face in ["up", "down", "north", "south", "east", "west"] {
+        push(format!("create:creative_motor[facing={face}]"));
+    }
     for b in &all {
         if !b.state.starts_with("create:") {
             continue;
@@ -109,6 +134,13 @@ impl Run {
     }
 
     fn id(&self, state: &str) -> u32 {
+        if let Some(v) = state
+            .strip_prefix("createfuzz:signal[strength=")
+            .and_then(|s| s.strip_suffix(']'))
+            .and_then(|s| s.parse::<u32>().ok())
+        {
+            return 3 + v;
+        }
         if state == "minecraft:air" {
             return AIR;
         }
@@ -123,6 +155,7 @@ impl Run {
             AIR => "minecraft:air".into(),
             REDSTONE_BLOCK => "minecraft:redstone_block".into(),
             OTHER => "minecraft:stone".into(),
+            3..=18 => format!("createfuzz:signal[strength={}]", id - 3),
             _ => self.names[(id - FIRST) as usize].clone(),
         }
     }
@@ -203,8 +236,77 @@ impl Run {
         self.w.set_settings(0, b.pos, id, settings);
     }
 
-    fn powered_by_neighbour(&self, p: Pos) -> bool {
-        DIRS.iter().any(|d| self.at(add(p, *d)) == REDSTONE_BLOCK)
+    fn signal(&self, p: Pos) -> u8 {
+        DIRS.iter()
+            .map(|d| match self.at(add(p, *d)) {
+                REDSTONE_BLOCK => 15,
+                id @ 3..=18 => (id - 3) as u8,
+                _ => 0,
+            })
+            .max()
+            .unwrap_or(0)
+    }
+    fn action(&mut self, p: Pos, action: &crate::actions::Action) {
+        use crate::actions::Action;
+        match action {
+            Action::Remove => self.set(p, AIR),
+            Action::Signal { strength } => self.set(p, 3 + u32::from(*strength)),
+            Action::Wrench { face } => {
+                let (name, props) = parse_state(&self.name(self.at(p)));
+                assert!(
+                    crate::actions::BLOCKS.contains(&name.as_str()) || name == "minecraft:air",
+                    "wrench requires unsupported glue override: {name}"
+                );
+                let rotated =
+                    create_engine::wrench::rotated(&props.into_iter().collect(), false, face.dir());
+                let next =
+                    crate::scenario::format_state(&name, &rotated.into_iter().collect::<Vec<_>>());
+                self.set(p, self.id(&next));
+            }
+            Action::Place {
+                block,
+                yaw,
+                pitch,
+                face,
+                sneaking,
+            } => {
+                if self.at(p) != AIR {
+                    return;
+                }
+                let b = create_engine::Block::ALL
+                    .iter()
+                    .copied()
+                    .find(|b| format!("create:{}", b.name()) == *block)
+                    .expect("block");
+                let ctx = create_engine::place::Context {
+                    yaw: *yaw,
+                    pitch: *pitch,
+                    sneaking: *sneaking,
+                    clicked_face: face.dir(),
+                };
+                let shaft = |d: create_engine::kinetics::Dir| {
+                    self.w
+                        .has_shaft_towards(0, add(p, d.offset()), d.opposite())
+                };
+                let mut next = if let Some(f) = create_engine::place::facing(b, ctx, shaft) {
+                    format!("{block}[facing={}]", format!("{f:?}").to_lowercase())
+                } else {
+                    let (a, _) = create_engine::place::axis(b, ctx, shaft, Default::default())
+                        .expect("placement axis");
+                    format!("{block}[axis={}]", format!("{a:?}").to_lowercase())
+                };
+                if block == "create:shaft" {
+                    next = with_prop(&next, "waterlogged", "false");
+                }
+                if block == "create:clutch" || block == "create:gearshift" {
+                    next = with_prop(&next, "powered", "false");
+                    if self.signal(p) > 0 {
+                        self.notes.push("API_GAPS: redstone unavailable during state_for_placement; corrected on tick".into());
+                    }
+                }
+                self.set(p, self.id(&next));
+            }
+        }
     }
 
     /// One level tick: inputs, then the solve and what it breaks.
@@ -215,7 +317,7 @@ impl Run {
             let Some(was) = self.w.powered(state) else {
                 continue;
             };
-            let now = self.powered_by_neighbour(p);
+            let now = self.signal(p) > 0;
             if now != was {
                 let next = with_prop(
                     &self.name(state),
@@ -228,7 +330,7 @@ impl Run {
                 self.set(p, id);
             }
             if self.w.reads_signal(state) {
-                self.w.set_chain_signal(0, p, if now { 15 } else { 0 });
+                self.w.set_chain_signal(0, p, i32::from(self.signal(p)));
             }
         }
         let shapes = self.w.take_chain_shapes(0);
@@ -377,6 +479,9 @@ pub fn run(sc: &Scenario) -> Snapshot {
             }
         }
         for e in sc.events.iter().filter(|e| e.tick == t) {
+            if let Some(a) = &e.action {
+                r.action(e.pos, a);
+            }
             match (e.placed(), e.turn) {
                 (Some(b), _) => r.place(&b),
                 // `HandCrankBlock.useWithoutItem`: `turn(sneaking)`.

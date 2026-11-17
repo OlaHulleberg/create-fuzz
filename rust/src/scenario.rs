@@ -9,6 +9,8 @@ pub type Pos = [i32; 3];
 /// Positions are relative to the case's origin; the Java side places them on a stone floor.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Scenario {
+    #[serde(default = "legacy_version")]
+    pub version: u32,
     #[serde(default)]
     pub seed: u64,
     /// Completed tick counts to observe before the next tick's actions.
@@ -39,6 +41,8 @@ pub struct Placed {
 /// turns the hand crank at `pos` (`turn`: true backwards, as when sneaking).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Change {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<crate::actions::Action>,
     pub tick: u32,
     pub pos: Pos,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -52,6 +56,7 @@ pub struct Change {
 impl Change {
     pub fn set(tick: u32, pos: Pos, state: &str) -> Change {
         Change {
+            action: None,
             tick,
             pos,
             state: Some(state.into()),
@@ -61,6 +66,7 @@ impl Change {
     }
     pub fn turn(tick: u32, pos: Pos, back: bool) -> Change {
         Change {
+            action: None,
             tick,
             pos,
             state: None,
@@ -162,4 +168,8 @@ impl Scenario {
 
 fn is_zero(t: &i64) -> bool {
     *t == 0
+}
+
+fn legacy_version() -> u32 {
+    1
 }

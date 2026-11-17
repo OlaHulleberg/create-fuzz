@@ -62,12 +62,25 @@ pub fn validate(state: &str) -> Result<(), String> {
 pub fn scenario(sc: &Scenario) {
     sc.region();
     assert!(
+        (1..=2).contains(&sc.version),
+        "unsupported scenario version"
+    );
+    for e in &sc.events {
+        if let Some(a) = &e.action {
+            assert_eq!(sc.version, 2);
+            a.validate();
+        }
+    }
+    assert!(
         sc.checkpoints.iter().all(|t| *t <= sc.ticks),
         "checkpoint after final tick"
     );
     assert!(
         sc.events.iter().all(|e| e.tick < sc.ticks
-            && usize::from(e.state.is_some()) + usize::from(e.turn.is_some()) == 1),
+            && usize::from(e.state.is_some())
+                + usize::from(e.turn.is_some())
+                + usize::from(e.action.is_some())
+                == 1),
         "event must contain exactly one action before final tick"
     );
     for b in sc
@@ -146,6 +159,18 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
         interactions(generated),
         interactions(manual)
     );
+    for (label, cases) in [("manual", manual), ("generated", generated)] {
+        let mut counts = BTreeMap::<String, usize>::new();
+        for e in cases.iter().flat_map(|sc| &sc.events) {
+            if let Some(a) = &e.action {
+                let v = serde_json::to_value(a).unwrap();
+                *counts
+                    .entry(v["kind"].as_str().unwrap().to_owned())
+                    .or_default() += 1;
+            }
+        }
+        println!("{label} version 2 action submissions: {counts:?}");
+    }
     let m = collect(manual);
     let g = collect(generated);
     println!(
@@ -163,6 +188,8 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
                 "turn"
             } else if e.id == "create:creative_motor" {
                 "motor setting"
+            } else if crate::actions::BLOCKS.contains(&e.id.as_str()) {
+                "v2 placement/wrench/remove; isolated adjacent signal"
             } else {
                 "excluded: no interaction adapter"
             },
