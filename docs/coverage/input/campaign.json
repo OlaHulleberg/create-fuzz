@@ -1,0 +1,6 @@
+{
+  "fuzzer": "e4ffcde726ce350a7d8e1aa1c949a1aad4a050b6",
+  "engine": "8e78a89be9f660b3dfef59f9620b73859f910921",
+  "create": "b62e837acab5e2ceeb7bfd0c9fd551c64b52dd18",
+  "command": "CREATE_HORIZON=/root/create-horizon ./run.sh fuzz cover 300 (FUZZ_DIR=/root/create-fuzz/work; isolated report and empty corpus; CARGO_BUILD_JOBS=4; lane /mnt/lanes/agent-gaps)"
+}
