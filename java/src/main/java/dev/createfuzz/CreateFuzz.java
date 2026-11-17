@@ -253,6 +253,15 @@ public class CreateFuzz {
 
         /** One tick of every case; true when all are done. */
         boolean step(ServerLevel level) {
+            if (tick == 0 && !cases.isEmpty() && cases.get(0).has("_start_phase")) {
+                int phase = cases.get(0).get("_start_phase").getAsInt();
+                if (phase < 0 || phase >= 10) throw new IllegalArgumentException("start phase 0..9");
+                if (Math.floorMod(level.getGameTime(), 10) != phase) return false;
+                // Waiting happens before inputs. Preserve the ordinary start's one elapsed
+                // level tick so clocks see the same scenario day time in every context.
+                long dayTime = cases.get(0).has("day_time") ? cases.get(0).get("day_time").getAsLong() : 0;
+                level.setDayTime(dayTime + 1);
+            }
             if(tick==0) for(var c:cases) c.addProperty("_save_phase",Math.floorMod(level.getGameTime(),10));
             for (int i = 0; i < cases.size(); i++) {
                 JsonObject c = cases.get(i);

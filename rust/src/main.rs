@@ -17,6 +17,7 @@ mod mutate;
 mod observation;
 mod persistence;
 mod program;
+mod repeat_java;
 mod scenario;
 mod shrink;
 mod transmission;
@@ -35,6 +36,7 @@ create-fuzz <command>
   fuzz <first-seed> <count> [batch]  generate, run and compare; mismatches go to $FUZZ_FOUND (found/)
   manifest <case.json>...        report 73-id domains and generated/manual/interaction coverage
   cover <rounds>                coverage-guided cases, corpus/ and work/coverage reports
+  repeat-java <rounds> <seed|case>...  compare repeated Java runs alone and in normal batches
   shrink <case.json> [witness]   shrink preserving a difference substring; writes <case>.min.json
 ";
 
@@ -59,6 +61,20 @@ fn main() {
             "{}",
             serde_json::to_string_pretty(&generate::generate(args[1].parse().unwrap())).unwrap()
         ),
+        "repeat-java" => {
+            let rounds = args[1].parse().unwrap();
+            let probes: Vec<_> = args[2..]
+                .iter()
+                .map(|seed| {
+                    if seed.ends_with(".json") {
+                        load(seed)
+                    } else {
+                        generate::generate(seed.parse().unwrap())
+                    }
+                })
+                .collect();
+            repeat_java::run(rounds, &probes);
+        }
         "cover" => guided::run(args[1].parse().unwrap()),
         "fuzz" => {
             let first: u64 = args[1].parse().unwrap();
@@ -118,8 +134,28 @@ fn fuzz(first: u64, count: u64, batch: usize) {
     for chunk in seeds.chunks(batch) {
         let cases: Vec<Scenario> = chunk.iter().map(|&s| generate::generate(s)).collect();
         let java = java::run(&fuzz_dir(), &cases);
-        for (sc, j) in cases.iter().zip(&java) {
-            record(sc, j, &mut counts);
+        // Always recheck Java, including cases whose first snapshot matches the port.
+        // Separate requests and shifted slots expose history/phase-sensitive failures
+        // that three adjacent copies in one batch cannot detect.
+        let first_replay = java::varied(&fuzz_dir(), &cases, 1, (java[0].save_phase + 3) % 10);
+        let second_replay = java::varied(&fuzz_dir(), &cases, 17, (java[0].save_phase + 7) % 10);
+        for (index, (sc, j)) in cases.iter().zip(&java).enumerate() {
+            let again = [&first_replay[index], &second_replay[index]];
+            if again.iter().any(|next| !compare::diff(j, next).is_empty()) {
+                counts.unstable += 1;
+                let found =
+                    std::path::PathBuf::from(std::env::var("FUZZ_FOUND").expect("use run.sh"));
+                std::fs::create_dir_all(&found).unwrap();
+                let record = serde_json::json!({"scenario":sc,"java":j,"java_again":again});
+                std::fs::write(
+                    found.join(format!("unstable-{}.json", sc.seed)),
+                    serde_json::to_string_pretty(&record).unwrap(),
+                )
+                .unwrap();
+                println!("seed {}: java unstable across batch contexts", sc.seed);
+            } else {
+                record(sc, j, &mut counts);
+            }
         }
     }
     counts.print();
@@ -173,12 +209,23 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) {
     }
     // Recheck repeatability before recording a port difference. Controlled Java inputs
     // must agree across all three reruns; print the actual disagreement if they do not.
-    let again = java::run(&fuzz_dir(), &[sc.clone(), sc.clone(), sc.clone()]);
+    let again: Vec<_> = [(1, 3), (7, 5), (17, 7)]
+        .into_iter()
+        .map(|(offset, delta)| {
+            java::varied(
+                &fuzz_dir(),
+                std::slice::from_ref(sc),
+                offset,
+                (j.save_phase + delta) % 10,
+            )
+            .remove(0)
+        })
+        .collect();
     if again.iter().any(|a| !compare::diff(j, a).is_empty()) {
         counts.unstable += 1;
         for (index, rerun) in again.iter().enumerate() {
             println!(
-                "DEBUG java-unstable seed {} rerun {}: {:?}",
+                "java-unstable seed {} rerun {}: {:?}",
                 sc.seed,
                 index,
                 compare::diff(j, rerun)
