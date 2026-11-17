@@ -23,6 +23,10 @@ impl Run {
             blocks.insert(
                 key(p),
                 BlockSnap {
+                    saved: self.w.dims[0]
+                        .kinetics
+                        .saved_state(p, self.observed_sub(p))
+                        .map(Into::into),
                     transport: self.transport_observation(p),
                     conveyor_links: self.chains.conveyors.get(&p).map(|c| {
                         let mut v = c.connections.clone();

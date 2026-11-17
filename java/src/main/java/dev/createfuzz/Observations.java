@@ -73,6 +73,7 @@ final class Observations {
                     }
                     if (be instanceof KineticBlockEntity k) {
                         snap.add("kinetic", kinetic(k));
+                        snap.add("saved", Persistence.saved(k, origin));
                         if (k.network != null) {
                             networks.computeIfAbsent(k.network, ignored -> new ArrayList<>())
                                     .add(key);

@@ -52,6 +52,12 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
                         j.conveyor_links, r.conveyor_links
                     ));
                 }
+                if !crate::persistence::equal(&j.saved, &r.saved) {
+                    out.push(format!(
+                        "{k}: saved kinetic data: java {:?} rust {:?}",
+                        j.saved, r.saved
+                    ));
+                }
                 if j.belt != r.belt {
                     out.push(format!("{k}: belt: java {:?} rust {:?}", j.belt, r.belt));
                 }

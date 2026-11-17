@@ -14,6 +14,7 @@ mod handles;
 mod java;
 mod mutate;
 mod observation;
+mod persistence;
 mod program;
 mod scenario;
 mod shrink;

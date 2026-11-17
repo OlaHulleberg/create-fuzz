@@ -25,6 +25,8 @@ pub struct Snapshot {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct BlockSnap {
     #[serde(default)]
+    pub saved: Option<crate::persistence::Saved>,
+    #[serde(default)]
     pub transport: Option<crate::transport::Contents>,
     #[serde(default)]
     pub conveyor_links: Option<Vec<crate::scenario::Pos>>,
