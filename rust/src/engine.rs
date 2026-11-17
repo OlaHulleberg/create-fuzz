@@ -94,6 +94,7 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     }
     for entry in crate::catalogue::entries().iter().filter(|e| {
         e.id == "create:belt"
+            || e.id == "create:fluid_valve"
             || e.id == "create:sequenced_gearshift"
             || e.id.ends_with("_valve_handle")
     }) {

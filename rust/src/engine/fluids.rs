@@ -59,3 +59,24 @@ impl Run {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn moving_valve_commits_a_registered_enabled_state() {
+        let mut sc = crate::fluids::generate(8);
+        sc.blocks.clear();
+        sc.events.clear();
+        let mut run = Run::new(&sc);
+        let p = [0, 4, 0];
+        let id = run.id("create:fluid_valve[axis_along_first=false,enabled=false,facing=north,waterlogged=false]");
+        run.set(p, id);
+        run.w.dims[0].plumbing.valve_speed(p, 64.);
+        for _ in 0..6 {
+            run.tick_fluids();
+        }
+        assert!(run.name(run.at(p)).contains("enabled=true"));
+        assert_eq!(run.w.block_at(0, p), Some(create_engine::Block::FluidValve));
+    }
+}
