@@ -1,55 +1,99 @@
-# Coverage review status
+# Kinetics and belt coverage review
 
-This is an incomplete source review. The command fails deliberately: many measured
-branch groups still need reviewed explanations, and the captured denominator does
-not include `content/logistics/depot`. No reachable gameplay group was relabelled
-out of scope. No generator gaps were closed in this change.
+The source review covers every missed group in both package-defined subsystems.
+`fuzz gaps` succeeds with zero UNCLASSIFIED groups and no missing denominator
+packages. Belts include depot, funnel, tunnel and package transport code as well
+as `content.kinetics.belt`. Belt classes are also part of the kinetics report.
 
-The first campaign ran 300 fresh scenarios, with an initially empty corpus:
-265 matched, 35 differed, zero Java-unstable; 1968/12684 branch outcomes covered.
-The last discovery was at round 274. A further campaign replays that corpus and
-explores 50 additional mutations; its measurements are recorded in `continued/`. It found zero new branches: the
-union remains 1968/12684.
+The reason map pins Create b62e837. Every rule has a SHA-256 of its owning Java
+source, checked during review. Whole classes describe uniform client, datagen or
+contraption behavior. Mixed classes use method and narrow line overrides. A line
+can include several outcomes: descriptions explicitly identify mixed gameplay and
+defensive/dead edges rather than calling the entire group unreachable. Static
+machine connection states already exist in the generator; missing processing and
+entity workflows remain harness work items.
 
-The shared create-horizon main moved from 8e78a89 to f37b872 during validation.
-Clippy and tests against the moved source initially failed because tick_valves now
-takes a second argument. Validation was then repeated against an isolated archive
-of the brief's 8e78a89, without changing either repository's fluid code.
+## Campaign and reproducibility
 
-## Findings
+The campaign used this worktree's dedicated server on port 25621, with its world,
+Java build, Rust build, corpus, found cases and JaCoCo tools under
+`/mnt/lanes/agent-gaps`. The shared server on 25599 was never restarted or stopped.
+The engine was an immutable source archive of the brief's 8e78a89 because the
+shared create-horizon checkout has since advanced. No port changes were made.
 
-Seed 43 in the first campaign: Java retains motor speed 32 after the reload;
-the port reports 16, with corresponding network capacity 524288 versus 262144.
-The raw scenario is preserved in `findings/43.json`. Deciding Create code:
-`CreativeMotorBlockEntity.addBehaviours` initializes the default speed to 16;
-`ScrollValueBehaviour.read` restores `ScrollValue` from saved NBT, and
-`CreativeMotorBlockEntity.getGeneratedSpeed` uses that restored value. The saved
-setting, rather than the constructor default, decides the post-load speed.
-This observation also occurs with unchanged main driver sources; it is not claimed
-as a newly introduced or newly discovered port defect. No port changes were made.
+A fresh 300-round campaign was followed by 100 additional mutations (replaying
+66 saved cases), then the final 100 mutations with 72 replay cases, including the
+two focused input histories. The final union is 2107/14674 branch outcomes covered.
+All 100 final mutations added zero branches; the final report includes the
+additional depot rejection branch from the focused replay. JaCoCo analyzes loaded
+transformed Create classes; its denominator can change as newly loaded classes
+replace jar-only class definitions, so counts use the final captured denominator.
 
-## Validation
+`input/campaign.json` contains the source commits, includes, initial corpus hash,
+completion marker and input hash. `replay-corpus/` preserves the exact initial 72 files.
+The Java harness, Create binary and initial server configuration must match.
+With the isolated server ready and an engine source archive at the pinned commit,
+copy `replay-corpus/` to a disposable corpus directory and run:
 
-Python report fixture verifies exact line matching, uncovered entries, subsystem
-isolation, branch versus group counts, and ambiguous-rule rejection. It passes.
-Rust formatting passes. Against pinned engine 8e78a89: clippy with all targets and
-warnings denied passes; all 70 tests pass. The create-data committed_assets filter
-passes all three matching tests.
+```
+CREATE_DIR=/root/Create CREATE_HORIZON=/mnt/lanes/agent-gaps/engine FUZZ_ENGINE_REVISION=8e78a89be9f660b3dfef59f9620b73859f910921 FUZZ_PORT=25621 FUZZ_DIR=/mnt/lanes/agent-gaps/work FUZZ_BUILD=/mnt/lanes/agent-gaps/build FUZZ_FOUND=/mnt/lanes/agent-gaps/found CARGO_TARGET_DIR=/mnt/lanes/agent-gaps/target CARGO_BUILD_JOBS=4 FUZZ_COVERAGE_CACHE=/mnt/lanes/agent-gaps/jacoco FUZZ_CORPUS=/mnt/lanes/agent-gaps/replay ./run.sh fuzz cover 100
+```
 
-The existing 75 cases produce 72 matches and these three differing cases:
-`actions-placement-power-gap`, `reload-kinetic`, `scope-outputs`. Driver, adapters,
-case files and generator sources are byte-for-byte unchanged from e4ffcde.
-The 0..2000 sweep produces 1815 matches, 185 differences, zero Java-unstable.
-A second run with the unchanged main driver gives the identical 185-seed
-differing set: zero newly differing seeds. These runs do not independently
-classify all differences. The gaps command exits 1 as required for the remaining
-unexplained groups and missing depot denominator.
+For offline report regeneration from committed measurements:
 
-## Outstanding work
+```
+./run.sh fuzz gaps --input docs/coverage/input/never-reached.tsv
+```
 
-Finish the source review for every UNCLASSIFIED group. Add depot to the measured
-and instrumented packages before claiming coverage for that package. Extend
-inventory-capability actions for simulated and real insert/extract calls; add
-processing-space/funnel worlds with faithful adapters; exercise null network
-lookup and partially loaded network restoration. The generated reports list the
-reviewed work items with their individual branch groups.
+## Closed inexpensive inputs
+
+- Depot use from each side face, with an offered stack and an empty hand, before
+  valid top insertion. `replay-corpus/zz-depot-side.json` matches Java and the port and
+  covers both outcomes of SharedDepotBlockMethods.onUse's face rejection guard.
+- Cancel a selected connector endpoint after its five-tick cooldown, then perform
+  the ordinary two-click connection. `replay-corpus/zz-cancel.json` matches Java and the
+  port. This makes the cancellation history deterministic in coverage replay;
+  earlier guided mutations had already reached the sneaking branch. The remaining
+  missed outcome on that line is the defensive null-player context.
+
+Each generator extension has its own signed commit. Existing case files were not
+changed. No new kinetics/belt discrepancy was isolated by these added histories;
+known baseline differences are not re-reported as new findings.
+
+## Open work items
+
+The generated reports contain every remaining harness-gap explanation and the
+exact class/method/line groups it applies to. The main implementation areas are:
+
+- Real and simulated inventory insertion/extraction, side inputs, full output
+  buffers and partial acceptance on belts, depots, funnels and tunnels.
+- Press/deployer/fan processing over belt/depot items; recipe matches, processing
+  locks, held/multiple outputs and interruptions.
+- Funnel count modes/filters/power and brass-tunnel groups, routing and distribution.
+- Package stacks/entities, weighted-ejector targets and launches, chain package
+  routing, player riding and their server packet actions.
+- Player placement/wrench/casing/dye/material changes across all axes and faces,
+  including constrained placement and survival inventory costs.
+- Crafter grids/connected inputs, millstone/mixer/crusher/saw recipes, drill cobble
+  collection, trees/crops, deployer tools/combat, arm targets and fan catalysts.
+- Unloaded/stale sources, partially loaded network restoration, competing sources,
+  stress/capacity transitions, frozen ticks and changed server configuration.
+- Entity collision/passenger histories, clock animation time/dimension windows,
+  packet configuration and startup probe collection before per-case reset.
+
+## Checks
+
+- Rust fmt --check and clippy --all-targets -- -D warnings pass on pinned 8e78a89.
+- All 70 Rust tests pass; all three reporter tests pass, including missing-package,
+  incomplete-campaign, stale-input and ambiguous-rule rejection.
+- All three committed_assets tests in create-data pass.
+- All 75 existing case statuses match the baseline: 72 matches and three existing
+  differing cases (listed in input/case-statuses.tsv).
+- The 0..2000 sweep matches the baseline seed set exactly: 1815 matched, 185 differed,
+  zero Java-unstable, zero newly differing seeds. The baseline driver Rust sources
+  were identical to e4ffcde before the two generator extensions.
+- Both focused new input histories match Java and the port.
+- Both generated gap reports pass; bash syntax and git diff whitespace checks pass.
+
+The isolated server is stopped and temporary build/sweep outputs are removed after
+saving these measurements. The shared server and port source remain untouched.

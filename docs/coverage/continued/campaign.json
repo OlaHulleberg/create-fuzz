@@ -1,6 +1,0 @@
-{
-  "fuzzer": "7f85a849f8c0094b14c2d223be6b752f7bdc9f45",
-  "engine": "8e78a89be9f660b3dfef59f9620b73859f910921",
-  "create": "b62e837acab5e2ceeb7bfd0c9fd551c64b52dd18",
-  "command": "CREATE_HORIZON=/mnt/lanes/agent-gaps/engine ./run.sh fuzz cover 50 (engine archive at 8e78a89; replay 66 corpus scenarios; then 50 mutations; FUZZ_DIR=/root/create-fuzz/work; lane /mnt/lanes/agent-gaps)"
-}

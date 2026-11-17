@@ -1,6 +1,12 @@
 {
-  "fuzzer": "e4ffcde726ce350a7d8e1aa1c949a1aad4a050b6",
-  "engine": "8e78a89be9f660b3dfef59f9620b73859f910921",
+  "command": "./run.sh fuzz cover 100",
+  "complete": true,
+  "corpus_scenarios": 72,
+  "corpus_sha256": "8ef3183746d9b88d64cc2ecb48420b2360cac5166122e518bf2e37d1bbe4f0fa",
   "create": "b62e837acab5e2ceeb7bfd0c9fd551c64b52dd18",
-  "command": "CREATE_HORIZON=/root/create-horizon ./run.sh fuzz cover 300 (FUZZ_DIR=/root/create-fuzz/work; isolated report and empty corpus; CARGO_BUILD_JOBS=4; lane /mnt/lanes/agent-gaps)"
+  "engine": "8e78a89be9f660b3dfef59f9620b73859f910921",
+  "fuzzer": "707c1a94fc0b3c5ab46e786e8680a1906de1171d",
+  "includes": "com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.content.logistics.depot.*:com.simibubi.create.content.logistics.funnel.*:com.simibubi.create.content.logistics.tunnel.*:com.simibubi.create.content.logistics.box.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*",
+  "never_reached_sha256": "b51d375e55d0388afd53e8b50a09e8fbbc51bce8698b36945a3cd6b3603292ef",
+  "port": "25621"
 }

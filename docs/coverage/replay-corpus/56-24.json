@@ -1,39 +1,6 @@
 {
-  "blocks": [
-    {
-      "motor": 32,
-      "pos": [
-        -1,
-        8,
-        0
-      ],
-      "state": "create:creative_motor[facing=east]"
-    },
-    {
-      "pos": [
-        0,
-        8,
-        0
-      ],
-      "state": "create:sequenced_gearshift[axis=x,vertical=false,state=0]"
-    },
-    {
-      "pos": [
-        1,
-        8,
-        0
-      ],
-      "state": "create:shaft[axis=x,waterlogged=false]"
-    },
-    {
-      "pos": [
-        2,
-        8,
-        0
-      ],
-      "state": "create:mechanical_press[facing=east]"
-    }
-  ],
+  "version": 3,
+  "seed": 56,
   "checkpoints": [
     1,
     2,
@@ -163,216 +130,249 @@
     138,
     139
   ],
-  "events": [
+  "ticks": 190,
+  "blocks": [
     {
-      "action": {
-        "instructions": [
-          {
-            "instruction": "TURN_ANGLE",
-            "modifier": "FORWARD_FAST",
-            "value": 90
-          },
-          {
-            "instruction": "DELAY",
-            "modifier": "FORWARD",
-            "value": 3
-          },
-          {
-            "instruction": "AWAIT",
-            "modifier": "FORWARD",
-            "value": -1
-          },
-          {
-            "instruction": "TURN_DISTANCE",
-            "modifier": "BACK",
-            "value": 1
-          },
-          {
-            "instruction": "END",
-            "modifier": "FORWARD",
-            "value": -1
-          }
-        ],
-        "kind": "program"
-      },
-      "pos": [
-        0,
-        8,
-        0
-      ],
-      "tick": 10
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 15
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 20
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 0
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 23
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 15
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 25
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 0
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 27
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 15
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 45
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 0
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 47
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 15
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 80
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 0
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 82
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 15
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 110
-    },
-    {
-      "action": {
-        "kind": "signal",
-        "strength": 0
-      },
-      "pos": [
-        0,
-        9,
-        0
-      ],
-      "tick": 112
-    },
-    {
-      "action": {
-        "instructions": [
-          {
-            "instruction": "TURN_ANGLE",
-            "modifier": "FORWARD_FAST",
-            "value": 90
-          },
-          {
-            "instruction": "DELAY",
-            "modifier": "FORWARD",
-            "value": 3
-          },
-          {
-            "instruction": "AWAIT",
-            "modifier": "FORWARD",
-            "value": -1
-          },
-          {
-            "instruction": "TURN_DISTANCE",
-            "modifier": "BACK",
-            "value": 1
-          },
-          {
-            "instruction": "END",
-            "modifier": "FORWARD",
-            "value": -1
-          }
-        ],
-        "kind": "program"
-      },
-      "pos": [
-        0,
-        8,
-        0
-      ],
-      "tick": 100
-    },
-    {
-      "action": {
-        "kind": "reload"
-      },
       "pos": [
         -1,
         8,
         0
       ],
-      "tick": 1
+      "state": "create:creative_motor[facing=east]",
+      "motor": 32
+    },
+    {
+      "pos": [
+        0,
+        8,
+        0
+      ],
+      "state": "create:sequenced_gearshift[axis=x,vertical=false,state=0]"
+    },
+    {
+      "pos": [
+        1,
+        8,
+        0
+      ],
+      "state": "create:shaft[axis=x,waterlogged=false]"
+    },
+    {
+      "pos": [
+        2,
+        8,
+        0
+      ],
+      "state": "create:mechanical_press[facing=east]"
     }
   ],
-  "seed": 43,
-  "ticks": 190,
-  "version": 3
+  "events": [
+    {
+      "action": {
+        "kind": "program",
+        "instructions": [
+          {
+            "instruction": "TURN_ANGLE",
+            "modifier": "BACK_FAST",
+            "value": 90
+          },
+          {
+            "instruction": "DELAY",
+            "modifier": "BACK",
+            "value": 3
+          },
+          {
+            "instruction": "AWAIT",
+            "modifier": "BACK_FAST",
+            "value": -1
+          },
+          {
+            "instruction": "TURN_DISTANCE",
+            "modifier": "FORWARD",
+            "value": 1
+          },
+          {
+            "instruction": "END",
+            "modifier": "BACK",
+            "value": -1
+          }
+        ]
+      },
+      "tick": 10,
+      "pos": [
+        0,
+        8,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 10
+      },
+      "tick": 20,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 5
+      },
+      "tick": 23,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 9
+      },
+      "tick": 25,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 4
+      },
+      "tick": 27,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 6
+      },
+      "tick": 45,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 0
+      },
+      "tick": 47,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 6
+      },
+      "tick": 80,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 2
+      },
+      "tick": 82,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 0
+      },
+      "tick": 110,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "signal",
+        "strength": 3
+      },
+      "tick": 112,
+      "pos": [
+        0,
+        9,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "program",
+        "instructions": [
+          {
+            "instruction": "TURN_ANGLE",
+            "modifier": "FORWARD_FAST",
+            "value": 90
+          },
+          {
+            "instruction": "DELAY",
+            "modifier": "BACK_FAST",
+            "value": 3
+          },
+          {
+            "instruction": "AWAIT",
+            "modifier": "FORWARD",
+            "value": -1
+          },
+          {
+            "instruction": "TURN_DISTANCE",
+            "modifier": "FORWARD_FAST",
+            "value": 1
+          },
+          {
+            "instruction": "END",
+            "modifier": "BACK",
+            "value": -1
+          }
+        ]
+      },
+      "tick": 100,
+      "pos": [
+        0,
+        8,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "reload"
+      },
+      "tick": 1,
+      "pos": [
+        -1,
+        8,
+        0
+      ]
+    }
+  ]
 }
