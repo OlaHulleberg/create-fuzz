@@ -72,6 +72,8 @@ crank (true: backwards). A `minecraft:redstone_block` powers the blocks beside i
   (group 7): the Rust driver does not run them yet, so generated cases keep day time 0, where none happens.
 - A difference is rerun three times on Java first; a case Java disagrees with itself on is reported as unstable.
 - `rust/src/allow.rs` lists the differences confirmed not to be port bugs, each with its evidence.
+- A placed block's state starts from the port's `default_state` (`create/data/create/horizon/block/<name>.json` in the
+  checkout `run.sh` drives, `CREATE_HORIZON_DIR`), as the game's placement starts from the block's default.
 - The port's glue rules the engine lacks (a crank breaks when its support goes) are mirrored in `rust/src/engine.rs`.
 
 ## What is not here

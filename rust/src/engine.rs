@@ -571,9 +571,12 @@ impl Run {
             .expect("placement axis");
             format!("{block}[axis={}]", format!("{a:?}").to_lowercase())
         };
-        if block.contains("chain") {
-            next = with_prop(&next, "part", "none");
-            next = with_prop(&next, "axis_along_first", "false");
+        // The rest of the state is the block's default (`BlockItem.place` on `defaultBlockState`).
+        let set: Vec<String> = parse_state(&next).1.into_iter().map(|(k, _)| k).collect();
+        for (k, v) in crate::defaults::declared(block) {
+            if !set.contains(&k) {
+                next = with_prop(&next, &k, &v);
+            }
         }
         if block == "create:shaft" {
             next = with_prop(&next, "waterlogged", "false");

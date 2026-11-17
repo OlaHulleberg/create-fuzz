@@ -4,6 +4,7 @@ mod catalogue;
 mod compare;
 mod corpus;
 mod coverage;
+mod defaults;
 mod engine;
 mod generate;
 mod geometry;

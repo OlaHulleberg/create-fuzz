@@ -94,6 +94,8 @@ fuzz)
     if [ "${1:-}" = cover ]; then coverage_tools; fi
     export FUZZ_FOUND="${FUZZ_FOUND:-$here/found}"
     manifest="$here/rust/Cargo.toml"
+    # The checkout whose engine and block data the driver uses.
+    export CREATE_HORIZON_DIR="$(cd "${CREATE_HORIZON:-$here/../create-horizon}" && pwd)"
     # CREATE_HORIZON=<checkout>: drive that checkout's engine instead of ../create-horizon. The driver is
     # copied beside it into its own folder (Cargo path dependencies are fixed in Cargo.toml).
     if [ -n "${CREATE_HORIZON:-}" ]; then
