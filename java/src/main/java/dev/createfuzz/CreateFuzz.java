@@ -237,6 +237,7 @@ public class CreateFuzz {
 
         void start(ServerLevel level) {
             clear(level);
+            NetworkIsolation.reset(level);
             // Cuckoo clocks read the scenario's day time, independent of server history.
             long dayTime =
                     cases.isEmpty() || !cases.get(0).has("day_time")

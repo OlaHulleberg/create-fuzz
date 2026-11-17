@@ -170,11 +170,19 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) {
         counts.matched += 1;
         return;
     }
-    // Java can settle differently run to run (its networks iterate identity-hashed maps):
-    // three more runs; a case Java disagrees with itself on is unstable, not a mismatch.
+    // Recheck repeatability before recording a port difference. Controlled Java inputs
+    // must agree across all three reruns; print the actual disagreement if they do not.
     let again = java::run(&fuzz_dir(), &[sc.clone(), sc.clone(), sc.clone()]);
     if again.iter().any(|a| !compare::diff(j, a).is_empty()) {
         counts.unstable += 1;
+        for (index, rerun) in again.iter().enumerate() {
+            println!(
+                "DEBUG java-unstable seed {} rerun {}: {:?}",
+                sc.seed,
+                index,
+                compare::diff(j, rerun)
+            );
+        }
         let record = serde_json::json!({"scenario": sc, "java": j, "java_again": again});
         std::fs::write(
             found.join(format!("unstable-{}.json", sc.seed)),

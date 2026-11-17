@@ -62,3 +62,17 @@ Placement, post-action and settled boundaries are sampled; checkpoints cover
 the reload boundary and five following ticks. Handwritten reload histories cover
 propagation, sequencer/valve/crank use, belt/depot items, wrenching and break
 cascades. Original histories remain available in the corresponding ordinary cases.
+
+## Batch network isolation
+
+Each batch starts with a fresh Create kinetic network registry after block/entity
+cleanup, through TorquePropagator.onUnloadWorld/onLoadWorld. No active case runs
+across this boundary. Reloads inside a case retain the ordinary registry and all
+observations remain compared. Create's fresh entities can leave old removed
+members in the world registry after an entity reload. Clearing current blocks
+alone does not guarantee that these registry objects disappear. Network ids
+are positional, so a later case in the same slot can reuse a stale network.
+This primitive isolates scenario worlds without changing map iteration,
+network algorithms, saved caches or comparison rules. Startup/reset diagnostics
+report removed members left after cleanup; instability diagnostics print the
+labelled compare::diff(first, rerun) result.
