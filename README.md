@@ -220,3 +220,12 @@ reducing a case with several findings. Every accepted candidate still has only
 original differences, and at least one original difference containing the witness
 must survive. Omitting the witness retains the original shrink policy. Coverage
 reports can reside on a different filesystem from the server's work directory.
+
+The belt family (seeds congruent to 15 modulo 16) now drives persistent belt
+connector clicks, horizontal/sloped/vertical/sideways chains, both click orders,
+refusals and casing changes followed by segment removal. Manual belt cases add
+pulley insertion/removal and endpoint shortening/extension. Conveyor loop traces
+use `chain_link`, the server transaction sent after the player's chain selection.
+Snapshots compare controller/index/length/casing and sorted conveyor link offsets.
+See docs/player-actions.md for the remaining group 5 gaps: item transport and
+inventory-backed splitting are still unfinished and are not parity claims.

@@ -194,6 +194,10 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
                 "v3 program, signal; per-tick execution and context"
             } else if e.id.ends_with("_valve_handle") {
                 "v3 valve_setting, empty-hand/sneak/dye use; per-tick angle and context"
+            } else if e.id == "create:belt" {
+                "v3 connector use; casing/pulley; empty endpoint slicing/reform; break cascade"
+            } else if e.id == "create:chain_conveyor" {
+                "v3 chain_link server packet; relative offsets and loops"
             } else if crate::actions::BLOCKS.contains(&e.id.as_str()) {
                 "v3 item use/break; isolated adjacent signal"
             } else {
