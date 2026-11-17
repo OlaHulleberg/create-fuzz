@@ -136,12 +136,11 @@ actual steam output for dynamic capacity, rather than an unconditional default s
 Java continues to call the actual impact/capacity methods. Steam sensing/programming itself is
 outside this group's action grammar and is not covered by these observations.
 
-Java also records network membership as sorted position partitions and per-position stored
-network sizes, without exposing raw ids. The comparison supports normalized partitions and sizes
-when both adapters provide them. **Current explicit API gap:** the read-only engine's public
-`Kinetics` API exposes network totals and source presence, but no network membership, network size,
-or actual stored Part accessor. Rust records this in `unavailable` and emits `networks: null`;
-network partition/size comparisons cannot yet run. They are not inferred from matching totals.
+Both adapters record network membership as sorted position partitions and per-position
+network sizes. Rust reads the selected part's actual membership through
+`Kinetics::network_membership`; split shafts select the same driven half used for kinetic
+figures. Raw network ids are used only to group positions within each snapshot and are never
+serialized or compared. An empty network observation is emitted as empty partitions and sizes.
 Dynamic settings other than the currently driven motor/crank inputs and readable steam output,
 sequencer/valve programs, environment sensing, belt/conveyor links, player placement and machine
 work remain outside differential coverage until their action adapters and required accessors exist.

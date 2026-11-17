@@ -247,10 +247,23 @@ impl Run {
 
     pub fn snapshot(&self, sc: &Scenario) -> Snapshot {
         let mut blocks = BTreeMap::new();
+        let mut groups: BTreeMap<i64, Vec<String>> = BTreeMap::new();
+        let mut sizes = BTreeMap::new();
         for p in sc.region() {
             let id = self.at(p);
             let state = self.name(id);
             let kinetic = self.kinetic(p, id);
+            if kinetic.is_some()
+                && let Some((network, size)) = self.w.dims[0]
+                    .kinetics
+                    .network_membership(p, self.observed_sub(p))
+            {
+                groups.entry(network).or_default().push(key(p));
+                sizes.insert(
+                    key(p),
+                    i32::try_from(size).expect("network size fits Java int"),
+                );
+            }
             blocks.insert(
                 key(p),
                 BlockSnap {
@@ -260,14 +273,29 @@ impl Run {
                 },
             );
         }
+        let mut partitions: Vec<_> = groups.into_values().collect();
+        for group in &mut partitions {
+            group.sort();
+        }
+        partitions.sort();
         Snapshot {
             side: "rust".into(),
-            unavailable: vec!["networks: engine Kinetics exposes totals but no membership or network size accessor".into()],
-            networks: None,
+            unavailable: Vec::new(),
+            networks: Some(crate::observation::Networks { partitions, sizes }),
             blocks,
             notes: self.notes.clone(),
             checkpoints: BTreeMap::new(),
         }
+    }
+
+    /// Match the Java block entity's driven half for split shafts. Use the same
+    /// part for kinetic figures, network membership and network size observations.
+    fn observed_sub(&self, p: Pos) -> u8 {
+        let k = &self.w.dims[0].kinetics;
+        u8::from(
+            k.network(p, 0).is_some_and(|n| n.2 == 0.0)
+                && k.network(p, 1).is_some_and(|n| n.2 > 0.0),
+        )
     }
 
     fn kinetic(&self, p: Pos, id: u32) -> Option<Kinetic> {
@@ -287,14 +315,7 @@ impl Run {
         let both = parts(block, info, &settings);
         // A split shaft is one block entity in Create, holding the figures of the half its
         // source drives: here, the half whose network has a generator.
-        let sub = if both[1].is_some()
-            && k.network(p, 0).is_some_and(|n| n.2 == 0.0)
-            && k.network(p, 1).is_some_and(|n| n.2 > 0.0)
-        {
-            1
-        } else {
-            0
-        };
+        let sub = self.observed_sub(p);
         let (theoretical, stress, capacity, overstressed) = k.network(p, sub)?;
         let speed = k.speed(p, sub)?;
         let generated = k.generated(p, sub)?;
@@ -371,4 +392,57 @@ pub fn run(sc: &Scenario) -> Snapshot {
     let mut out = r.snapshot(sc);
     out.checkpoints = checkpoints;
     out
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn network_observation_uses_driven_positive_split_half() {
+        let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({
+            "ticks": 80,
+            "blocks": [
+                {"pos":[1,8,0],"state":"create:creative_motor[facing=west]","motor":32},
+                {"pos":[0,9,0],"state":"minecraft:redstone_block"},
+                {"pos":[0,8,0],"state":"create:clutch[axis=x,powered=true]"},
+                {"pos":[-1,8,0],"state":"create:shaft[axis=x]"}
+            ]
+        }))
+        .unwrap();
+        let snapshot = super::run(&sc);
+        let networks = snapshot.networks.unwrap();
+        assert_eq!(networks.partitions, vec![vec!["0,8,0", "1,8,0"]]);
+        assert_eq!(networks.sizes["0,8,0"], 2);
+        assert_eq!(
+            snapshot.blocks["0,8,0"].kinetic.as_ref().unwrap().speed,
+            -32.0
+        );
+    }
+    #[test]
+    fn network_observations_group_identity_and_follow_removal() {
+        let mut sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({
+            "ticks": 80,
+            "blocks": [
+                {"pos":[0,8,0],"state":"create:creative_motor[facing=east]","motor":32},
+                {"pos":[1,8,0],"state":"create:shaft[axis=x]"},
+                {"pos":[0,8,4],"state":"create:creative_motor[facing=east]","motor":32},
+                {"pos":[1,8,4],"state":"create:shaft[axis=x]"},
+                {"pos":[4,8,0],"state":"create:shaft[axis=x]"}
+            ]
+        }))
+        .unwrap();
+        let snapshot = super::run(&sc);
+        assert!(snapshot.unavailable.is_empty());
+        let networks = snapshot.networks.unwrap();
+        assert_eq!(
+            networks.partitions,
+            vec![vec!["0,8,0", "1,8,0"], vec!["0,8,4", "1,8,4"]]
+        );
+        assert_eq!(networks.sizes.len(), 4);
+        assert!(networks.sizes.values().all(|size| *size == 2));
+        sc.events
+            .push(crate::scenario::Change::set(10, [0, 8, 0], "minecraft:air"));
+        let networks = super::run(&sc).networks.unwrap();
+        assert_eq!(networks.partitions, vec![vec!["0,8,4", "1,8,4"]]);
+        assert_eq!(networks.sizes.len(), 2);
+    }
 }
