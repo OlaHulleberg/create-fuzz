@@ -225,7 +225,7 @@ pub fn valve(seed: u64) -> Scenario {
     // A short angle plus consecutive clicks crosses both rejection boundaries.
     events.push(serde_json::json!({"tick":300,"pos":[0,8,0],"action":{"kind":"valve_setting","row":1,"value":1}}));
     for tick in 301..345 {
-        events.push(use_block(tick, [0,8,0], "minecraft:air", 0., 0., false));
+        events.push(use_block(tick, [0, 8, 0], "minecraft:air", 0., 0., false));
     }
     events.push(serde_json::json!({"tick":320,"pos":[0,5,0],"state":"create:creative_motor[facing=up]","motor":32}));
     events.push(serde_json::json!({"tick":335,"pos":[0,5,0],"action":{"kind":"remove"}}));
