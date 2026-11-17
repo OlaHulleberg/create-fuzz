@@ -94,11 +94,21 @@ impl Run {
             }
         }
     }
-    /// persist::flush: only marked column attachments, after all subsystem ticks.
-    pub(super) fn flush_persistence(&mut self) {
+    pub(super) fn mark_package_columns(&mut self) {
         for p in self.chains.take_changed() {
             self.mark_column(p);
         }
+    }
+    /// Subsystem::write_entities: after all mutations, before column attachment flush.
+    pub(super) fn publish_entities(&mut self) {
+        self.save_depot_records();
+        let positions: Vec<_> = self.w.dims[0].sequencers.keys().copied().collect();
+        for p in positions {
+            self.save_sequence(p);
+        }
+    }
+    /// persist::flush: only marked column attachments, after entity publication.
+    pub(super) fn flush_persistence(&mut self) {
         let columns = std::mem::take(&mut self.persisted.dirty_columns);
         if columns.is_empty() {
             return;
@@ -493,7 +503,7 @@ mod tests {
         }
     }
     #[test]
-    fn current_sequencer_fields_can_differ_from_last_glue_write() {
+    fn continuing_sequencer_fields_require_end_of_tick_publication() {
         use create_engine::sequencer::{Instruction, Kind, Sequencer, Speed};
         let mut seq = Sequencer {
             instructions: vec![Instruction {
@@ -506,8 +516,8 @@ mod tests {
         };
         seq.run(0);
         let written = codec::sequencer_to_nbt(&seq);
-        // At a non-periodic tick without redstone checks the glue does not call
-        // save_run. A continuing instruction returns no step for tick_solve to save.
+        // A continuing instruction emits no transition. The post-subsystem
+        // publisher must nevertheless capture its progress and timer.
         assert!(seq.tick().is_none());
         let persisted = codec::run_of_tag(&written).unwrap();
         let current = codec::run_of_tag(&codec::sequencer_to_nbt(&seq)).unwrap();
@@ -716,7 +726,7 @@ mod tests {
 mod write_phase_tests {
     use super::*;
     #[test]
-    fn depot_handoff_is_not_saved_after_its_phase_and_reload_exposes_35() {
+    fn depot_handoff_is_published_after_all_subsystems_before_reload() {
         let mut sc = crate::transport::generate(63);
         sc.events.retain(|e| e.tick <= 40);
         let mut r = Run::new(&sc);
@@ -737,11 +747,14 @@ mod write_phase_tests {
             if r.depot_stacks.contains_key(&p) {
                 assert_eq!(t + 1, 90);
                 assert_eq!(r.w.saved_depot(0, p).unwrap().held.unwrap().position, 0.);
-                assert!(r.persisted.depots[&p].is_empty());
+                assert_eq!(
+                    codec::depot_from_nbt(&r.persisted.depots[&p]),
+                    r.w.saved_depot(0, p).unwrap()
+                );
                 r.reload();
-                assert_eq!(r.w.saved_depot(0, p).unwrap().held, None);
+                assert_eq!(r.w.saved_depot(0, p).unwrap().held.unwrap().position, 0.);
                 r.tick();
-                assert_eq!(r.w.saved_depot(0, p).unwrap().held.unwrap().position, 0.5);
+                assert_eq!(r.w.saved_depot(0, p).unwrap().held.unwrap().position, 0.125);
                 return;
             }
         }
@@ -791,6 +804,33 @@ mod write_phase_tests {
                 .added_capacity,
             8.
         );
+    }
+    #[test]
+    fn sequence_run_publication_follows_progress_even_without_a_step() {
+        let sc = crate::transmission::sequence(11);
+        let mut r = Run::new(&sc);
+        let p = [0, 8, 0];
+        for t in 0_u32..22 {
+            if let Some(b) = sc.blocks.get(t as usize) {
+                r.place(b);
+            }
+            if let Some(b) = t.checked_sub(1).and_then(|i| sc.blocks.get(i as usize)) {
+                r.set_motor(b);
+            }
+            for e in sc.events.iter().filter(|e| e.tick == t) {
+                if let Some(a) = &e.action {
+                    r.action(e.pos, a);
+                }
+            }
+            r.tick();
+            if let Some(live) = r.w.dims[0].sequencers.get(&p) {
+                assert_eq!(
+                    codec::run_of_tag(&r.persisted.sequences[&p]),
+                    Some(live.saved_run())
+                );
+            }
+        }
+        assert!(r.w.dims[0].sequencers[&p].progress > 0.);
     }
     #[test]
     fn column_flush_cannot_capture_unmarked_live_inventory_changes() {

@@ -152,7 +152,6 @@ impl Run {
                 self.w.wake_depot(0, p);
             }
         }
-        self.save_depot_records();
         self.belt_breaks();
         // The glue's walk over controllers (`BeltBlockEntity.tick`): empty ones only update their
         // direction bit; one that received items earlier in this phase moves them in its turn.

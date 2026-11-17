@@ -46,25 +46,11 @@ impl Run {
             self.set(p, self.id(&next));
         }
         let mut steps = Vec::new();
-        let mut checked = Vec::new();
         for (p, running) in self.w.take_sequencer_checks(0) {
-            checked.push(p);
             let powered = self.signal(p) > 0;
             if let Some(step) = self.w.sequencer_redstone(0, p, powered, running) {
                 steps.push((p, step));
             }
-        }
-        if self.persisted.clock.is_multiple_of(10) {
-            checked.extend(
-                self.w.dims[0]
-                    .sequencers
-                    .iter()
-                    .filter(|(_, s)| s.ticks())
-                    .map(|(p, _)| *p),
-            );
-        }
-        for p in checked {
-            self.save_sequence(p);
         }
         for (p, step) in steps {
             self.sequencer_step(p, step);
@@ -85,6 +71,8 @@ impl Run {
             }
         }
         self.save_kinetic_records();
+        self.mark_package_columns();
+        self.publish_entities();
         self.flush_persistence();
     }
 

@@ -29,10 +29,10 @@ tick is inserted into reload.
 Conveyor links use Chains::unload/add and set_far. Host slots and valve-use data
 cross the serialization boundary independently of engine state.
 
-Sequencer records update at redstone checks, instruction steps and the glue's
-10-tick periodic save point. Java reports the batch's initial game-time modulo
-10 as snapshot `save_phase`; comparisons replay Rust at that phase. This is
-external timing input, not a compared result. `rust <case.json> [phase]` permits
+Sequencer run records update at instruction transitions and in the glue's
+post-subsystem write_entities phase. Java's initial game-time modulo 10 remains
+in snapshot save_phase for replay compatibility; it no longer selects periodic
+sequencer writes. This is timing metadata, not a compared result. `rust <case.json> [phase]` permits
 matching standalone replay (default phase 0). No world clock is reset.
 
 The additive saved records compare kinetic speed/update flag/source position
@@ -87,23 +87,15 @@ labelled compare::diff(first, rerun) result.
 
 ## Persisted records versus a forced fresh serialization
 
-The reload adapter consumes the port's serialized entity records, as its glue
-leaves them, while Java runs saveWithoutMetadata. These operations can expose
-real persistence differences; they are not interchangeable with serializing
-all current Rust getters on demand. In glue/kinetics.rs, tick_solve writes only
-changed kinetic/handle records. Sequencer progress is written on redstone checks,
-actual instruction transitions and the periodic ten-tick save point. A normal
-instruction tick advances progress/timer without returning an instruction step.
-Its current fields can therefore differ from its last serialized record.
-
-lib.rs level_tick_post runs the subsystems then persist::flush, which writes
-column attachments rather than refreshing entity records. chunk_unload dispatches
-unload callbacks without calling those entity serializers. Loading reads the
-existing compounds. A forced fresh snapshot would add a save operation absent
-from that path, and could conceal the separately observed sequencer-save lag.
-The regression current_sequencer_fields_can_differ_from_last_glue_write preserves
-this distinction. #34's generation identity is independently checked by requiring
-live registry size two while the restored entity's cached saved size remains one.
+Reload consumes saved records, never current engine getters. Through engine
+0fc666f, sequencer progress and late depot handoffs could differ from the glue's
+last entity write. Commit 7e33c30 adds Subsystem::write_entities after every
+subsystem tick and before column flush. The driver mirrors that real publisher:
+depots first and sequencer runs second, with no added unload-time operation.
+Kinetic/handle journals and marked column attachments retain their own write
+points. The earlier write-phase commit and #35 regression preserve the unfixed
+behavior in history; with the port publisher present, #35 should match Java.
+#34 is independently checked by live registry size two versus cached size one.
 
 ## Save record scheduling
 
@@ -112,11 +104,11 @@ must not refresh an earlier entity record or serialize an unmarked column.
 
 | Record | Capture point |
 |---|---|
-| DepotState | After depot tick and occupied-slot fallback, before belt break/movement/handoff; every registered depot, including empty records |
+| DepotState | Post-subsystem write_entities, every registered depot including empty records, after all transfers |
 | BeltState | Belt-phase changed-controller notifications, all chain members; inventory column data stays at its marked end-of-level flush |
 | HandleState | After solve, sequencer steps and world effects; only take_handle_changes |
 | Kinetic ports | Same solve phase, after handles; only take_saved_changes, excluding pending legacy migration |
-| Sequencer run | Redstone checks, periodic pre-solve ten-tick saves, and actual instruction steps; save_run writes only its five run fields |
+| Sequencer run | Actual instruction transitions plus post-subsystem write_entities; save_run writes only its five run fields |
 | Sequencer instructions | Immediately in an accepted program message, independently of run saves |
 | Motor settings and belt inventories | End-of-level persist::flush, only marked columns; collect engine unsaved columns at the solve's actual drain point |
 | Brackets and conveyor topology | Same marked column flush; bracket mutations and the packages changed/gone journal mark their columns |
@@ -128,8 +120,14 @@ settle_belts is not spuriously captured before its later change notification.
 Kinetic callbacks occurring after take_unsaved remain pending until the next
 solve, matching the glue. Reload consumes the saved records as they stand.
 
-The #35 regression is cases/persistence-depot-belt-save-order.json. After the
-completed-tick-90 belt handoff the engine depot holds a stack at position zero,
-but its earlier DepotState record is empty. Reload restores that empty record;
-the actual glue's occupied-slot fallback produces position 0.5, versus Java's
-0.125 at completed tick 91. This difference is retained, not normalized away.
+The #35 regression is cases/persistence-depot-belt-save-order.json. Before
+7e33c30, the completed-tick-90 handoff left an empty saved depot record; reload
+then produced position 0.5 instead of Java's 0.125. The new port publisher saves
+the handoff before reload. The driver follows this changed source phase rather
+than filtering the comparison or forcing a fresh unload-time serialization.
+
+These scenarios observe the completed-tick publication boundary. They do not
+establish parity for host saves/unloads occurring earlier in the level tick or
+for mutations made by other mods afterward. The port still documents a missing
+before-entity-save callback in API_GAPS.md; no unload-time refresh can repair an
+already saved chunk. The driver does not invent such a callback.
