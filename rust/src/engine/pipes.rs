@@ -286,6 +286,33 @@ mod hit_context_tests {
     use super::*;
     use crate::actions::{Action, Face};
     #[test]
+    fn secondary_copper_use_places_a_block_before_normal_encasing() {
+        let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({
+            "version":3,"ticks":40,"checkpoints":[21,31],
+            "blocks":[{"pos":[0,3,0],"state":"minecraft:stone"}],
+            "events":[
+                {"tick":10,"pos":[0,3,0],"action":{"kind":"use","item":"create:fluid_pipe","face":"up","hit":[0.5,1,0.5],"yaw":0,"pitch":0,"sneaking":false}},
+                {"tick":20,"pos":[0,4,0],"action":{"kind":"use","item":"create:copper_casing","face":"north","hit":[0.5,0.5,0],"yaw":0,"pitch":0,"sneaking":true}},
+                {"tick":30,"pos":[0,4,0],"action":{"kind":"use","item":"create:copper_casing","face":"south","hit":[0.5,0.5,1],"yaw":0,"pitch":0,"sneaking":false}}
+            ]
+        })).unwrap();
+        let trace = crate::engine::run(&sc);
+        assert_eq!(
+            trace.checkpoints[&21].blocks["0,4,-1"].state,
+            "create:copper_casing"
+        );
+        assert!(
+            trace.checkpoints[&21].blocks["0,4,0"]
+                .state
+                .starts_with("create:fluid_pipe[")
+        );
+        assert!(
+            trace.checkpoints[&31].blocks["0,4,0"]
+                .state
+                .starts_with("create:encased_fluid_pipe[")
+        );
+    }
+    #[test]
     fn glass_wrench_uses_the_native_world_hit_precision() {
         for (x, axis) in [(0, "y"), (64, "x"), (256, "y")] {
             let mut sc = crate::fluid_inputs::generate(19);

@@ -322,7 +322,13 @@ impl Run {
             self.publish_interaction();
             return;
         }
-        if block == "create:brass_casing" || block == "create:andesite_casing" {
+        if [
+            "create:brass_casing",
+            "create:andesite_casing",
+            "create:copper_casing",
+        ]
+        .contains(&block)
+        {
             self.set(p, self.id(block));
             return;
         }

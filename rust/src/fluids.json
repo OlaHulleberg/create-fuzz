@@ -298,6 +298,17 @@
         "fluid contents",
         "filter/processing where applicable"
       ]
+    },
+    {
+      "id": "create:copper_casing",
+      "properties": {},
+      "source": "CasingBlock and BlockItem fallback when secondary use bypasses pipe encasing",
+      "interactions": [
+        "use"
+      ],
+      "observations": [
+        "state"
+      ]
     }
   ],
   "unimplemented": {

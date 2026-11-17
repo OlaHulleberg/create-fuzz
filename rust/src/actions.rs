@@ -76,6 +76,7 @@ impl Face {
     }
 }
 pub const BLOCKS: &[&str] = &[
+    "create:copper_casing",
     "create:creative_fluid_tank",
     "create:smart_fluid_pipe",
     "create:fluid_valve",
