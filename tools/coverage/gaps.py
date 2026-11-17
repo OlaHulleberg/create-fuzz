@@ -26,10 +26,14 @@ def generate(input_path, definitions, reasons, subsystem, provenance):
         if not any(row['class'].startswith(p) for p in rules):
             continue
         candidates = [r for r in reasons if r['class'] == row['class']
-                      and (r['method'] == '*' or r['method'] == row['method'])
+                      and (r['method'] == '*' or r['method'] == row['method'] or r['method'] == row['method'].split('(')[0])
                       and int(r['first']) <= int(row['line']) <= int(r['last'])]
-        if len(candidates) > 1:
-            raise ValueError(f'ambiguous reasons: {row}')
+        if candidates:
+            priority = lambda r: (-(int(r['last']) - int(r['first'])), r['method'] != '*')
+            best = max(map(priority, candidates))
+            candidates = [r for r in candidates if priority(r) == best]
+            if len(candidates) > 1:
+                raise ValueError(f'ambiguous reasons: {row}')
         category, why = ('UNCLASSIFIED', 'Source review and an explanation are still required.')
         if candidates:
             category, why = candidates[0]['category'], candidates[0]['why']
