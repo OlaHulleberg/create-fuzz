@@ -69,3 +69,35 @@ crank (true: backwards). A `minecraft:redstone_block` powers the blocks beside i
 
 No Minecraft, NeoForge or Create jars, no Create assets, and no world saves. Gradle downloads the dependencies.
 The licence is MIT.
+
+## Coverage guidance
+
+```sh
+CREATE_DIR=/path/to/Create FUZZ_PORT=25611 ./run.sh server
+CREATE_HORIZON=/path/to/create-horizon ./run.sh fuzz cover 300
+./run.sh stop
+```
+
+The server uses pinned JaCoCo 0.8.14 (downloaded into `work/jacoco`, never committed).
+JaCoCo and ASM jars are checked against pinned Maven Central SHA-1 values on every use, including
+cached jars; mismatches are deleted and stop the command.
+`FUZZ_COVERAGE_INCLUDES` is a colon-separated JaCoCo include list; it defaults to
+`com.simibubi.create.content.kinetics.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*`,
+including the kinetic network, torque propagator, stress values and their registry helpers. Extend it for belts or fluids. `FUZZ_CREATE_JAR` selects the matching published Create binary.
+Each guided case resets the agent after area cleanup and dumps probes before publishing its snapshot.
+Offline analysis unions those probes before counting branches, so discoveries on opposite edges of the
+same line count separately. The agent dumps only included Create classes into `work/coverage-classes`: analysis uses these
+pre-instrumentation binaries where runtime transformers changed Create, and the published jar for
+classes never loaded. Class ID mismatches fail analysis.
+
+`corpus/` (override `FUZZ_CORPUS`) keeps full scenarios that increase cumulative branch coverage. It is
+ignored because it is generated, binary-version-dependent run data. Existing scenarios are replayed on
+each run before new rounds; 80% of new rounds mutate a corpus member, the rest explore fresh seeds.
+Mutations add/remove/replace blocks, adjust motor speeds or event ticks, keeping legal generated states,
+bounded positions and a settling window. Differences and instability use the same recording path as
+`fuzz` (`FUZZ_FOUND`). `work/coverage/classes.tsv` lists every included class, `never-reached.tsv` lists
+class/method/line and the number of missed branch edges there, `summary.txt` totals the edges, and
+`seeds.tsv` records each case's new edges. JaCoCo does not assign source-level names to individual
+edges: the missed list groups edges by method and line. The union `.exec` and retained scenarios allow
+further analysis; `cases/` in the report keeps every scenario and its isolated `.exec` probes. Coverage includes background execution in the measured interval; it describes the
+whole server's Create kinetics, including classes unsupported by the current scenario grammar.
