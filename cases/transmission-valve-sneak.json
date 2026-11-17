@@ -301,7 +301,7 @@
         7,
         0
       ],
-      "state": "minecraft:stone"
+      "state": "create:shaft[axis=y,waterlogged=false]"
     },
     {
       "pos": [
@@ -314,7 +314,7 @@
     {
       "pos": [
         0,
-        9,
+        6,
         0
       ],
       "state": "create:shaft[axis=y,waterlogged=false]"
@@ -694,6 +694,27 @@
           0.1,
           1.0,
           0.1
+        ],
+        "yaw": 0.0,
+        "pitch": 0.0,
+        "sneaking": true
+      },
+      "tick": 222,
+      "pos": [
+        0,
+        8,
+        0
+      ]
+    },
+    {
+      "action": {
+        "kind": "use",
+        "item": "minecraft:red_dye",
+        "face": "up",
+        "hit": [
+          0.5,
+          1.0,
+          0.5
         ],
         "yaw": 0.0,
         "pitch": 0.0,

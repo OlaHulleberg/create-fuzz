@@ -200,6 +200,7 @@ pub fn valve(seed: u64) -> Scenario {
             events.push(event);
         }
     }
+    events.push(use_block(222, [0, 8, 0], "minecraft:red_dye", 0., 0., true));
     for (i, color) in create_engine::dye::DyeColor::ALL.into_iter().enumerate() {
         let mut event = use_block(
             260 + i as u32 * 2,
@@ -213,9 +214,9 @@ pub fn valve(seed: u64) -> Scenario {
         events.push(event);
     }
     serde_json::from_value(serde_json::json!({"version":3,"seed":seed,"ticks":370,"checkpoints":(10..300).collect::<Vec<_>>(),"blocks":[
-        {"pos":[0,7,0],"state":"minecraft:stone"},
+        {"pos":[0,7,0],"state":"create:shaft[axis=y,waterlogged=false]"},
         {"pos":[0,8,0],"state":"create:copper_valve_handle[facing=up,waterlogged=false]"},
-        {"pos":[0,9,0],"state":"create:shaft[axis=y,waterlogged=false]"}],"events":events})).unwrap()
+        {"pos":[0,6,0],"state":"create:shaft[axis=y,waterlogged=false]"}],"events":events})).unwrap()
 }
 
 #[cfg(test)]
