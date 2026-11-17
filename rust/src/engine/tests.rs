@@ -440,3 +440,19 @@ fn chain_heading_boundary_uses_the_glues_axis_selection() {
     );
     assert_eq!(r.w.table.get(r.at([0, 8, 0])).unwrap().1.axis, Some(axis));
 }
+
+#[test]
+fn adding_item_cases_preserves_the_conveyor_generator_lane() {
+    assert!(
+        crate::generate::generate(127)
+            .events
+            .iter()
+            .any(|e| matches!(e.action, Some(crate::actions::Action::ChainLink { .. })))
+    );
+    assert!(
+        crate::generate::generate(9)
+            .events
+            .iter()
+            .any(|e| matches!(e.action, Some(crate::actions::Action::Item { .. })))
+    );
+}
