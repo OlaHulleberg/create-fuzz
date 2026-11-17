@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
+    Reload,
     Item {
         input: crate::transport::Input,
     },
@@ -136,7 +137,7 @@ impl Action {
                     target[0].abs() <= 23 && target[2].abs() <= 23 && (1..=23).contains(&target[1])
                 );
             }
-            Self::Remove => {}
+            Self::Remove | Self::Reload => {}
         }
     }
 }

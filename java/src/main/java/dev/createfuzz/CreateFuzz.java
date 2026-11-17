@@ -285,7 +285,9 @@ public class CreateFuzz {
                 for (JsonElement ev : c.getAsJsonArray("events")) {
                     JsonObject o = ev.getAsJsonObject();
                     if (o.get("tick").getAsInt() != tick) continue;
-                    if (o.has("action"))
+                    if (o.has("action") && o.getAsJsonObject("action").get("kind").getAsString().equals("reload"))
+                        Persistence.reload(level, origins.get(i), c);
+                    else if (o.has("action"))
                         Actions.apply(
                                 level,
                                 actors.get(i),

@@ -27,3 +27,12 @@ save round trip. Retaining the current World or cloning driver caches across a
 reload would conceal missing persistence, particularly crank expiry, valve use,
 sequencer instruction progress, belt controller/inventory and depot buffers.
 These reload paths are outstanding, not unsupported engine claims.
+
+Version 3 `{"kind":"reload"}` is an area action; its event position participates
+in the normal region bounds but does not select a single entity. Java saves all
+entities in that region before removing any, calls onChunkUnloaded before
+removeBlockEntity (which marks the old entity removed), and installs fresh
+loadStatic entities with unchanged block states. Initialization runs on their
+next normal entity tick. This keeps scheduled world ticks and external entities;
+it is an entity reload, not a restart or a chunk-ticket test. Slots share forced
+chunks and the shared level, so chunk ticket removal cannot isolate an area.

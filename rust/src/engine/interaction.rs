@@ -4,6 +4,7 @@ impl Run {
     pub(super) fn action(&mut self, p: Pos, action: &crate::actions::Action) {
         use crate::actions::Action;
         match action {
+            Action::Reload => panic!("reload Rust adapter not installed"),
             Action::Item { input } => self.item_input(p, input),
             Action::SpeedSetting { row, value } => {
                 self.w.board_motor(
