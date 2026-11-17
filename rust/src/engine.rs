@@ -493,7 +493,7 @@ impl Run {
             }
             return;
         }
-        if item == "minecraft:air" {
+        if item == "minecraft:air" || create_engine::dye::DyeColor::of_item(item).is_some() {
             return;
         }
         // No override of the clicked position: air replaces itself; solid clicks place adjacent.
