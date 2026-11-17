@@ -308,12 +308,14 @@ impl Run {
                 if self.w.block_at(0, p) != Some(create_engine::Block::SequencedGearshift) {
                     return;
                 }
-                self.w.set_sequencer_instructions(
+                if let Some(step) = self.w.set_sequencer_instructions(
                     0,
                     p,
                     instructions.iter().map(|i| i.engine()).collect(),
                     true,
-                );
+                ) {
+                    self.sequencer_step(p, step);
+                }
             }
             Action::Remove => self.set(p, AIR),
             Action::Signal { strength } => self.set(p, 3 + u32::from(*strength)),
