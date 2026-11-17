@@ -60,6 +60,49 @@ impl Run {
         ]);
     }
     pub(super) fn reload(&mut self) {
+        // decor/saved.rs: column bracket entries; belt casing is host entity data.
+        let brackets: Vec<[i32; 7]> = self
+            .brackets
+            .iter()
+            .map(|(p, b)| {
+                [
+                    p[0],
+                    p[1],
+                    p[2],
+                    i32::from(b.wooden),
+                    b.facing as i32,
+                    i32::from(b.along_first),
+                    match b.kind {
+                        create_engine::decor::BracketKind::Pipe => 0,
+                        create_engine::decor::BracketKind::Cog => 1,
+                        create_engine::decor::BracketKind::Shaft => 2,
+                    },
+                ]
+            })
+            .collect();
+        let metadata =
+            serde_json::to_vec(&(brackets, self.belt_casing.iter().collect::<Vec<_>>())).unwrap();
+        let (brackets, casing): (Vec<[i32; 7]>, Vec<(Pos, String)>) =
+            serde_json::from_slice(&metadata).unwrap();
+        self.brackets = brackets
+            .into_iter()
+            .map(|v| {
+                (
+                    [v[0], v[1], v[2]],
+                    create_engine::decor::Bracket {
+                        wooden: v[3] != 0,
+                        facing: create_engine::kinetics::Dir::ALL[v[4].clamp(0, 5) as usize],
+                        along_first: v[5] != 0,
+                        kind: match v[6] {
+                            0 => create_engine::decor::BracketKind::Pipe,
+                            1 => create_engine::decor::BracketKind::Cog,
+                            _ => create_engine::decor::BracketKind::Shaft,
+                        },
+                    },
+                )
+            })
+            .collect();
+        self.belt_casing = casing.into_iter().collect();
         let mut blocks: Vec<_> = self.world.iter().map(|(&p, &s)| (p, s)).collect();
         blocks.sort_by_key(|(p, _)| *p);
         let columns: std::collections::BTreeSet<_> =
