@@ -7,6 +7,8 @@ pub struct Entry {
     pub id: String,
     pub properties: BTreeMap<String, Vec<String>>,
     pub source: String,
+    pub observation_scope: BTreeMap<String, String>,
+    pub state_phase: Option<String>,
     pub connection: crate::geometry::Connection,
     pub excluded: Option<String>,
 }
@@ -35,6 +37,11 @@ pub fn validate(state: &str) -> Result<(), String> {
         .iter()
         .find(|e| e.id == id)
         .ok_or_else(|| format!("unknown kinetic id {id}"))?;
+    if props.iter().any(|(k, v)| k == "waterlogged" && v == "true") {
+        return Err(
+            "waterlogged=true requires a fluid-world adapter; kinetics scenarios are dry".into(),
+        );
+    }
     if state.contains('[') && !state.ends_with(']') {
         return Err(format!("malformed state {state}"));
     }
@@ -162,6 +169,10 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
             e.excluded
                 .as_deref()
                 .unwrap_or("static node; machine work and player interactions excluded")
+        );
+        println!(
+            "observation scope: {:?}; state phase: {:?}",
+            e.observation_scope, e.state_phase
         );
         assert!(!e.source.is_empty());
     }

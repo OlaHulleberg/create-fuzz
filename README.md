@@ -171,3 +171,21 @@ and transmission settings/topology requiring group 4 adapters. Generated valve h
 passive nodes only; inherited crank turns are never used as valve activation. Machine work,
 fluid transfer, crafting, inventory, crushing entities and equipment filling remain outside the
 static solver tests. The scenario JSON format and comparisons are unchanged.
+
+Observation scope is explicit per block in the manifest's `observation_scope` map:
+only its named properties are omitted by the shared comparison; raw snapshots retain
+them. Display up/down and girder top/bottom belong to shape updates, chain part and
+connection coordinate to ChainDriveBlock.updateShape, gantry part/carriage axis to
+their updateShape methods, and large-wheel extension to LargeWaterWheelBlock.updateShape.
+Placement-selected facing/axis/shaft flags remain compared: state injection supplies
+those inputs, rather than invoking player placement. FluidValveBlockEntity.tick's
+enabled output belongs to the fluids phase (`state_phase`); its speed, stress,
+capacity, source and network observations remain compared.
+
+Kinetics scenarios now require dry states on both adapters: waterlogged=true is
+rejected explicitly, and generation enumerates only waterlogged=false. Create's
+ProperWaterloggedBlock.updateWater and AbstractShaftBlock.updateShape schedule
+vanilla water ticks; the standalone driver has no fluid world. The manifest retains
+the full binary domain for auditing. Fluid-world tests require a separate adapter.
+Network sizes read the existing TorquePropagator registry's KineticNetwork.getSize(),
+without constructing networks; partitions still group block entities by network id.

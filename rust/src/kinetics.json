@@ -18,7 +18,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:cogwheel",
@@ -39,7 +40,8 @@
       "shafts": "axis",
       "cog": "small"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:large_cogwheel",
@@ -60,7 +62,8 @@
       "shafts": "axis",
       "cog": "large"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:andesite_encased_shaft",
@@ -77,7 +80,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:brass_encased_shaft",
@@ -94,7 +98,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:andesite_encased_cogwheel",
@@ -119,7 +124,8 @@
       "shafts": "flags",
       "cog": "small"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:brass_encased_cogwheel",
@@ -144,7 +150,8 @@
       "shafts": "flags",
       "cog": "small"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:andesite_encased_large_cogwheel",
@@ -169,7 +176,8 @@
       "shafts": "flags",
       "cog": "large"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:brass_encased_large_cogwheel",
@@ -194,7 +202,8 @@
       "shafts": "flags",
       "cog": "large"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:gearbox",
@@ -211,7 +220,8 @@
       "shafts": "off_axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:clutch",
@@ -232,7 +242,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:gearshift",
@@ -253,7 +264,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:encased_chain_drive",
@@ -280,7 +292,11 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required"
+    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required",
+    "observation_scope": {
+      "part": "ChainDriveBlock.updateShape",
+      "axis_along_first": "ChainDriveBlock.updateShape: CONNECTED_ALONG_FIRST_COORDINATE"
+    }
   },
   {
     "id": "create:adjustable_chain_gearshift",
@@ -311,7 +327,11 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required"
+    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required",
+    "observation_scope": {
+      "part": "ChainDriveBlock.updateShape",
+      "axis_along_first": "ChainDriveBlock.updateShape: CONNECTED_ALONG_FIRST_COORDINATE"
+    }
   },
   {
     "id": "create:belt",
@@ -350,7 +370,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 5: belt controller/pulley data or conveyor link actions and glue ticks required"
+    "excluded": "Group 5: belt controller/pulley data or conveyor link actions and glue ticks required",
+    "observation_scope": {}
   },
   {
     "id": "create:chain_conveyor",
@@ -361,7 +382,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 5: belt controller/pulley data or conveyor link actions and glue ticks required"
+    "excluded": "Group 5: belt controller/pulley data or conveyor link actions and glue ticks required",
+    "observation_scope": {}
   },
   {
     "id": "create:creative_motor",
@@ -381,7 +403,8 @@
       "shafts": "front",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:water_wheel",
@@ -401,7 +424,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 6: environmental sensing/assembly/steam inputs absent; passive source is not a driven generator test"
+    "excluded": "Group 6: environmental sensing/assembly/steam inputs absent; passive source is not a driven generator test",
+    "observation_scope": {}
   },
   {
     "id": "create:large_water_wheel",
@@ -422,7 +446,10 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 6: environmental sensing/assembly/steam inputs absent; passive source is not a driven generator test"
+    "excluded": "Group 6: environmental sensing/assembly/steam inputs absent; passive source is not a driven generator test",
+    "observation_scope": {
+      "extension": "LargeWaterWheelBlock.updateShape"
+    }
   },
   {
     "id": "create:encased_fan",
@@ -442,7 +469,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:turntable",
@@ -453,7 +481,8 @@
       "shafts": "down",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:hand_crank",
@@ -477,7 +506,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:cuckoo_clock",
@@ -495,7 +525,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:mysterious_cuckoo_clock",
@@ -513,7 +544,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:millstone",
@@ -524,7 +556,8 @@
       "shafts": "down",
       "cog": "small"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:crushing_wheel",
@@ -541,7 +574,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:mechanical_press",
@@ -559,7 +593,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:mechanical_mixer",
@@ -570,7 +605,8 @@
       "shafts": "none",
       "cog": "small"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:weighted_ejector",
@@ -592,7 +628,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:speedometer",
@@ -616,7 +653,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:stressometer",
@@ -640,7 +678,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:mechanical_pump",
@@ -664,7 +703,8 @@
       "shafts": "none",
       "cog": "small"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:fluid_valve",
@@ -696,7 +736,11 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {
+      "enabled": "FluidValveBlockEntity.tick: fluids phase; pointer endpoints change enabled; driver runs kinetics only"
+    },
+    "state_phase": "fluids: FluidValveBlockEntity.tick; kinetic observations remain in kinetics"
   },
   {
     "id": "create:copper_valve_handle",
@@ -720,7 +764,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:hose_pulley",
@@ -738,7 +783,8 @@
       "shafts": "clockwise",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:powered_shaft",
@@ -759,7 +805,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 6: environmental sensing/assembly/steam inputs absent; passive source is not a driven generator test"
+    "excluded": "Group 6: environmental sensing/assembly/steam inputs absent; passive source is not a driven generator test",
+    "observation_scope": {}
   },
   {
     "id": "create:mechanical_piston",
@@ -788,7 +835,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter"
+    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter",
+    "observation_scope": {}
   },
   {
     "id": "create:sticky_mechanical_piston",
@@ -817,7 +865,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter"
+    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter",
+    "observation_scope": {}
   },
   {
     "id": "create:gantry_carriage",
@@ -841,7 +890,10 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter"
+    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter",
+    "observation_scope": {
+      "axis_along_first": "GantryCarriageBlock.updateShape/cycleAxisIfNecessary"
+    }
   },
   {
     "id": "create:gantry_shaft",
@@ -871,7 +923,10 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter"
+    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter",
+    "observation_scope": {
+      "part": "GantryShaftBlock.updateShape"
+    }
   },
   {
     "id": "create:windmill_bearing",
@@ -891,7 +946,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": "Group 6: environmental sensing/assembly/steam inputs absent; passive source is not a driven generator test"
+    "excluded": "Group 6: environmental sensing/assembly/steam inputs absent; passive source is not a driven generator test",
+    "observation_scope": {}
   },
   {
     "id": "create:mechanical_bearing",
@@ -911,7 +967,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter"
+    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter",
+    "observation_scope": {}
   },
   {
     "id": "create:clockwork_bearing",
@@ -931,7 +988,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter"
+    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter",
+    "observation_scope": {}
   },
   {
     "id": "create:rope_pulley",
@@ -947,7 +1005,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter"
+    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter",
+    "observation_scope": {}
   },
   {
     "id": "create:elevator_pulley",
@@ -965,7 +1024,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter"
+    "excluded": "Group 7: machine assembly, queued checks and world effects not ticked by Rust adapter",
+    "observation_scope": {}
   },
   {
     "id": "create:mechanical_drill",
@@ -989,7 +1049,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:mechanical_saw",
@@ -1017,7 +1078,8 @@
       "shafts": "saw",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:deployer",
@@ -1041,7 +1103,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:mechanical_crafter",
@@ -1065,7 +1128,8 @@
       "shafts": "none",
       "cog": "small"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:sequenced_gearshift",
@@ -1093,7 +1157,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required"
+    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required",
+    "observation_scope": {}
   },
   {
     "id": "create:flywheel",
@@ -1110,7 +1175,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:rotation_speed_controller",
@@ -1126,7 +1192,8 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required"
+    "excluded": "Group 4: chain shapes, sequencer program or controller target adapters required",
+    "observation_scope": {}
   },
   {
     "id": "create:mechanical_arm",
@@ -1142,7 +1209,8 @@
       "shafts": "none",
       "cog": "small"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:display_board",
@@ -1172,7 +1240,11 @@
       "shafts": "none",
       "cog": "small"
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {
+      "up": "FlapDisplayBlock.updateShape/updatedShapeInner/updateColumn",
+      "down": "FlapDisplayBlock.updateShape/updatedShapeInner/updateColumn"
+    }
   },
   {
     "id": "create:copper_backtank",
@@ -1194,7 +1266,8 @@
       "shafts": "up",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:netherite_backtank",
@@ -1216,7 +1289,8 @@
       "shafts": "up",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:metal_girder_encased_shaft",
@@ -1244,7 +1318,11 @@
       "shafts": "axis",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {
+      "top": "GirderEncasedShaftBlock.updateShape",
+      "bottom": "GirderEncasedShaftBlock.updateShape"
+    }
   },
   {
     "id": "create:white_valve_handle",
@@ -1268,7 +1346,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:orange_valve_handle",
@@ -1292,7 +1371,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:magenta_valve_handle",
@@ -1316,7 +1396,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:light_blue_valve_handle",
@@ -1340,7 +1421,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:yellow_valve_handle",
@@ -1364,7 +1446,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:lime_valve_handle",
@@ -1388,7 +1471,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:pink_valve_handle",
@@ -1412,7 +1496,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:gray_valve_handle",
@@ -1436,7 +1521,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:light_gray_valve_handle",
@@ -1460,7 +1546,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:cyan_valve_handle",
@@ -1484,7 +1571,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:purple_valve_handle",
@@ -1508,7 +1596,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:blue_valve_handle",
@@ -1532,7 +1621,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:brown_valve_handle",
@@ -1556,7 +1646,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:green_valve_handle",
@@ -1580,7 +1671,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:red_valve_handle",
@@ -1604,7 +1696,8 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   },
   {
     "id": "create:black_valve_handle",
@@ -1628,6 +1721,7 @@
       "shafts": "back",
       "cog": null
     },
-    "excluded": null
+    "excluded": null,
+    "observation_scope": {}
   }
 ]

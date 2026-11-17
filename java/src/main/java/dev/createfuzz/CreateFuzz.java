@@ -267,6 +267,9 @@ public class CreateFuzz {
 			} catch (Exception ex) {
 				throw new RuntimeException("bad state " + b.get("state"), ex);
 			}
+            if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED)
+                && state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED))
+                throw new IllegalArgumentException("waterlogged=true requires a fluid-world adapter; kinetics scenarios are dry");
 			level.setBlock(pos, state, 3);
 		}
 

@@ -45,8 +45,7 @@ final class Observations {
                 snap.add("kinetic", kinetic(k));
                 if(k.network != null) {
                     networks.computeIfAbsent(k.network, ignored -> new ArrayList<>()).add(key);
-                    try { var f=KineticBlockEntity.class.getDeclaredField("networkSize"); f.setAccessible(true); sizes.addProperty(key,f.getInt(k)); }
-                    catch(ReflectiveOperationException ex) { throw new RuntimeException(ex); }
+                    sizes.addProperty(key, networkSize(k));
                 }
             }
             // For reading mismatches only; never compared.
@@ -62,6 +61,20 @@ final class Observations {
         partitions.sort(java.util.Comparator.comparing(group -> group.get(0)));
         JsonObject normalized=new JsonObject(); normalized.add("partitions",CreateFuzz.GSON.toJsonTree(partitions)); normalized.add("sizes",sizes); out.add("networks",normalized);
         return out;
+    }
+
+    /** Read the registry without getOrCreateNetworkFor: observing must never mutate it. */
+    @SuppressWarnings("unchecked")
+    static int networkSize(KineticBlockEntity k) {
+        try {
+            var f = com.simibubi.create.content.kinetics.TorquePropagator.class.getDeclaredField("networks");
+            f.setAccessible(true);
+            var worlds = (java.util.Map<net.minecraft.world.level.LevelAccessor, java.util.Map<Long, com.simibubi.create.content.kinetics.KineticNetwork>>) f.get(null);
+            var networks = worlds.get(k.getLevel());
+            var network = networks == null ? null : networks.get(k.network);
+            if (network == null) throw new IllegalStateException("kinetic entity names an absent network");
+            return network.getSize();
+        } catch (ReflectiveOperationException ex) { throw new RuntimeException(ex); }
     }
 
     static JsonObject kinetic(KineticBlockEntity k) {

@@ -131,11 +131,14 @@ impl catalogue::Entry {
             domains = domains
                 .into_iter()
                 .flat_map(|props| {
-                    values.iter().map(move |v| {
-                        let mut p = props.clone();
-                        p.insert(key.clone(), v.clone());
-                        p
-                    })
+                    values
+                        .iter()
+                        .filter(|v| key != "waterlogged" || v.as_str() == "false")
+                        .map(move |v| {
+                            let mut p = props.clone();
+                            p.insert(key.clone(), v.clone());
+                            p
+                        })
                 })
                 .collect();
         }

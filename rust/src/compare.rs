@@ -87,6 +87,12 @@ fn state_diff(j: &str, r: &str) -> Option<String> {
     }
     let differing: Vec<String> = rp
         .iter()
+        .filter(|(k, _)| {
+            !crate::catalogue::entries()
+                .iter()
+                .find(|e| e.id == jn)
+                .is_some_and(|e| e.observation_scope.contains_key(k))
+        })
         .filter_map(|(k, v)| {
             let jv = &jp.iter().find(|(jk, _)| jk == k)?.1;
             (jv != v).then(|| format!("{k}: java {jv} rust {v}"))
@@ -156,6 +162,37 @@ fn kinetic_diff(j: &Kinetic, r: &Kinetic) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::observation::Networks;
+    #[test]
+    fn scope_excludes_only_declared_outputs() {
+        assert!(
+            state_diff(
+                "create:fluid_valve[enabled=true,axis=x]",
+                "create:fluid_valve[enabled=false,axis=x]"
+            )
+            .is_none()
+        );
+        assert!(
+            state_diff(
+                "create:fluid_valve[enabled=true,axis=x]",
+                "create:fluid_valve[enabled=false,axis=y]"
+            )
+            .is_some()
+        );
+        assert!(
+            state_diff(
+                "create:display_board[up=true,facing=north]",
+                "create:display_board[up=false,facing=south]"
+            )
+            .is_some()
+        );
+        assert!(crate::catalogue::validate("create:shaft[waterlogged=true]").is_err());
+        for e in crate::catalogue::entries() {
+            for (property, reason) in &e.observation_scope {
+                assert!(e.properties.contains_key(property));
+                assert!(!reason.is_empty());
+            }
+        }
+    }
     #[test]
     fn partitions_compare_membership_independently_of_order() {
         let mut j = Snapshot {
