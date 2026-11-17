@@ -492,3 +492,25 @@ pub fn source_faces(seed: u64) -> Scenario {
     }
     Scenario { version: 3, seed, day_time: 0, ticks: 190, blocks, events, checkpoints: vec![29,31,51,71,91,111,180] }
 }
+
+/// Include rejected offsets as well as valid meshes. At 256 rpm the valid
+/// large-to-small pair exceeds RotationPropagator's configured speed limit.
+pub fn cog_boundary(seed: u64) -> Scenario {
+    let axis = (seed / 64 % 3) as usize;
+    let other = (axis + 1) % 3;
+    let third = (axis + 2) % 3;
+    let mut blocks = Vec::new();
+    for i in 0..6 {
+        let p = [(i % 3) * 6 - 6, 8, (i / 3) * 6 - 3];
+        let mut q = p;
+        q[other] += if seed & 256 == 0 {1} else {-1};
+        if i % 3 != 0 { q[third] += 1; }
+        if i % 3 == 2 { q[axis] += 1; }
+        let mut motor = p;
+        motor[axis] -= 1;
+        blocks.push(placed(motor, format!("create:creative_motor[facing={}]", FACES[axis * 2 + 1].name()), Some(if seed & 512 == 0 {256} else {-256})));
+        blocks.push(placed(p, format!("create:large_cogwheel[axis={}]", ["x","y","z"][axis]), None));
+        blocks.push(placed(q, format!("create:{}[axis={}]", if i < 3 {"cogwheel"} else {"large_cogwheel"}, ["x","y","z"][if i < 3 {axis} else {other}]), None));
+    }
+    Scenario { version: 3, seed, day_time: 0, ticks: 100, blocks, events: vec![], checkpoints: vec![20,70] }
+}
