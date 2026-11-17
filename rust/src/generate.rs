@@ -41,10 +41,11 @@ fn actions(seed: u64) -> Scenario {
     use crate::actions::{Action, Face};
     use crate::scenario::{Change, Placed};
     let mut sc = Scenario {
-        version: 2,
+        version: 3,
+        day_time: 0,
         seed,
         ticks: 180,
-        checkpoints: vec![10, 30, 60, 73, 75, 77, 79],
+        checkpoints: vec![10, 30, 60, 73, 75, 77, 79, 101],
         blocks: vec![
             Placed {
                 pos: [0, 8, 0],
@@ -53,6 +54,11 @@ fn actions(seed: u64) -> Scenario {
             },
             Placed {
                 pos: [2, 7, 0],
+                state: "minecraft:stone".into(),
+                motor: None,
+            },
+            Placed {
+                pos: [1, 7, 0],
                 state: "minecraft:stone".into(),
                 motor: None,
             },
@@ -69,29 +75,18 @@ fn actions(seed: u64) -> Scenario {
             turn: None,
         })
     };
+    let u = if seed % 8 == 3 { 0.5 } else { 0.1 };
+    let usage = |item: &str, face: Face, sneaking| Action::Use {
+        item: item.into(),
+        face,
+        hit: face.point(u, 0.5),
+        yaw: 90.,
+        pitch: 0.,
+        sneaking,
+    };
     let block = ["create:shaft", "create:clutch", "create:gearshift"][(seed as usize / 4) % 3];
-    event(
-        3,
-        [1, 8, 0],
-        Action::Place {
-            block: block.into(),
-            yaw: 90.,
-            pitch: 0.,
-            face: Face::Up,
-            sneaking: seed % 8 == 3,
-        },
-    );
-    event(
-        4,
-        [2, 8, 0],
-        Action::Place {
-            block: "create:shaft".into(),
-            yaw: 90.,
-            pitch: 0.,
-            face: Face::Up,
-            sneaking: false,
-        },
-    );
+    event(3, [1, 7, 0], usage(block, Face::Up, seed % 8 == 3));
+    event(4, [2, 7, 0], usage("create:shaft", Face::Up, false));
     event(
         8,
         [1, 9, 0],
@@ -106,34 +101,50 @@ fn actions(seed: u64) -> Scenario {
             strength: ((seed / 64) % 16) as u8,
         },
     );
-    event(70, [2, 8, 0], Action::Wrench { face: Face::Up });
+    event(70, [2, 8, 0], usage("create:wrench", Face::Up, false));
     event(
         72,
         [2, 8, 0],
-        Action::Bracket {
-            wooden: seed % 8 == 3,
-            face: Face::Up,
-            yaw: 90.,
-            pitch: 0.,
-        },
+        usage(
+            if seed % 8 == 3 {
+                "create:wooden_bracket"
+            } else {
+                "create:metal_bracket"
+            },
+            Face::Up,
+            false,
+        ),
     );
-    event(74, [2, 8, 0], Action::Wrench { face: Face::Up });
+    event(74, [2, 8, 0], usage("create:wrench", Face::Up, false));
     event(
         76,
         [2, 8, 0],
-        Action::Casing {
-            brass: seed % 8 == 3,
-            remove: false,
-        },
+        usage(
+            if seed % 8 == 3 {
+                "create:brass_casing"
+            } else {
+                "create:andesite_casing"
+            },
+            Face::Up,
+            false,
+        ),
     );
-    event(
-        78,
-        [2, 8, 0],
-        Action::Casing {
-            brass: false,
-            remove: true,
-        },
-    );
+    event(78, [2, 8, 0], usage("create:wrench", Face::Up, true));
     event(90, [1, 8, 0], Action::Remove);
+    if seed % 32 == 3 {
+        let hit = Face::South.point(if (seed / 32) % 2 == 0 { 0.5 } else { 0.1 }, 0.5);
+        event(
+            100,
+            [0, 8, 0],
+            Action::Use {
+                item: "create:wrench".into(),
+                face: Face::South,
+                hit,
+                yaw: 0.,
+                pitch: 0.,
+                sneaking: false,
+            },
+        );
+    }
     sc
 }

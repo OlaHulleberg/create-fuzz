@@ -1,20 +1,22 @@
 package dev.createfuzz;
 
-import java.util.ArrayList;
-import java.util.List;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.simibubi.create.content.kinetics.base.IRotate;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
-import com.simibubi.create.content.kinetics.transmission.SplitShaftBlockEntity;
 import com.simibubi.create.content.kinetics.gauge.GaugeBlock;
+import com.simibubi.create.content.kinetics.transmission.SplitShaftBlockEntity;
 import com.simibubi.create.content.kinetics.transmission.sequencer.SequencerInstructions;
+
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** Normalized semantic observations; saved NBT is diagnostic only. */
 final class Observations {
@@ -23,45 +25,70 @@ final class Observations {
         var networks = new java.util.TreeMap<Long, java.util.List<String>>();
         JsonObject sizes = new JsonObject();
         List<JsonObject> all = new ArrayList<>();
-        for (JsonElement b : c.getAsJsonArray("blocks"))
-            all.add(b.getAsJsonObject());
+        for (JsonElement b : c.getAsJsonArray("blocks")) all.add(b.getAsJsonObject());
         if (c.has("events"))
-            for (JsonElement b : c.getAsJsonArray("events"))
-                all.add(b.getAsJsonObject());
-        int[] lo = {24,24,24}, hi = {-24,-24,-24};
-        for (JsonObject b : all) for (int a=0;a<3;a++) {
-            int v=b.getAsJsonArray("pos").get(a).getAsInt(); lo[a]=Math.min(lo[a],v); hi[a]=Math.max(hi[a],v);
-        }
-        for(int a=0;a<3;a++){lo[a]--;hi[a]++;}
-        if (!all.isEmpty() && (lo[0]<-24 || lo[2]<-24 || lo[1]<0 || hi[0]>24 || hi[2]>24 || hi[1]>24)) throw new IllegalArgumentException("region exceeds slot");
-        for (int x=lo[0];x<=hi[0];x++) for (int y=lo[1];y<=hi[1];y++) for(int z=lo[2];z<=hi[2];z++) {
-            String key=x+","+y+","+z;
-            BlockPos pos=origin.offset(x,y,z);
-            BlockState state=level.getBlockState(pos);
-            JsonObject snap = new JsonObject();
-            snap.addProperty("state", BlockStateParser.serialize(state));
-            BlockEntity be = level.getBlockEntity(pos);
-            if (be instanceof KineticBlockEntity k) {
-                snap.add("kinetic", kinetic(k));
-                if(k.network != null) {
-                    networks.computeIfAbsent(k.network, ignored -> new ArrayList<>()).add(key);
-                    sizes.addProperty(key, networkSize(k));
-                }
+            for (JsonElement b : c.getAsJsonArray("events")) all.add(b.getAsJsonObject());
+        int[] lo = {24, 24, 24}, hi = {-24, -24, -24};
+        for (JsonObject b : all)
+            for (int a = 0; a < 3; a++) {
+                int v = b.getAsJsonArray("pos").get(a).getAsInt();
+                lo[a] = Math.min(lo[a], v);
+                hi[a] = Math.max(hi[a], v);
             }
-            var bracket=com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour.get(level,pos,com.simibubi.create.content.decoration.bracket.BracketedBlockEntityBehaviour.TYPE);
-            if(bracket!=null && bracket.getBracket()!=null) snap.addProperty("bracket",BlockStateParser.serialize(bracket.getBracket()));
-            // For reading mismatches only; never compared.
-            if (be != null)
-                snap.addProperty("debug", be.saveWithoutMetadata(level.registryAccess()).toString());
-            blocks.add(key, snap);
+        for (int a = 0; a < 3; a++) {
+            lo[a]--;
+            hi[a]++;
         }
+        if (!all.isEmpty()
+                && (lo[0] < -24
+                        || lo[2] < -24
+                        || lo[1] < 0
+                        || hi[0] > 24
+                        || hi[2] > 24
+                        || hi[1] > 24)) throw new IllegalArgumentException("region exceeds slot");
+        for (int x = lo[0]; x <= hi[0]; x++)
+            for (int y = lo[1]; y <= hi[1]; y++)
+                for (int z = lo[2]; z <= hi[2]; z++) {
+                    String key = x + "," + y + "," + z;
+                    BlockPos pos = origin.offset(x, y, z);
+                    BlockState state = level.getBlockState(pos);
+                    JsonObject snap = new JsonObject();
+                    snap.addProperty("state", BlockStateParser.serialize(state));
+                    BlockEntity be = level.getBlockEntity(pos);
+                    if (be instanceof KineticBlockEntity k) {
+                        snap.add("kinetic", kinetic(k));
+                        if (k.network != null) {
+                            networks.computeIfAbsent(k.network, ignored -> new ArrayList<>())
+                                    .add(key);
+                            sizes.addProperty(key, networkSize(k));
+                        }
+                    }
+                    var bracket =
+                            com.simibubi.create.foundation.blockEntity.behaviour
+                                    .BlockEntityBehaviour.get(
+                                    level,
+                                    pos,
+                                    com.simibubi.create.content.decoration.bracket
+                                            .BracketedBlockEntityBehaviour.TYPE);
+                    if (bracket != null && bracket.getBracket() != null)
+                        snap.addProperty(
+                                "bracket", BlockStateParser.serialize(bracket.getBracket()));
+                    // For reading mismatches only; never compared.
+                    if (be != null)
+                        snap.addProperty(
+                                "debug", be.saveWithoutMetadata(level.registryAccess()).toString());
+                    blocks.add(key, snap);
+                }
         JsonObject out = new JsonObject();
         out.addProperty("side", "java");
         out.add("blocks", blocks);
-        var partitions=new ArrayList<java.util.List<String>>(networks.values());
-        for(var group:partitions) java.util.Collections.sort(group);
+        var partitions = new ArrayList<java.util.List<String>>(networks.values());
+        for (var group : partitions) java.util.Collections.sort(group);
         partitions.sort(java.util.Comparator.comparing(group -> group.get(0)));
-        JsonObject normalized=new JsonObject(); normalized.add("partitions",CreateFuzz.GSON.toJsonTree(partitions)); normalized.add("sizes",sizes); out.add("networks",normalized);
+        JsonObject normalized = new JsonObject();
+        normalized.add("partitions", CreateFuzz.GSON.toJsonTree(partitions));
+        normalized.add("sizes", sizes);
+        out.add("networks", normalized);
         return out;
     }
 
@@ -69,14 +96,25 @@ final class Observations {
     @SuppressWarnings("unchecked")
     static int networkSize(KineticBlockEntity k) {
         try {
-            var f = com.simibubi.create.content.kinetics.TorquePropagator.class.getDeclaredField("networks");
+            var f =
+                    com.simibubi.create.content.kinetics.TorquePropagator.class.getDeclaredField(
+                            "networks");
             f.setAccessible(true);
-            var worlds = (java.util.Map<net.minecraft.world.level.LevelAccessor, java.util.Map<Long, com.simibubi.create.content.kinetics.KineticNetwork>>) f.get(null);
+            var worlds =
+                    (java.util.Map<
+                                    net.minecraft.world.level.LevelAccessor,
+                                    java.util.Map<
+                                            Long,
+                                            com.simibubi.create.content.kinetics.KineticNetwork>>)
+                            f.get(null);
             var networks = worlds.get(k.getLevel());
             var network = networks == null ? null : networks.get(k.network);
-            if (network == null) throw new IllegalStateException("kinetic entity names an absent network");
+            if (network == null)
+                throw new IllegalStateException("kinetic entity names an absent network");
             return network.getSize();
-        } catch (ReflectiveOperationException ex) { throw new RuntimeException(ex); }
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     static JsonObject kinetic(KineticBlockEntity k) {
@@ -90,32 +128,39 @@ final class Observations {
         o.addProperty("added_capacity", k.calculateAddedStressCapacity());
         o.addProperty("generated", k.getGeneratedSpeed());
         o.addProperty("has_source", k.hasSource());
-        if(k.getBlockState().getBlock() instanceof GaugeBlock gauge)
-            o.addProperty("comparator", gauge.getAnalogOutputSignal(k.getBlockState(), k.getLevel(), k.getBlockPos()));
-        if(k.sequenceContext != null) {
-            String name=k.sequenceContext.instruction()==SequencerInstructions.TURN_ANGLE ? "sequence_angle" : "sequence_distance";
+        if (k.getBlockState().getBlock() instanceof GaugeBlock gauge)
+            o.addProperty(
+                    "comparator",
+                    gauge.getAnalogOutputSignal(k.getBlockState(), k.getLevel(), k.getBlockPos()));
+        if (k.sequenceContext != null) {
+            String name =
+                    k.sequenceContext.instruction() == SequencerInstructions.TURN_ANGLE
+                            ? "sequence_angle"
+                            : "sequence_distance";
             o.addProperty(name, k.sequenceContext.getEffectiveValue(k.getTheoreticalSpeed()));
         }
         // A clutch's or gearshift's halves: the speed each shaft face turns at.
-        if (k instanceof SplitShaftBlockEntity s && k.getBlockState().getBlock() instanceof IRotate r) {
+        if (k instanceof SplitShaftBlockEntity s
+                && k.getBlockState().getBlock() instanceof IRotate r) {
             JsonObject faces = new JsonObject();
             Direction.Axis axis = r.getRotationAxis(k.getBlockState());
             for (Direction d : Direction.values())
                 if (d.getAxis() == axis)
-                    faces.addProperty(d.getSerializedName(), s.getSpeed() == 0 ? 0f : s.getSpeed() * s.getRotationSpeedModifier(d));
+                    faces.addProperty(
+                            d.getSerializedName(),
+                            s.getSpeed() == 0 ? 0f : s.getSpeed() * s.getRotationSpeedModifier(d));
             o.add("faces", faces);
         }
         return o;
     }
 
-
-		static float field(KineticBlockEntity k, String name) {
-			try {
-				java.lang.reflect.Field f = KineticBlockEntity.class.getDeclaredField(name);
-				f.setAccessible(true);
-				return f.getFloat(k);
-			} catch (ReflectiveOperationException ex) {
-				throw new RuntimeException(ex);
-			}
-		}
+    static float field(KineticBlockEntity k, String name) {
+        try {
+            java.lang.reflect.Field f = KineticBlockEntity.class.getDeclaredField(name);
+            f.setAccessible(true);
+            return f.getFloat(k);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 }

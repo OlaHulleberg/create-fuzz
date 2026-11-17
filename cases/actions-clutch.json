@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "seed": 0,
   "checkpoints": [
     10,
@@ -24,38 +24,56 @@
         0
       ],
       "state": "minecraft:stone"
+    },
+    {
+      "pos": [
+        1,
+        7,
+        0
+      ],
+      "state": "minecraft:stone"
     }
   ],
   "events": [
     {
       "action": {
-        "kind": "place",
-        "block": "create:clutch",
+        "kind": "use",
+        "item": "create:clutch",
+        "face": "up",
+        "hit": [
+          0.5,
+          1.0,
+          0.5
+        ],
         "yaw": 90.0,
         "pitch": 0.0,
-        "face": "up",
         "sneaking": false
       },
       "tick": 3,
       "pos": [
         1,
-        8,
+        7,
         0
       ]
     },
     {
       "action": {
-        "kind": "place",
-        "block": "create:shaft",
+        "kind": "use",
+        "item": "create:shaft",
+        "face": "up",
+        "hit": [
+          0.5,
+          1.0,
+          0.5
+        ],
         "yaw": 90.0,
         "pitch": 0.0,
-        "face": "up",
         "sneaking": false
       },
       "tick": 4,
       "pos": [
         2,
-        8,
+        7,
         0
       ]
     },
@@ -253,8 +271,17 @@
     },
     {
       "action": {
-        "kind": "wrench",
-        "face": "up"
+        "kind": "use",
+        "item": "create:wrench",
+        "face": "up",
+        "hit": [
+          0.5,
+          1.0,
+          0.5
+        ],
+        "yaw": 90.0,
+        "pitch": 0.0,
+        "sneaking": false
       },
       "tick": 70,
       "pos": [

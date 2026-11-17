@@ -61,13 +61,10 @@ pub fn validate(state: &str) -> Result<(), String> {
 }
 pub fn scenario(sc: &Scenario) {
     sc.region();
-    assert!(
-        (1..=2).contains(&sc.version),
-        "unsupported scenario version"
-    );
+    assert!([1, 3].contains(&sc.version), "unsupported scenario version");
     for e in &sc.events {
         if let Some(a) = &e.action {
-            assert_eq!(sc.version, 2);
+            assert_eq!(sc.version, 3);
             a.validate();
         }
     }
@@ -169,8 +166,11 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
                     .or_default() += 1;
             }
         }
-        println!("{label} version 2 action submissions: {counts:?}");
+        println!("{label} version 3 action submissions: {counts:?}");
     }
+    println!(
+        "use limits: shaft casing/bracket only; motor value-box geometry via board::motor_slot/hits_box; Java FakePlayer skips testHit off-centre (retained); unsupported host interactions produce notes, never an allow"
+    );
     let m = collect(manual);
     let g = collect(generated);
     println!(
@@ -189,7 +189,7 @@ pub fn report(manual: &[Scenario], generated: &[Scenario]) {
             } else if e.id == "create:creative_motor" {
                 "motor setting"
             } else if crate::actions::BLOCKS.contains(&e.id.as_str()) {
-                "v2 placement/wrench/remove; isolated adjacent signal"
+                "v3 item use/break; isolated adjacent signal"
             } else {
                 "excluded: no interaction adapter"
             },

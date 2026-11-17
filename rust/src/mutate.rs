@@ -7,14 +7,24 @@ pub fn mutate(parent: &Scenario, seed: u64) -> Scenario {
     let mut rng = Rng::new(seed);
     let mut sc = parent.clone();
     sc.seed = seed;
-    if sc.version == 2 {
+    if sc.version == 3 {
         for e in &mut sc.events {
             if let Some(crate::actions::Action::Signal { strength }) = &mut e.action {
                 *strength = rng.below(16) as u8;
             }
-            if let Some(crate::actions::Action::Place { yaw, sneaking, .. }) = &mut e.action {
+            if let Some(crate::actions::Action::Use {
+                yaw,
+                sneaking,
+                face,
+                hit,
+                ..
+            }) = &mut e.action
+            {
                 *yaw = rng.below(360) as f32;
                 *sneaking = rng.chance(0.5);
+                let u = *rng.pick(&[0.1, 0.5, 0.9]);
+                let v = *rng.pick(&[0.1, 0.5, 0.9]);
+                *hit = face.point(u, v);
             }
         }
         return sc;

@@ -1,34 +1,25 @@
-//! Version 2 player inputs. Unsupported glue interactions fail explicitly.
+//! Version 3 inputs use the same player interaction primitive on both adapters.
 use create_engine::kinetics::Dir;
 use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
-    Place {
-        block: String,
+    Use {
+        item: String,
+        face: Face,
+        /// Point relative to the clicked block's lower corner, on the clicked face.
+        hit: [f64; 3],
         yaw: f32,
         pitch: f32,
-        face: Face,
         sneaking: bool,
-    },
-    Wrench {
-        face: Face,
-    },
-    Bracket {
-        wooden: bool,
-        face: Face,
-        yaw: f32,
-        pitch: f32,
-    },
-    Casing {
-        brass: bool,
-        remove: bool,
     },
     Remove,
     Signal {
         strength: u8,
     },
 }
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Face {
@@ -50,8 +41,17 @@ impl Face {
             Self::East => Dir::East,
         }
     }
+    pub fn point(self, u: f64, v: f64) -> [f64; 3] {
+        match self {
+            Self::Down => [u, 0., v],
+            Self::Up => [u, 1., v],
+            Self::North => [u, v, 0.],
+            Self::South => [u, v, 1.],
+            Self::West => [0., u, v],
+            Self::East => [1., u, v],
+        }
+    }
 }
-/// Only blocks whose complete placement and default wrench rules are driven here.
 pub const BLOCKS: &[&str] = &[
     "create:shaft",
     "create:creative_motor",
@@ -60,30 +60,69 @@ pub const BLOCKS: &[&str] = &[
     "create:gearbox",
     "create:flywheel",
 ];
+pub const ITEMS: &[&str] = &[
+    "create:wrench",
+    "create:andesite_casing",
+    "create:brass_casing",
+    "create:metal_bracket",
+    "create:wooden_bracket",
+];
 impl Action {
     pub fn validate(&self) {
         match self {
             Self::Signal { strength } => assert!(*strength <= 15, "signal outside 0..15"),
-            Self::Place {
-                block, yaw, pitch, ..
+            Self::Use {
+                item,
+                face,
+                hit,
+                yaw,
+                pitch,
+                ..
             } => {
                 assert!(
-                    BLOCKS.contains(&block.as_str()),
-                    "placement requires an unsupported glue adapter: {block}"
+                    BLOCKS.contains(&item.as_str()) || ITEMS.contains(&item.as_str()),
+                    "unsupported use item {item}"
                 );
-                assert!(yaw.is_finite() && pitch.is_finite() && pitch.abs() <= 90.0);
+                assert!(yaw.is_finite() && pitch.is_finite() && pitch.abs() <= 90.);
+                assert!(
+                    hit.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+                    "hit outside clicked block"
+                );
+                let offset = face.dir().offset();
+                for a in 0..3 {
+                    if offset[a] != 0 {
+                        assert_eq!(
+                            hit[a],
+                            if offset[a] > 0 { 1. } else { 0. },
+                            "hit is not on clicked face"
+                        );
+                    }
+                }
             }
-            _ => {}
+            Self::Remove => {}
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     #[test]
-    fn bracket_removal_and_casing_history_are_observed() {
-        let sc = crate::generate::generate(3);
-        let snap = crate::engine::run(&sc);
+    fn input_schema_and_roundtrip() {
+        assert!(serde_json::from_str::<super::Action>(r#"{"kind":"wrench","face":"up"}"#).is_err());
+        assert!(
+            serde_json::from_str::<super::Action>(r#"{"kind":"signal","strength":7,"extra":true}"#)
+                .is_err()
+        );
+        for seed in (3..128).step_by(4) {
+            let sc = crate::generate::generate(seed);
+            let copy = serde_json::from_str(&serde_json::to_string(&sc).unwrap()).unwrap();
+            assert_eq!(sc, copy);
+            crate::catalogue::scenario(&copy);
+            crate::engine::run(&copy);
+        }
+    }
+    #[test]
+    fn shaft_interaction_history() {
+        let snap = crate::engine::run(&crate::generate::generate(3));
         assert!(snap.checkpoints[&73].blocks["2,8,0"].bracket.is_some());
         assert!(snap.checkpoints[&75].blocks["2,8,0"].bracket.is_none());
         assert!(
@@ -96,24 +135,5 @@ mod tests {
                 .state
                 .starts_with("create:shaft[")
         );
-    }
-    #[test]
-    fn versioned_actions_validate_and_reject_unknown_inputs() {
-        let action: super::Action =
-            serde_json::from_str(r#"{"kind":"signal","strength":7}"#).unwrap();
-        action.validate();
-        assert!(
-            serde_json::from_str::<super::Action>(r#"{"kind":"signal","strength":7,"extra":true}"#)
-                .is_err()
-        );
-        assert!(serde_json::from_str::<super::Action>(r#"{"kind":"casing"}"#).is_err());
-        for seed in (3..256).step_by(4) {
-            let case = crate::generate::generate(seed);
-            let encoded = serde_json::to_string(&case).unwrap();
-            let decoded = serde_json::from_str(&encoded).unwrap();
-            assert_eq!(case, decoded);
-            crate::catalogue::scenario(&decoded);
-            crate::engine::run(&decoded);
-        }
     }
 }

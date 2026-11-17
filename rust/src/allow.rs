@@ -27,3 +27,62 @@ pub fn gearbox_frame(state: &str, j: &Kinetic, r: &Kinetic) -> bool {
 pub fn split_shaft_frame(j: &Kinetic, r: &Kinetic) -> bool {
     j.faces.is_some() && r.faces.is_some()
 }
+
+/// Measured game-version difference, restricted to an isolated shaft placed at yaw 45,
+/// pitch 0, without a preferred neighbouring shaft, and subsequent default wrench turns.
+/// Binary probe (Java 1.21.1): radians -0.7853982, sin bits 3207922931,
+/// cos bits 1060439283, nearest SOUTH => axis z. The port's actual place.rs functions
+/// (26.3 double-index table): same sin, cos bits 1060438146, nearest West => axis x.
+/// Probe evidence lives outside the repo in the actions rework report's trig-java.json and
+/// trig-port.json. No network, kinetic, bracket or arbitrary orientation difference is allowed.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct MeasuredTrigState {
+    pub java: String,
+    pub port: String,
+}
+
+pub fn trig_state(java: &str, port: &str, measured: Option<&MeasuredTrigState>) -> bool {
+    let normalize = |s: &str| {
+        let (name, props) = crate::scenario::parse_state(s);
+        crate::scenario::format_state(&name, &props)
+    };
+    measured.is_some_and(|m| {
+        m.java.starts_with("create:shaft[")
+            && m.port.starts_with("create:shaft[")
+            && normalize(java) == m.java
+            && normalize(port) == m.port
+    })
+}
+
+#[cfg(test)]
+mod measured_tests {
+    #[test]
+    fn only_measured_state_pair_is_allowed() {
+        let m = super::MeasuredTrigState {
+            java: "create:shaft[axis=z,waterlogged=false]".into(),
+            port: "create:shaft[axis=x,waterlogged=false]".into(),
+        };
+        assert!(super::trig_state(&m.java, &m.port, Some(&m)));
+        assert!(!super::trig_state(
+            "create:shaft[axis=y,waterlogged=false]",
+            &m.port,
+            Some(&m)
+        ));
+        assert!(!super::trig_state(&m.java, &m.port, None));
+        let sc = serde_json::from_str(include_str!("../../cases/actions-angle-45.json")).unwrap();
+        let snap = crate::engine::run(&sc);
+        let r = &snap.blocks["2,8,0"];
+        let m = r.measured_trig.as_ref().unwrap();
+        assert_eq!(m.java, "create:shaft[axis=x,waterlogged=false]");
+        assert_eq!(m.port, "create:shaft[axis=z,waterlogged=false]");
+        let mut j = snap.clone();
+        j.blocks.get_mut("2,8,0").unwrap().state = m.java.clone();
+        assert!(crate::compare::diff(&j, &snap).is_empty());
+        j.networks
+            .as_mut()
+            .unwrap()
+            .sizes
+            .insert("2,8,0".into(), 99);
+        assert!(crate::compare::diff(&j, &snap).contains(&"network sizes differ".into()));
+    }
+}

@@ -40,7 +40,9 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
                         j.bracket, r.bracket
                     ));
                 }
-                if let Some(d) = state_diff(&j.state, &r.state) {
+                if let Some(d) = state_diff(&j.state, &r.state)
+                    && !crate::allow::trig_state(&j.state, &r.state, r.measured_trig.as_ref())
+                {
                     out.push(format!("{k}: state {d}"));
                 }
                 match (&j.kinetic, &r.kinetic) {

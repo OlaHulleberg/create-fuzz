@@ -22,6 +22,8 @@ pub struct Snapshot {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct BlockSnap {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub measured_trig: Option<crate::allow::MeasuredTrigState>,
     #[serde(default)]
     pub bracket: Option<String>,
     pub state: String,
