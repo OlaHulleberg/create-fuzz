@@ -80,3 +80,23 @@ This primitive isolates scenario worlds without changing map iteration,
 network algorithms, saved caches or comparison rules. Startup/reset diagnostics
 report removed members left after cleanup; instability diagnostics print the
 labelled compare::diff(first, rerun) result.
+
+## Persisted records versus a forced fresh serialization
+
+The reload adapter consumes the port's serialized entity records, as its glue
+leaves them, while Java runs saveWithoutMetadata. These operations can expose
+real persistence differences; they are not interchangeable with serializing
+all current Rust getters on demand. In glue/kinetics.rs, tick_solve writes only
+changed kinetic/handle records. Sequencer progress is written on redstone checks,
+actual instruction transitions and the periodic ten-tick save point. A normal
+instruction tick advances progress/timer without returning an instruction step.
+Its current fields can therefore differ from its last serialized record.
+
+lib.rs level_tick_post runs the subsystems then persist::flush, which writes
+column attachments rather than refreshing entity records. chunk_unload dispatches
+unload callbacks without calling those entity serializers. Loading reads the
+existing compounds. A forced fresh snapshot would add a save operation absent
+from that path, and could conceal the separately observed sequencer-save lag.
+The regression current_sequencer_fields_can_differ_from_last_glue_write preserves
+this distinction. #34's generation identity is independently checked by requiring
+live registry size two while the restored entity's cached saved size remains one.

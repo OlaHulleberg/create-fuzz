@@ -378,6 +378,9 @@ mod tests {
                     .network
                     .unwrap();
                 assert_eq!((net.capacity, net.size), (256., 1));
+                // Retained old generation remains in the registry, while the saved
+                // per-entity cached size remains one until Create prunes/syncs it.
+                assert_eq!(r.w.dims[0].kinetics.network_membership(p, 0).unwrap().1, 2);
                 for _ in 1..saved.in_use {
                     r.w.tick_cranks(0);
                     r.flush_persistence();
@@ -393,6 +396,29 @@ mod tests {
                 }
             }
         }
+    }
+    #[test]
+    fn current_sequencer_fields_can_differ_from_last_glue_write() {
+        use create_engine::sequencer::{Instruction, Kind, Sequencer, Speed};
+        let mut seq = Sequencer {
+            instructions: vec![Instruction {
+                kind: Kind::TurnAngle,
+                speed: Speed::Forward,
+                value: 90,
+            }],
+            speed: 32.,
+            ..Default::default()
+        };
+        seq.run(0);
+        let written = codec::sequencer_to_nbt(&seq);
+        // At a non-periodic tick without redstone checks the glue does not call
+        // save_run. A continuing instruction returns no step for tick_solve to save.
+        assert!(seq.tick().is_none());
+        let persisted = codec::run_of_tag(&written).unwrap();
+        let current = codec::run_of_tag(&codec::sequencer_to_nbt(&seq)).unwrap();
+        assert_eq!((persisted.progress, persisted.timer), (0., 0));
+        assert!(current.progress > persisted.progress);
+        assert_eq!(current.timer, 1);
     }
     #[test]
     fn handle_records_follow_countdowns_and_replacement() {
