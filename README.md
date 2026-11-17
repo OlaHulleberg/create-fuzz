@@ -70,6 +70,8 @@ crank (true: backwards). A `minecraft:redstone_block` powers the blocks beside i
 - The day time is the scenario's: Create's mysterious cuckoo clock explodes at 18:32, so a server whose day ran on
   between batches blew up some cases and not their reruns. Clock animations and the explosion are machine work
   (group 7): the Rust driver does not run them yet, so generated cases keep day time 0, where none happens.
+- Clearing a slot also discards its entities: a cleared depot or belt drops its items, which landed on the next case's
+  depot in that slot and made it java-unstable.
 - A difference is rerun three times on Java first; a case Java disagrees with itself on is reported as unstable.
 - `rust/src/allow.rs` lists the differences confirmed not to be port bugs, each with its evidence.
 - A placed block's state starts from the port's `default_state` (`create/data/create/horizon/block/<name>.json` in the

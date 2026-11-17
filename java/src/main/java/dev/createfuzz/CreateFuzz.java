@@ -315,6 +315,22 @@ public class CreateFuzz {
                                 o.offset(-CLEAR_RADIUS, 0, -CLEAR_RADIUS),
                                 o.offset(CLEAR_RADIUS, CLEAR_HEIGHT, CLEAR_RADIUS)))
                     if (!level.getBlockState(p).isAir()) level.setBlock(p, air, 3);
+            // Clearing drops containers' contents (a depot's, a belt's): they must not reach the
+            // next case in the slot. Every entity but players goes with the blocks.
+            for (BlockPos o : origins) {
+                var box =
+                        new net.minecraft.world.phys.AABB(
+                                        o.offset(-CLEAR_RADIUS, 0, -CLEAR_RADIUS).getCenter(),
+                                        o.offset(CLEAR_RADIUS, CLEAR_HEIGHT, CLEAR_RADIUS)
+                                                .getCenter())
+                                .inflate(2);
+                for (var e :
+                        level.getEntitiesOfClass(
+                                net.minecraft.world.entity.Entity.class,
+                                box,
+                                e -> !(e instanceof net.minecraft.world.entity.player.Player)))
+                    e.discard();
+            }
         }
 
         static BlockPos at(BlockPos origin, JsonObject b) {
