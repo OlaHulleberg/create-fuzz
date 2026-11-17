@@ -2,6 +2,10 @@ plugins {
     id("net.neoforged.moddev") version "2.0.141"
 }
 
+if (System.getenv("FUZZ_JAVA_BUILD") != null) {
+    layout.buildDirectory = file(System.getenv("FUZZ_JAVA_BUILD"))
+}
+
 group = "dev.createfuzz"
 version = "0.1.0"
 
@@ -18,7 +22,7 @@ neoForge {
     runs {
         server {
             server()
-            gameDirectory = project.file("run")
+            gameDirectory = project.file(System.getenv("FUZZ_GAME_DIR") ?: "run")
             programArgument("--nogui")
             // JaCoCo, when FUZZ_JACOCO names its agent jar (see ../run.sh).
             if (System.getenv("FUZZ_JACOCO") != null) {

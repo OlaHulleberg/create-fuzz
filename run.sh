@@ -13,9 +13,10 @@ export FUZZ_TRANSPORT_MANIFEST="$here/rust/src/transport.json"
 export FUZZ_MANIFEST="$here/rust/src/kinetics.json"
 export FUZZ_DIR="${FUZZ_DIR:-$here/work}"
 gradlew="${CREATE_DIR:-$here/../Create}/gradlew"
-run="$here/java/run"
-export FUZZ_COVERAGE_INCLUDES="${FUZZ_COVERAGE_INCLUDES:-com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*}"
-export FUZZ_COVERAGE_CACHE="$here/work/jacoco"
+run="${FUZZ_GAME_DIR:-$here/java/run}"
+export FUZZ_GAME_DIR="$run"
+export FUZZ_COVERAGE_INCLUDES="${FUZZ_COVERAGE_INCLUDES:-com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.content.logistics.depot.*:com.simibubi.create.content.logistics.funnel.*:com.simibubi.create.content.logistics.tunnel.*:com.simibubi.create.content.logistics.box.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*}"
+export FUZZ_COVERAGE_CACHE="${FUZZ_COVERAGE_CACHE:-$here/work/jacoco}"
 export FUZZ_CREATE_JAR="${FUZZ_CREATE_JAR:-$HOME/.m2/repository/com/simibubi/create/create-1.21.1/6.0.11/create-1.21.1-6.0.11.jar}"
 coverage_tools() {
     mkdir -p "$FUZZ_COVERAGE_CACHE/classes"
@@ -72,7 +73,7 @@ max-tick-time=-1
 P
     sed -i "s/^server-port=.*/server-port=${FUZZ_PORT:-25599}/" "$run/server.properties"
     rm -f "$FUZZ_DIR/ready"
-    (cd "$here/java"; exec setsid nohup "$gradlew" --no-daemon -q runServer </dev/null > "$FUZZ_DIR/server.log" 2>&1) &
+    (cd "$here/java"; exec setsid nohup "$gradlew" --no-daemon --max-workers=4 -q runServer </dev/null > "$FUZZ_DIR/server.log" 2>&1) &
     echo $! > "$FUZZ_DIR/server.pid"
     for _ in $(seq 600); do
         [ -f "$FUZZ_DIR/ready" ] && { echo "server ready"; exit 0; }
