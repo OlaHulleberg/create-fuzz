@@ -732,7 +732,7 @@ impl Run {
 
     fn context_limit(&self, p: Pos, sub: u8, distance: bool) -> Option<f32> {
         let k = &self.w.dims[0].kinetics;
-        if self.w.sequencer_run(0, p).is_some() {
+        if self.w.block_at(0, p) == Some(create_engine::Block::SequencedGearshift) {
             // Java's single entity holds the outgoing context but reads it at the
             // driven shaft's theoretical speed. The engine stores it on the far half.
             let driven = k.theoretical(p, sub)?.0;
@@ -813,9 +813,9 @@ impl Run {
                 }
                 observed
             }),
-            sequencer: self
-                .w
-                .sequencer_run(0, p)
+            sequencer: (block == create_engine::Block::SequencedGearshift)
+                .then(|| self.w.sequencer_run(0, p))
+                .flatten()
                 .map(|r| crate::observation::SequenceRun {
                     current: r.current,
                     duration: r.duration,
@@ -878,6 +878,17 @@ pub fn run(sc: &Scenario) -> Snapshot {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn replaced_sequencer_has_only_the_current_blocks_observations() {
+        let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({
+            "ticks":80,"blocks":[{"pos":[0,8,0],"state":"create:sequenced_gearshift[axis=x,vertical=false,state=0]"}],
+            "events":[{"tick":5,"pos":[0,8,0],"state":"create:creative_motor[facing=east]","motor":32}]})).unwrap();
+        let snap = super::run(&sc);
+        let k = snap.blocks["0,8,0"].kinetic.as_ref().unwrap();
+        assert_eq!(k.speed_setting, Some(32.));
+        assert!(k.sequencer.is_none());
+    }
+
     #[test]
     fn client_only_power_commit_does_not_enqueue_neighbour_inputs() {
         let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({

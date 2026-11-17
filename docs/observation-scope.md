@@ -70,3 +70,9 @@ client renderer. Calling that branch on a dedicated server fails class loading.
 Both adapters explicitly emit angle_unavailable for that branch; they still
 compare selected angle, in-use, every kinetic/network field and context. Active
 player-use and resting undriven angles remain compared. No renderer is simulated.
+
+Subsystem observations are selected by the current block type, as the glue's
+sequencer message/load paths do. A cached sequencer record after replacement by
+a different kinetic block is not that block's sequencer state. The replacement
+regression retains this distinction without suppressing live sequencer context
+or transition comparisons.
