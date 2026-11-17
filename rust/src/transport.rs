@@ -223,7 +223,7 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
     }
     if mode == 0 {
         sc.events.push(Change {
-            tick: 130,
+            tick: 75,
             pos: [-1, 8, 0],
             action: Some(Action::Remove),
             state: None,
@@ -231,7 +231,7 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
             turn: None,
         });
         sc.events.push(Change {
-            tick: 145,
+            tick: 100,
             pos: [-1, 8, 0],
             action: None,
             state: Some("create:creative_motor[facing=east]".into()),

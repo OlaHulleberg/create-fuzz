@@ -232,8 +232,7 @@ The actor's cooldown manager advances once per scenario tick. Use at least five
 ticks between connector clicks. Rust invokes belt_connector::click/layout and
 commits the same dry segment states, then settles controllers before solving.
 Belt snapshots compare controller coordinates, index, length and casing kind.
-The driver mirrors logistics::tick_belts' queued break effects once per tick;
-Java's recursive onRemove can therefore finish a cascade earlier.
+The driver uses belt::break_cascade through BreakWorld, matching the glue's synchronous cascade. Existing belt interaction changes use switching_block_state; flipped and newly extended segments retain direct commits.
 
 `chain_link {target:[x,y,z],connect:true|false}` submits the player's
 ChainConveyorConnectionPacket on Java (with 64 chains in the held slot), and
@@ -244,8 +243,7 @@ it does not test the client's distance/slope/connection-count validation or
 crosshair geometry. Only valid client-selectable links belong in this family.
 Sorted relative link offsets are compared independently of network membership.
 
-This is partial group 5 coverage. Belt items, inventory provisioning for survival
-splits, dye/covered flags, item movement/transfers/depots and stalls remain
-unimplemented adapters, rather than established API gaps. They are not generated.
-Endpoint slicing/reforming currently supports empty belts only. No comparison
-field or allowance was removed for this extension.
+Item inputs, movement, belt/belt and belt/depot handoff, stalls and stack/position
+observations are documented in [item transport](item-transport.md). Native flight,
+loaded slicing and full interaction closure remain separate coverage boundaries.
+No comparison field or allowance was removed.

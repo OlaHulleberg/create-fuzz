@@ -308,3 +308,66 @@ fn transport_between_empty_belts_waits_for_next_busy_snapshot() {
             .any(|i| i.stalled == Some(true))
     );
 }
+
+#[test]
+fn same_item_depot_swap_follows_glue_slot_snapshot_before_give_back() {
+    use crate::{
+        actions::Face,
+        transport::{Input, Stack},
+    };
+    let sc:crate::scenario::Scenario=serde_json::from_value(serde_json::json!({"ticks":80,"blocks":[{"pos":[0,8,0],"state":"create:depot[waterlogged=false]"}]})).unwrap();
+    let mut r = super::Run::new(&sc);
+    r.place(&sc.blocks[0]);
+    for count in [16, 1] {
+        r.item_input(
+            [0, 8, 0],
+            &Input::Use {
+                stack: Some(Stack {
+                    item: "minecraft:iron_ingot".into(),
+                    count,
+                }),
+                face: Face::Up,
+                yaw: 0.,
+                sneaking: false,
+            },
+        );
+    }
+    assert_eq!(r.depot_stacks[&[0, 8, 0]].count, 1);
+    assert_eq!(r.item_outcomes[1].taken[0].count, 16);
+}
+
+#[test]
+fn observing_pending_items_does_not_flush_the_transport_queue() {
+    use crate::transport::{Input, Stack};
+    let mut sc = crate::transport::generate(31);
+    sc.events.retain(|e| e.tick < 40);
+    sc.ticks = 40;
+    sc.checkpoints.clear();
+    let mut r = super::Run::new(&sc);
+    for b in &sc.blocks {
+        r.place(b);
+    }
+    // Make the belt through the player's two connector clicks, not state injection.
+    for e in &sc.events {
+        if let Some(a) = &e.action {
+            r.action(e.pos, a);
+        }
+    }
+    r.tick();
+    r.item_input(
+        [0, 8, 1],
+        &Input::DropOn {
+            stack: Stack {
+                item: "minecraft:iron_ingot".into(),
+                count: 16,
+            },
+        },
+    );
+    let a = r.snapshot(&sc);
+    let b = r.snapshot(&sc);
+    assert_eq!(a, b);
+    assert!(a.blocks["0,8,0"].transport.as_ref().unwrap().items[0].pending);
+    assert!(r.w.dims[0].belts[&[0, 8, 0]].items.items.is_empty());
+    r.tick();
+    assert_eq!(r.w.dims[0].belts[&[0, 8, 0]].items.items.len(), 1);
+}

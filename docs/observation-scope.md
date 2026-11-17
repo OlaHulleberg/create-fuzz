@@ -81,4 +81,4 @@ Belt observations add controller/index/length/casing and conveyor link offsets.
 Kinetic part reconstruction supplies the current belt controller in Settings;
 without it parts() returns no belt part even though the solver contains one.
 This was a driver observation bug, corrected before classifying differences.
-Items and covered/color entity state still need separate observations and inputs.
+Items now have the input and observation contract in item-transport.md. Covered/color entity state still needs its own coverage.

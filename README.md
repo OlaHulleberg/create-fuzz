@@ -227,5 +227,4 @@ refusals and casing changes followed by segment removal. Manual belt cases add
 pulley insertion/removal and endpoint shortening/extension. Conveyor loop traces
 use `chain_link`, the server transaction sent after the player's chain selection.
 Snapshots compare controller/index/length/casing and sorted conveyor link offsets.
-See docs/player-actions.md for the remaining group 5 gaps: item transport and
-inventory-backed splitting are still unfinished and are not parity claims.
+See [item transport](docs/item-transport.md) for player stack landings/uses, movement, belt/depot handoff, stalls, per-tick observations and explicit native-flight/component boundaries. Inventory-backed splitting remains separate.

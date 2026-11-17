@@ -255,6 +255,17 @@
     },
     {
       "action": {
+        "kind": "remove"
+      },
+      "tick": 75,
+      "pos": [
+        -1,
+        8,
+        0
+      ]
+    },
+    {
+      "action": {
         "kind": "item",
         "input": {
           "kind": "drop_on",
@@ -272,18 +283,7 @@
       ]
     },
     {
-      "action": {
-        "kind": "remove"
-      },
-      "tick": 130,
-      "pos": [
-        -1,
-        8,
-        0
-      ]
-    },
-    {
-      "tick": 145,
+      "tick": 100,
       "pos": [
         -1,
         8,
