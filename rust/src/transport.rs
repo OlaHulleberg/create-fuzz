@@ -161,6 +161,11 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
             },
         );
     }
+    // Reload while stacks are queued/moving, and after reversal or stalling.
+    if (seed / 1920) % 2 == 1 {
+        event(42, [0, 8, 0], Action::Reload);
+        event(105, [0, 8, 0], Action::Reload);
+    }
     if mode == 4 {
         // SharedDepotBlockMethods.onUse rejects side clicks before touching held items.
         // Exercise both offered-stack and empty-hand rejection around a valid top use.
@@ -275,6 +280,7 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
         });
         sc.events.sort_by_key(|e| e.tick);
     }
+    sc.events.sort_by_key(|e| e.tick);
     sc.checkpoints.extend(130..=150);
     sc.checkpoints.extend([159, 161, 180, 181, 195, 196, 200]);
     // Translate the connected chain and all interactions together, preserving a
