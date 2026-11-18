@@ -112,9 +112,18 @@ fn exchange(
                 .copied()
                 .find(|b| !b.is_ascii_whitespace());
             if first == Some(b'[') {
-                let after: serde_json::Value = serde_json::from_reader(std::fs::File::open(&runtime).expect("runtime stamp after response")).expect("runtime stamp");
-                assert_eq!(after["boot"],stamp["boot"],"Java restarted during request");
-                assert_eq!(after["source_hash"],stamp["source_hash"],"Java build changed during request");
+                let after: serde_json::Value = serde_json::from_reader(
+                    std::fs::File::open(&runtime).expect("runtime stamp after response"),
+                )
+                .expect("runtime stamp");
+                assert_eq!(
+                    after["boot"], stamp["boot"],
+                    "Java restarted during request"
+                );
+                assert_eq!(
+                    after["source_hash"], stamp["source_hash"],
+                    "Java build changed during request"
+                );
                 let snapshots = serde_json::from_reader(reader).expect("snapshots");
                 let _ = std::fs::remove_file(&out);
                 return (snapshots, dir.join("outbox").join(format!("{name}.exec")));

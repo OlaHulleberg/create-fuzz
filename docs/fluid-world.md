@@ -80,3 +80,10 @@ reconstructs `(origin + block + hit) - (origin + block)` so its glue receives th
 double-precision hit. This matters for equal-distance glass-wrench choices at decimal hits:
 the same local decimal can round differently in different batch slots. Comparisons remain
 strict; there is no geometric tie allowance. Dry standalone Rust traces use origin zero.
+
+The native peer participates in `CaseIsolation`: it enters a fresh namespace before freezing,
+records its owned region with the shared disposer, releases its fresh actor, and unfreezes
+before the next case. Fluid boundaries and escaped entities fail explicitly. Unobserved item
+drops are counted and disposed while still inside the owned region; escape checks run first.
+Normal reference cases also assert containment before disposal. No boundary failure is
+converted into a partial successful case.

@@ -50,6 +50,23 @@ final class CaseIsolation {
             throw new IllegalStateException("case isolation: connected players share the test level");
     }
 
+    static long unobservedDrops;
+    /** Item flight after the controlled landing boundary is outside the driver contract. */
+    static void disposeUnobservedDrops(ServerLevel level, BlockPos origin) {
+        assertContained(level,origin);
+        var drops=new ArrayList<Entity>();
+        for(var entity:level.getAllEntities()) if(entity instanceof net.minecraft.world.entity.item.ItemEntity) drops.add(entity);
+        for(var entity:drops) {unobservedDrops++;entity.discard();}
+    }
+    static void assertContained(ServerLevel level, BlockPos origin) {
+        for (var entity : level.getAllEntities())
+            if (!(entity instanceof Player) && (entity.getY() < -1.5 || Math.abs(entity.getX()-origin.getX())>26 || Math.abs(entity.getZ()-origin.getZ())>26))
+                throw new IllegalStateException("case isolation: leaked entity outside owned region at "+entity.blockPosition());
+        for (var pos : BlockPos.betweenClosed(origin.offset(-32,1,-32),origin.offset(32,24,32)))
+            if ((Math.abs(pos.getX()-origin.getX())>24 || Math.abs(pos.getZ()-origin.getZ())>24) && !level.getFluidState(pos).isEmpty())
+                throw new IllegalStateException("case isolation: leaked fluid at "+pos);
+    }
+
     static void clear(ServerLevel level, BlockPos origin) {
         cleared.add(origin.immutable());
         for (var pos : BlockPos.betweenClosed(origin.offset(-24, 0, -24), origin.offset(24, 24, 24)))
@@ -119,6 +136,7 @@ final class CaseIsolation {
         health.addProperty("day_time", level.getDayTime());
         health.addProperty("entities", 0);
         health.addProperty("discarded_entities", discardedEntities);
+        health.addProperty("unobserved_owned_drops", unobservedDrops);
         health.addProperty("escaped_entities_discarded", escapedEntities);
         health.addProperty("block_entities", 0);
         health.addProperty("scheduled_ticks", 0);
@@ -129,7 +147,7 @@ final class CaseIsolation {
     /** Opt-in fault injection before ready; no scenario runs with the injected state. */
     static void selfTest(ServerLevel level) {
         var origin = BlockPos.ZERO;
-        var escaped = new net.minecraft.world.entity.item.ItemEntity(level, -33, -10, -1,
+        var escaped = new net.minecraft.world.entity.item.ItemEntity(level, 0, -10, 0,
                 new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE));
         level.addFreshEntity(escaped);
         expectLeak("leaked entity", () -> empty(level));

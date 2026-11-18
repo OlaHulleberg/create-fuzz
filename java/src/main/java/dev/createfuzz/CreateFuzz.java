@@ -170,7 +170,7 @@ public class CreateFuzz {
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
-            batch.clear(level);
+            CaseIsolation.empty(level);
             batch.releaseActors(level);
             batch = null;
         }
@@ -227,7 +227,7 @@ public class CreateFuzz {
         } catch (IOException ignored) {
         }
         if (batch != null) {
-            batch.clear(level);
+            CaseIsolation.empty(level);
             batch.releaseActors(level);
         }
         batch = null;
@@ -268,7 +268,7 @@ public class CreateFuzz {
         }
 
         void start(ServerLevel level) {
-            clear(level);
+            CaseIsolation.empty(level);
             if (name.startsWith("cover-") && cases.size() != 1)
                 throw new IllegalArgumentException("coverage requests contain one case");
         }
@@ -299,13 +299,8 @@ public class CreateFuzz {
             if(tick==0) cases.get(activeCase).addProperty("_save_phase",Math.floorMod(level.getGameTime(),10));
             for (int i = activeCase; i == activeCase; i++) {
                 JsonObject c = cases.get(i);
-                if(c.has("_fluid_invalid") || tick > c.get("ticks").getAsInt()) continue;
-                try {FluidBounds.check(level,origins.get(i),fluidRegions.get(i));}
-                catch(IllegalArgumentException error){
-                    var result=Observations.snapshot(level,origins.get(i),c,actors.get(i));
-                    var unavailable=result.has("unavailable")?result.getAsJsonArray("unavailable"):new JsonArray();unavailable.add(FluidBounds.OUTSIDE);result.add("unavailable",unavailable);
-                    var notes=new JsonArray();notes.add("adapter gap: "+error.getMessage());result.add("notes",notes);result.add("checkpoints",traces.get(i));results.set(i,result);c.addProperty("_fluid_invalid",true);CaseIsolation.clear(level,origins.get(i));continue;
-                }
+                CaseIsolation.disposeUnobservedDrops(level,origins.get(i));
+                FluidBounds.check(level,origins.get(i),fluidRegions.get(i));
                 if (c.has("checkpoints"))
                     for (JsonElement t : c.getAsJsonArray("checkpoints"))
                         if (t.getAsInt() == tick)
@@ -321,6 +316,7 @@ public class CreateFuzz {
                         coverage(outputDirectory.resolve(name + ".exec"));
                         coverageCaptured = true;
                     }
+                    CaseIsolation.assertContained(level, origins.get(i));
                     CaseIsolation.clear(level, origins.get(i));
                     PlayerActor.release(level, actors.set(i, null));
                     activeCase++;

@@ -31,23 +31,21 @@ final class FluidHost {
             for(int z=(ORIGIN.getZ()-24)>>4;z<=(ORIGIN.getZ()+24)>>4;z++) level.setChunkForced(x,z,true);
     }
     static void abortIfOwner(ServerLevel level,String key) {if(key.equals(owner)) abort(level);}
-    static void abort(ServerLevel level) {clear(level);owner=null;actor=null;level.getServer().tickRateManager().setFrozen(false);}
+    static void abort(ServerLevel level) {CaseIsolation.assertContained(level,ORIGIN);clear(level);if(actor!=null)PlayerActor.release(level,actor);owner=null;actor=null;level.getServer().tickRateManager().setFrozen(false);}
     static void clear(ServerLevel level) {
-        for(var p:BlockPos.betweenClosed(ORIGIN.offset(-24,0,-24),ORIGIN.offset(24,24,24)))
-            if(!level.getBlockState(p).isAir()) level.setBlock(p,Blocks.AIR.defaultBlockState(),3);
-        level.getFluidTicks().clearArea(new BoundingBox(ORIGIN.getX()-24,0,ORIGIN.getZ()-24,ORIGIN.getX()+24,24,ORIGIN.getZ()+24));
-        level.getBlockTicks().clearArea(new BoundingBox(ORIGIN.getX()-24,0,ORIGIN.getZ()-24,ORIGIN.getX()+24,24,ORIGIN.getZ()+24));
+        CaseIsolation.clear(level,ORIGIN);
     }
     static JsonObject handle(ServerLevel level, JsonObject request) throws Exception {
         reapStale(level);
         String key=request.get("owner").getAsString();
         if(request.has("begin")) {
             if(owner!=null&&!owner.equals(key)) throw new IllegalStateException("fluid host already owned by "+owner);
+            CaseIsolation.begin(level);
             level.getServer().tickRateManager().setFrozen(true);
             owner=key;epoch=level.getGameTime();clear(level);actor=PlayerActor.create(level,16);
         }
         if(!key.equals(owner)) throw new IllegalStateException("fluid host owner mismatch");
-        if(request.has("close")) {clear(level);owner=null;actor=null;level.getServer().tickRateManager().setFrozen(false);return new JsonObject();}
+        if(request.has("close")) {CaseIsolation.assertContained(level,ORIGIN);clear(level);if(actor!=null)PlayerActor.release(level,actor);owner=null;actor=null;level.getServer().tickRateManager().setFrozen(false);return new JsonObject();}
         long clock=request.get("clock").getAsLong();
         var data=(ServerLevelData)level.getLevelData();
         data.setGameTime(epoch+clock-(request.has("bucket")?0:1));
@@ -75,6 +73,7 @@ final class FluidHost {
             }
             FluidBounds.check(level,ORIGIN,request.getAsJsonArray("region"));
         }
+        CaseIsolation.disposeUnobservedDrops(level,ORIGIN);
         var out=new JsonObject();var states=new JsonArray();
         for(var value:request.getAsJsonArray("region")) {
             var xyz=value.getAsJsonArray();var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());

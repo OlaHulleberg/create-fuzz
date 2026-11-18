@@ -145,8 +145,43 @@ fn fuzz(first: u64, count: u64, batch: usize) {
         let cases: Vec<Scenario> = chunk.iter().map(|&s| generate::generate(s)).collect();
         for range in java::batches(&cases, batch) {
             let java = java::run(&fuzz_dir(), &cases[range.clone()]);
-            for (sc, j) in cases[range].iter().zip(&java) {
-                record(sc, j, &mut counts);
+            let group = &cases[range];
+            let mut unstable = vec![false; group.len()];
+            for (offset, delta) in [(1, 3), (17, 7)] {
+                let replay = java::varied(
+                    &fuzz_dir(),
+                    group,
+                    offset,
+                    (java[0].save_phase + delta) % 10,
+                );
+                for (i, ((sc, j), again)) in group.iter().zip(&java).zip(&replay).enumerate() {
+                    if !unstable[i] && !compare::diff(j, again).is_empty() {
+                        unstable[i] = true;
+                        counts.unstable += 1;
+                        #[derive(serde::Serialize)]
+                        struct Unstable<'a> {
+                            scenario: &'a Scenario,
+                            java: &'a Snapshot,
+                            java_again: [&'a Snapshot; 1],
+                        }
+                        let found = PathBuf::from(std::env::var("FUZZ_FOUND").expect("use run.sh"));
+                        std::fs::create_dir_all(&found).unwrap();
+                        write_record(
+                            &found.join(format!("unstable-{}.json", sc.seed)),
+                            &Unstable {
+                                scenario: sc,
+                                java: j,
+                                java_again: [again],
+                            },
+                        );
+                        println!("seed {}: java unstable across batch contexts", sc.seed);
+                    }
+                }
+            }
+            for (i, (sc, j)) in group.iter().zip(&java).enumerate() {
+                if !unstable[i] {
+                    record_inner(sc, j, &mut counts, false);
+                }
             }
         }
     }
@@ -205,6 +240,9 @@ impl Counts {
     }
 }
 fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) -> bool {
+    record_inner(sc, j, counts, true)
+}
+fn record_inner(sc: &Scenario, j: &Snapshot, counts: &mut Counts, verify_java: bool) -> bool {
     let found = std::env::var_os("FUZZ_FOUND")
         .map(PathBuf::from)
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../found"));
@@ -239,16 +277,21 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) -> bool {
         println!("seed {}: driver unsupported (fluid containment)", sc.seed);
         return false;
     }
-    if diffs.is_empty() {
-        counts.matched += 1;
-        return true;
-    }
     // Recheck sequentially: three full checkpoint histories must not stay live
     // together with the original Java/Rust pair. One differing rerun proves instability.
-    for index in 0..3 {
-        let rerun = java::run(&fuzz_dir(), std::slice::from_ref(sc))
-            .pop()
-            .unwrap();
+    for (index, (offset, delta)) in [(1, 3), (7, 5), (17, 7)]
+        .into_iter()
+        .take(if verify_java { 3 } else { 0 })
+        .enumerate()
+    {
+        let rerun = java::varied(
+            &fuzz_dir(),
+            std::slice::from_ref(sc),
+            offset,
+            (j.save_phase + delta) % 10,
+        )
+        .pop()
+        .unwrap();
         let disagreement = compare::diff(j, &rerun);
         if !disagreement.is_empty() {
             counts.unstable += 1;
@@ -273,6 +316,10 @@ fn record(sc: &Scenario, j: &Snapshot, counts: &mut Counts) -> bool {
             println!("seed {}: java unstable", sc.seed);
             return true;
         }
+    }
+    if diffs.is_empty() {
+        counts.matched += 1;
+        return true;
     }
     counts.differed += 1;
     #[derive(serde::Serialize)]
