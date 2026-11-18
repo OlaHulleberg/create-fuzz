@@ -20,16 +20,11 @@ impl Run {
     pub(super) fn tick_fluids(&mut self) {
         self.tick_pipe_shapes();
         self.tick_pumps();
-        let open: HashMap<_, _> = self.w.dims[0]
-            .plumbing
-            .valves
-            .keys()
-            .map(|&p| (p, self.w.table.get(self.at(p)).map(|(_, i)| i.enabled)))
-            .collect();
-        let changes = self
-            .w
-            .tick_fluid_entities(0, |p| open.get(&p).copied().flatten());
-        for (p, enabled) in changes {
+    }
+    pub(super) fn tick_fluid_entity(&mut self, p: Pos) {
+        let enabled = self.w.table.get(self.at(p)).map(|(_, i)| i.enabled);
+        let change = self.w.tick_fluid_entity(0, p, enabled);
+        if let Some(enabled) = change {
             let next = with_prop(
                 &self.name(self.at(p)),
                 "enabled",
@@ -484,6 +479,7 @@ mod tests {
         run.w.dims[0].plumbing.valve_speed(p, 64.);
         for _ in 0..6 {
             run.tick_fluids();
+            run.tick_transport();
         }
         assert!(run.name(run.at(p)).contains("enabled=true"));
         assert_eq!(run.w.block_at(0, p), Some(create_engine::Block::FluidValve));

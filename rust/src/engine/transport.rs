@@ -168,6 +168,10 @@ impl Run {
         let mut phase = self.w.transport_ticks(0);
         while let Some(turn) = phase.next(&mut self.w) {
             let c = match turn {
+                create_engine::world::TransportTick::Fluid(p) => {
+                    self.tick_fluid_entity(p);
+                    continue;
+                }
                 create_engine::world::TransportTick::Spout(p) => {
                     create_engine::spout::tick(self.w.dims[0].spouts.get_mut(&p).unwrap());
                     continue;
@@ -178,7 +182,7 @@ impl Run {
                 }
                 create_engine::world::TransportTick::Pump(p) => {
                     if self.w.dims[0].pumping.contains(&p) {
-                        self.pump(p, pipes_changed);
+                        self.pump(p, pipes_changed || self.w.dims[0].pipes_changed);
                     }
                     continue;
                 }
