@@ -21,7 +21,13 @@ impl Run {
     }
     pub(super) fn pipe_cell(&self, p: Pos) -> Cell {
         let Some((block, i)) = self.w.table.get(self.at(p)) else {
-            return Cell::Solid;
+            let name = self.name(self.at(p));
+            let (block, props) = parse_state(&name);
+            return if fluids::vanilla_target(&block, props.iter().any(|(k, _)| k == "honey_level")) {
+                Cell::VanillaTarget
+            } else {
+                Cell::Solid
+            };
         };
         match block {
             Block::FluidPipe => Cell::Pipe(self.pipe_sides(p)),
