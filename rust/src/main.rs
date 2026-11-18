@@ -25,6 +25,7 @@ mod mutate;
 mod observation;
 mod persistence;
 mod program;
+mod records;
 mod repeat_java;
 mod scenario;
 mod shrink;
@@ -65,10 +66,7 @@ fn main() {
                 rust: Snapshot,
             }
             let read = |path: &str| -> Record {
-                serde_json::from_reader(std::io::BufReader::new(
-                    std::fs::File::open(path).expect("record file"),
-                ))
-                .expect("record JSON")
+                serde_json::from_reader(records::reader(Path::new(path))).expect("record JSON")
             };
             let main = read(&args[1]);
             let branch = read(&args[2]);
@@ -82,10 +80,7 @@ fn main() {
         }
         "diff-files" => {
             let read = |path: &str| -> Snapshot {
-                serde_json::from_reader(std::io::BufReader::new(
-                    std::fs::File::open(path).expect("snapshot file"),
-                ))
-                .expect("snapshot JSON")
+                serde_json::from_reader(records::reader(Path::new(path))).expect("snapshot JSON")
             };
             println!(
                 "{}",
@@ -126,7 +121,7 @@ fn main() {
                 .iter()
                 .filter(|arg| arg.as_str() != "--compact")
                 .map(|seed| {
-                    if seed.ends_with(".json") {
+                    if seed.ends_with(".json") || seed.ends_with(".json.gz") {
                         load(seed)
                     } else {
                         generate::generate(seed.parse().unwrap())
@@ -145,7 +140,11 @@ fn main() {
         "shrink" => {
             let (sc, d) =
                 shrink::shrink(&fuzz_dir(), load(&args[1]), args.get(2).map(String::as_str));
-            let out = args[1].trim_end_matches(".json").to_string() + ".min.json";
+            let out = args[1]
+                .trim_end_matches(".gz")
+                .trim_end_matches(".json")
+                .to_string()
+                + ".min.json";
             let record = serde_json::json!({"scenario": sc, "diffs": d});
             std::fs::write(&out, serde_json::to_string_pretty(&record).unwrap()).unwrap();
             println!("{}", serde_json::to_string_pretty(&record).unwrap());
@@ -251,26 +250,25 @@ pub fn fuzz_dir() -> PathBuf {
 }
 
 fn load(path: &str) -> Scenario {
-    use std::io::BufReader;
     #[derive(serde::Deserialize)]
     struct Wrapped {
         scenario: Scenario,
     }
     // Found records can contain hundreds of MB of observations. Deserialize only
     // their scenario; Serde skips the other fields without building a Value tree.
-    let open = || std::fs::File::open(path).unwrap_or_else(|error| panic!("{path}: {error}"));
-    if let Ok(record) = serde_json::from_reader::<_, Wrapped>(BufReader::new(open())) {
+    let open = || records::reader(Path::new(path));
+    if let Ok(record) = serde_json::from_reader::<_, Wrapped>(open()) {
         return record.scenario;
     }
-    serde_json::from_reader(BufReader::new(open()))
-        .unwrap_or_else(|error| panic!("{path}: {error}"))
+    serde_json::from_reader(open()).unwrap_or_else(|error| panic!("{path}: {error}"))
 }
 
 fn write_record(path: &Path, value: &impl serde::Serialize) {
-    let file = std::fs::File::create(path).expect("create record");
-    let mut writer = std::io::BufWriter::new(file);
-    serde_json::to_writer_pretty(&mut writer, value).expect("write record");
-    std::io::Write::flush(&mut writer).expect("flush record");
+    records::write(
+        path,
+        value,
+        std::env::var_os("FUZZ_RECORD_GZIP").is_some_and(|v| v == "1"),
+    );
 }
 
 fn print(s: &Snapshot) {

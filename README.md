@@ -227,3 +227,8 @@ See [item transport](docs/item-transport.md) for player stack landings/uses, mov
 Fluid histories use `fluids.json` state domains and version-3 player uses for pipe/pump/tank placement, wrench/glass/copper casing, creative actor bucket exchange (`game_mode`), smart filter slots, and redstone-controlled valve transmissions. `fluid_inputs.rs` drives creative tanks, drains, depot/belt spouts and a startup-audited component-free recipe subset. Observations include tank shapes/contents, six connection pressures and flights, world fluid state, machine storage/cycles/held items, filters and depot output slots. Rust reads the engine's stored per-side pressure, flow progress and open-end buffers directly, including sources retained by a live network. Component-bearing potions, arbitrary recipes, contraptions and item entity flight are outside the admitted contract.
 
 Shrinking evaluates one candidate at a time. Check/fuzz batches are bounded by observed checkpoint cells and JSON records stream through buffered readers/writers. On the shared VM, run runtime sweeps and shrinks one at a time under `prlimit --as=3000000000`, after checking at least 4 GiB is available.
+
+Set `FUZZ_RECORD_GZIP=1` to stream full fuzz found records to compact `.json.gz` files.
+The default remains plain JSON for existing coverage tools. `rust`, `java`, `check`,
+`shrink`, `repeat-java`, `compare-records` and `diff-files` accept gzip inputs by suffix.
+Compression preserves both complete snapshots and every difference for triage.
