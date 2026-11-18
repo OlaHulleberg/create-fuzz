@@ -37,6 +37,7 @@ use std::path::{Path, PathBuf};
 
 const HELP: &str = "\
 create-fuzz <command>
+  diff-files <java.json> <rust.json> compare recorded snapshots offline
   rust <case.json>               run one case through the port's engine, print its snapshot
   java <case.json>               run one case on the Java server, print its snapshot
   check <case.json>...           run cases on both sides and compare them
@@ -55,6 +56,17 @@ fn main() {
         std::process::exit(2);
     };
     match cmd.as_str() {
+        "diff-files" => {
+            let read = |path: &str| -> Snapshot {
+                serde_json::from_reader(std::fs::File::open(path).expect("snapshot file"))
+                    .expect("snapshot JSON")
+            };
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&compare::diff(&read(&args[1]), &read(&args[2])))
+                    .unwrap()
+            );
+        }
         "manifest" => {
             let manual: Vec<_> = args[1..].iter().map(|p| load(p)).collect();
             let generated: Vec<_> = (0..2000).map(generate::generate).collect();

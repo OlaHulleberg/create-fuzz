@@ -146,9 +146,8 @@ impl Run {
                         },
                     );
                 }
-                pump.pumped = pump.pumped.saturating_add(1);
+                let pumped = pump.advance_flow();
                 let push = std::mem::take(&mut pump.push);
-                let pumped = pump.pumped;
                 let reached = |to: &&End| {
                     to.kind != fluids::Endpoint::Pump
                         && to.passes(fluid)
