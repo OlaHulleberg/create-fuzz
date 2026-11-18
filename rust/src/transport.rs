@@ -163,7 +163,7 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
             );
         }
     }
-    if mode == 0 && (seed / 160) % 3 == 0 && (seed / 480) % 2 == 1 {
+    if mode == 0 && (seed / 160).is_multiple_of(3) && (seed / 480) % 2 == 1 {
         event(66, [0, 8, 5], Action::Remove);
         for (tick, pos, item) in [
             (70, [0, 8, 4], "create:belt_connector"),
