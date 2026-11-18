@@ -267,7 +267,7 @@ fn write_record(path: &Path, value: &impl serde::Serialize) {
     records::write(
         path,
         value,
-        std::env::var_os("FUZZ_RECORD_GZIP").is_some_and(|v| v == "1"),
+        std::env::var_os("FUZZ_RECORD_GZIP").is_none_or(|v| v != "0"),
     );
 }
 
