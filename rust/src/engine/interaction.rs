@@ -380,10 +380,14 @@ impl Run {
         if block == "create:shaft" {
             next = with_prop(&next, "waterlogged", "false");
         }
-        if block == "create:clutch"
-            || block == "create:gearshift"
-            || block == "create:adjustable_chain_gearshift"
-        {
+        if block == "create:clutch" || block == "create:gearshift" {
+            next = with_prop(
+                &next,
+                "powered",
+                if self.signal(p) > 0 { "true" } else { "false" },
+            );
+        }
+        if block == "create:adjustable_chain_gearshift" {
             next = with_prop(&next, "powered", "false");
             if self.signal(p) > 0 {
                 self.notes.push(

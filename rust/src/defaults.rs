@@ -23,6 +23,11 @@ pub fn declared(id: &str) -> State {
     }
     let name = id.strip_prefix("create:").unwrap_or(id);
     let path = checkout().join(format!("create/data/create/sunrise/block/{name}.json"));
+    let path = if path.exists() {
+        path
+    } else {
+        checkout().join(format!("create/data/create/horizon/block/{name}.json"))
+    };
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     let doc: serde_json::Value = serde_json::from_str(&text).expect("block data");
     let mut out: State = doc["default_state"]
