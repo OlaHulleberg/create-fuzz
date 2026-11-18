@@ -76,10 +76,10 @@ impl Run {
         };
         if changed || !pump.found {
             let cell = |p, d| self.pipe_cell_toward(p, d);
-            let pull = fluids::reach_toward(pos, facing.opposite(), speed, cell);
-            let push = fluids::reach_toward(pos, facing, speed, cell);
-            let ways_pull = fluids::ways_toward(pos, facing.opposite(), cell);
-            let ways_push = fluids::ways_toward(pos, facing, cell);
+            let pull = fluids::reach_toward(pos, facing.opposite(), speed, true, cell);
+            let push = fluids::reach_toward(pos, facing, speed, false, cell);
+            let ways_pull = fluids::ways_toward(pos, facing.opposite(), true, cell);
+            let ways_push = fluids::ways_toward(pos, facing, false, cell);
             let same = pump.found
                 && pump.pull == pull
                 && pump.push == push
@@ -96,7 +96,11 @@ impl Run {
             pump.found = true;
         }
         self.pressure_paths(pos, facing, speed, &pump);
-        let from = pump.pull.iter().find(|e| !e.blocked).copied();
+        let from = pump
+            .pull
+            .iter()
+            .find(|e| !e.blocked && e.kind != fluids::Endpoint::Pump)
+            .copied();
         let mut flowing = false;
         if let Some(from) = from
             && !pump.push.is_empty()
@@ -149,7 +153,9 @@ impl Run {
                 let push = std::mem::take(&mut pump.push);
                 let pumped = pump.pumped;
                 let reached = |to: &&End| {
-                    to.passes(fluid) && pumped >= fluids::arrival_ticks(&from, to, speed)
+                    to.kind != fluids::Endpoint::Pump
+                        && to.passes(fluid)
+                        && pumped >= fluids::arrival_ticks(&from, to, speed)
                 };
                 let count = push.iter().filter(reached).count();
                 let moved = fluids::share(count, n, |k, give| {
@@ -175,7 +181,10 @@ impl Run {
         self.w.dims[0].pumps.insert(pos, pump);
     }
     pub(super) fn fluid_offer(&mut self, from: &End, amount: u32) -> Option<(Fluid, u32)> {
-        if !from.tank {
+        if from.kind == fluids::Endpoint::Pump {
+            return None;
+        }
+        if from.kind == fluids::Endpoint::Open {
             return self.open_end(from, |open, front| open.drain(front, amount, None, false));
         }
         if let Some(fluid) = self.w.dims[0].plumbing.creative_fluid(from.pos) {
@@ -192,7 +201,7 @@ impl Run {
             .and_then(|(_, m)| m.tank.fluid.map(|f| (f, m.tank.amount.min(amount))))
     }
     pub(super) fn fluid_take(&mut self, from: &End, fluid: Fluid, amount: u32) {
-        if !from.tank {
+        if from.kind == fluids::Endpoint::Open {
             self.open_end(from, |open, front| {
                 open.drain(front, amount, Some(fluid), true)
             });
@@ -208,7 +217,10 @@ impl Run {
         self.w.drain_tank(0, from.pos, amount);
     }
     pub(super) fn fluid_fill(&mut self, to: &End, fluid: Fluid, amount: u32) -> u32 {
-        if !to.tank {
+        if to.kind == fluids::Endpoint::Pump {
+            return 0;
+        }
+        if to.kind == fluids::Endpoint::Open {
             return self.open_end(to, |open, front| open.fill(front, fluid, amount, true));
         }
         if self.w.dims[0].plumbing.creative.contains_key(&to.pos) {
@@ -438,8 +450,8 @@ mod tests {
                     [4, 4, 0] => Cell::Tank,
                     _ => Cell::Solid,
                 };
-                let from = fluids::reach_toward(p, Dir::West, 32., cell)[0];
-                let to = fluids::reach_toward(p, Dir::East, 32., cell)[0];
+                let from = fluids::reach_toward(p, Dir::West, 32., true, cell)[0];
+                let to = fluids::reach_toward(p, Dir::East, 32., false, cell)[0];
                 let pull = fluids::ways_toward(p, Dir::West, cell);
                 let push = fluids::ways_toward(p, Dir::East, cell);
                 let raw = fluids::flows(
