@@ -452,8 +452,8 @@ mod tests {
                 };
                 let from = fluids::reach_toward(p, Dir::West, 32., true, cell)[0];
                 let to = fluids::reach_toward(p, Dir::East, 32., false, cell)[0];
-                let pull = fluids::ways_toward(p, Dir::West, cell);
-                let push = fluids::ways_toward(p, Dir::East, cell);
+                let pull = fluids::ways_toward(p, Dir::West, true, cell);
+                let push = fluids::ways_toward(p, Dir::East, false, cell);
                 let raw = fluids::flows(
                     p,
                     Dir::East,
