@@ -141,6 +141,28 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
         event(26, [0, 8, 5], connector());
         event(32, [0, 8, 8], connector());
     }
+    if (seed / 960) % 2 == 1 {
+        for (tick, item, face) in [
+            (52, "create:andesite_casing", Face::Up),
+            (54, "create:brass_casing", Face::East),
+            (56, "create:wrench", Face::East),
+            (58, "create:shaft", Face::Up),
+            (60, "create:wrench", Face::East),
+        ] {
+            event(
+                tick,
+                [0, 8, 2],
+                Action::Use {
+                    item: item.into(),
+                    face,
+                    hit: [0.5, 0.5, 0.5],
+                    yaw: 0.,
+                    pitch: 0.,
+                    sneaking: false,
+                },
+            );
+        }
+    }
     let at = if mode == 3 { [0, 8, 3] } else { [0, 8, 1] };
     for (tick, item, count) in [
         (40, "minecraft:iron_ingot", 16),
@@ -383,7 +405,15 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
     for e in &sc.events {
         if let Some(crate::actions::Action::Use { item, .. }) = &e.action {
             assert!(
-                ["create:belt_connector", "minecraft:air"].contains(&item.as_str())
+                [
+                    "create:belt_connector",
+                    "minecraft:air",
+                    "create:andesite_casing",
+                    "create:brass_casing",
+                    "create:shaft",
+                    "create:wrench",
+                ]
+                .contains(&item.as_str())
                     || crate::fluids::contract()
                         .blocks
                         .iter()
@@ -391,7 +421,7 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                     || item == "create:depot"
                     || crate::fluid_recipes::contents(item).is_some()
                     || item == "minecraft:bucket",
-                "loaded-belt structural edits and item overrides require a separate transport adapter"
+                "item override requires a separate transport adapter"
             );
         }
     }
