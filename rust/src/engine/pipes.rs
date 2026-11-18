@@ -12,6 +12,15 @@ fn axis(a: Axis) -> String {
     format!("{a:?}").to_lowercase()
 }
 impl Run {
+    /// FluidTransportBehaviour.cacheFlows/loadFlows for casing and wrench conversions.
+    pub(super) fn replace_pipe_state(&mut self, p: Pos, state: u32) {
+        let previous = self.w.dims[0].fluid_transport.pipes.remove(&p);
+        self.set(p, state);
+        if let Some(previous) = previous {
+            self.w.dims[0].fluid_transport.pipes.insert(p, previous);
+        }
+    }
+
     pub(super) fn pipe_sides(&self, p: Pos) -> u8 {
         let (_, props) = parse_state(&self.name(self.at(p)));
         Dir::ALL
@@ -221,7 +230,7 @@ impl Run {
                 Dir::from_axis(a, true).bit() | Dir::from_axis(a, false).bit()
             };
             let next = self.sides_state("create:encased_fluid_pipe", sides, false);
-            self.set(p, self.id(&next));
+            self.replace_pipe_state(p, self.id(&next));
             return true;
         }
         if item != "create:wrench" {
@@ -264,7 +273,7 @@ impl Run {
                         axis(a),
                         info.waterlogged
                     );
-                    self.set(p, self.id(&next));
+                    self.replace_pipe_state(p, self.id(&next));
                 }
             }
             Block::GlassFluidPipe | Block::EncasedFluidPipe => {
@@ -279,7 +288,7 @@ impl Run {
                     .find(|d| sides & d.bit() != 0)
                     .unwrap_or(Dir::Up);
                 let next = self.sides_state("create:fluid_pipe", sides, info.waterlogged);
-                self.set(p, self.id(&next));
+                self.replace_pipe_state(p, self.id(&next));
                 self.connect_pipe(p, Some(first));
             }
             _ => {}

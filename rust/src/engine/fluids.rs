@@ -79,7 +79,7 @@ impl Run {
                 self.w.dims[0].plumbing.filters.remove(&p).is_some()
             };
             if changed {
-                self.w.dims[0].pipes_changed = true;
+                self.w.dims[0].fluid_transport.changed.push(p);
                 self.w.dims[0].plumbing.filter_changes.push(p);
                 self.mark_column(p);
             }
@@ -377,13 +377,18 @@ mod tests {
                 }),
             },
         );
-        d.open_ends.insert(
-            ([6, 8, 0], create_engine::kinetics::Dir::North),
-            create_engine::open_end::OpenEnd {
-                tank: Some((Fluid::Water, 900)),
-                pulling: true,
-            },
+        let mut pipe = create_engine::fluids::transport::FluidTransportBehaviour::new(
+            create_engine::kinetics::Dir::North.bit(),
         );
+        pipe.connection(create_engine::kinetics::Dir::North)
+            .unwrap()
+            .set_source(create_engine::fluids::transport::Source::open(
+                create_engine::open_end::OpenEnd {
+                    tank: Some((Fluid::Water, 900)),
+                    pulling: true,
+                },
+            ));
+        d.fluid_transport.pipes.insert([6, 8, 0], pipe);
         let data = saved::save_column(&r.w, (0, 0));
         let encoded = serde_json::to_vec(&data).unwrap();
         r.w.dims[0] = Default::default();
@@ -401,7 +406,15 @@ mod tests {
         assert_eq!(dr.processing, 7);
         assert_eq!(dr.held.as_ref().unwrap().prev, 0.375);
         assert_eq!(
-            d.open_ends[&([6, 8, 0], create_engine::kinetics::Dir::North)].tank,
+            d.fluid_transport
+                .connection(create_engine::fluids::runtime::Face {
+                    pos: [6, 8, 0],
+                    side: create_engine::kinetics::Dir::North
+                })
+                .unwrap()
+                .open_end()
+                .unwrap()
+                .tank,
             Some((Fluid::Water, 900))
         );
         assert!(matches!(data.get("create_fluids"), Some(Tag::Compound(_))));

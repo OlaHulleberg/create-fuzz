@@ -1,11 +1,7 @@
 //! The host-facing callbacks in glue/fluids/open_end::Front. World-fluid updates are
 //! scheduled separately from Create's pressure/transfer phase.
 use super::*;
-use create_engine::{
-    kinetics::Dir,
-    open_end::{OpenEnd, Space},
-    tank::Fluid,
-};
+use create_engine::{kinetics::Dir, open_end::Space, tank::Fluid};
 pub(super) struct Front<'a> {
     pub run: &'a mut Run,
     pub pos: Pos,
@@ -123,40 +119,6 @@ impl Run {
             }
         }
         true
-    }
-    pub(super) fn open_end<R>(
-        &mut self,
-        end: &create_engine::fluids::End,
-        f: impl FnOnce(&mut OpenEnd, &mut Front<'_>) -> R,
-    ) -> R {
-        let owner = add(end.pos, end.face.opposite().offset());
-        let key = (owner, end.face);
-        let mut open = self.w.dims[0]
-            .open_ends
-            .get(&key)
-            .copied()
-            .unwrap_or_default();
-        let out = f(
-            &mut open,
-            &mut Front {
-                run: self,
-                pos: end.pos,
-            },
-        );
-        let before = self.w.dims[0]
-            .open_ends
-            .get(&key)
-            .copied()
-            .unwrap_or_default();
-        if open != before {
-            if open == OpenEnd::default() {
-                self.w.dims[0].open_ends.remove(&key);
-            } else {
-                self.w.dims[0].open_ends.insert(key, open);
-            }
-            self.mark_column(owner);
-        }
-        out
     }
     pub(super) fn tick_world_fluids(&mut self) {
         if !self.fluid_host_enabled {
@@ -314,6 +276,7 @@ impl Space for Front<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use create_engine::open_end::OpenEnd;
     fn run() -> Run {
         Run::new(&crate::fluid_world::generate(17))
     }

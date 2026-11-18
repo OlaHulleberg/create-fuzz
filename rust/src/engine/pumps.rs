@@ -1,30 +1,26 @@
-//! Pump/flow phase from glue/fluids/{pipes,flows}. The engine keeps endpoint reach and tank
-//! contents; this adapter supplies host callbacks and the glue's transient flow cache.
+//! Engine transport host: world reads and capability callbacks only.
 use super::*;
+use create_engine::fluids::{
+    runtime::{Face, Host},
+    transport::Source,
+};
 use create_engine::{
     Block,
-    fluids::{self, Cell, End, FlowAt, Step},
+    fluids::{self, Cell},
     kinetics::Dir,
     tank::Fluid,
 };
-#[derive(Clone)]
-pub(super) struct Running {
-    pub fluid: Fluid,
-    pub start: usize,
-    pub stop: Option<usize>,
-    pub flows: Vec<FlowAt>,
-}
 impl Run {
-    pub(super) fn pipe_cell_toward(&self, p: Pos, _toward: Dir) -> Cell {
+    pub(super) fn pipe_cell_toward(&self, p: Pos, toward: Dir) -> Cell {
         if self.w.table.get(self.at(p)).is_some() {
             return self.pipe_cell(p);
         }
         let state = self.name(self.at(p));
         let (name, props) = parse_state(&state);
-        if name.ends_with("cauldron") || props.iter().any(|(k, _)| k == "honey_level") {
-            return Cell::Open;
+        if fluids::vanilla_target(&name, props.iter().any(|(k, _)| k == "honey_level")) {
+            return Cell::VanillaTarget;
         }
-        if self.sturdy(p, _toward.opposite()) {
+        if self.sturdy(p, toward.opposite()) {
             return Cell::Solid;
         }
         if self.replaceable(p) || self.waterloggable(p) {
@@ -34,326 +30,107 @@ impl Run {
         }
     }
     pub(super) fn tick_pumps(&mut self) {
-        let pumps = self.w.dims[0].pumping.clone();
-        self.fluid_pressures.clear();
-
-        self.fluid_runs.retain(|p, _| pumps.contains(p));
-        let now = self.persisted.clock;
-        self.fluid_runs.retain(|_, r| {
-            r.stop
-                .is_none_or(|stop| r.flows.iter().any(|f| now <= stop + f.order as usize))
-        });
-        let mut positions: Vec<_> = self
-            .fluid_runs
-            .values()
-            .flat_map(|r| r.flows.iter().filter(|f| f.inbound).map(|f| f.pos))
-            .collect();
-        positions.sort();
-        positions.dedup();
+        let positions = self.w.fluid_transport_positions(0);
+        let mut world = std::mem::take(&mut self.w.dims[0].fluid_transport);
+        for &p in &positions {
+            world.register(p, self.pipe_cell(p), self.w.speed(0, p).unwrap_or(0.));
+        }
+        world.prepare(self);
         for p in positions {
-            let mut sides = self.fluid_provided(p);
-            sides.sort_by_key(|(d, _)| Dir::ALL.iter().position(|x| x == d));
-            if let Some((_, first)) = sides.first().copied()
-                && let Some((_, other)) = sides.iter().find(|(_, f)| *f != first).copied()
-            {
+            self.w.fluid_transport_base_tick(0, p);
+            if let Some((a, b)) = world.tick_pipe(self, p) {
                 self.set(p, AIR);
-                if let Some(state) = create_engine::open_end::flow_collision(first, other) {
+                world.remove(p);
+                if let Some(state) = create_engine::open_end::flow_collision(a, b) {
                     self.set(p, self.id(state));
                 }
             }
         }
+        for &p in world.pipes.keys() {
+            self.mark_column(p);
+        }
+        world
+            .changed
+            .append(&mut self.w.dims[0].fluid_transport.changed);
+        self.w.dims[0].fluid_transport = world;
     }
-    pub(super) fn pump(&mut self, pos: Pos, changed: bool) {
-        let speed = self.w.speed(0, pos).unwrap_or(0.);
-        let Some(facing) = self.w.table.get(self.at(pos)).and_then(|(_, i)| i.facing) else {
-            return;
-        };
-        let Some(mut pump) = self.w.dims[0].pumps.get(&pos).cloned() else {
-            return;
-        };
-        if changed || !pump.found {
-            let cell = |p, d| self.pipe_cell_toward(p, d);
-            let pull = fluids::reach_toward(pos, facing.opposite(), speed, true, cell);
-            let push = fluids::reach_toward(pos, facing, speed, false, cell);
-            let ways_pull = fluids::ways_toward(pos, facing.opposite(), true, cell);
-            let ways_push = fluids::ways_toward(pos, facing, false, cell);
-            let same = pump.found
-                && pump.pull == pull
-                && pump.push == push
-                && pump.ways_pull == ways_pull
-                && pump.ways_push == ways_push;
-            if !same {
-                pump.pull = pull;
-                pump.push = push;
-                pump.ways_pull = ways_pull;
-                pump.ways_push = ways_push;
-                pump.pumped = 0;
-                self.fluid_runs.remove(&pos);
-            }
-            pump.found = true;
-        }
-        self.pressure_paths(pos, facing, speed, &pump);
-        let from = pump
-            .pull
-            .iter()
-            .find(|e| !e.blocked && e.kind != fluids::Endpoint::Pump)
-            .copied();
-        let mut flowing = false;
-        if let Some(from) = from
-            && !pump.push.is_empty()
-        {
-            let amount = fluids::transfer_speed(from.pressure);
-            let offer = self
-                .fluid_offer(&from, amount)
-                .filter(|(f, _)| from.passes(*f));
-            if let Some((fluid, n)) = offer {
-                flowing = true;
-                if self
-                    .fluid_runs
-                    .get(&pos)
-                    .filter(|r| r.stop.is_none())
-                    .map(|r| r.fluid)
-                    != Some(fluid)
-                {
-                    pump.pumped = 0;
-                    let pull = pump
-                        .ways_pull
-                        .iter()
-                        .find(|(end, _)| *end == from.pos)
-                        .map_or(&[][..], |(_, w)| w.as_slice());
-                    let push: Vec<(End, Vec<Step>)> = pump
-                        .push
-                        .iter()
-                        .filter_map(|e| {
-                            Some((
-                                *e,
-                                pump.ways_push
-                                    .iter()
-                                    .find(|(end, _)| *end == e.pos)?
-                                    .1
-                                    .clone(),
-                            ))
-                        })
-                        .collect();
-                    let flows = fluids::flows(pos, facing, speed, &from, pull, &push, fluid);
-                    self.fluid_runs.insert(
-                        pos,
-                        Running {
-                            fluid,
-                            start: self.persisted.clock,
-                            stop: None,
-                            flows,
-                        },
-                    );
-                }
-                let pumped = pump.advance_flow();
-                let push = std::mem::take(&mut pump.push);
-                let reached = |to: &&End| {
-                    to.kind != fluids::Endpoint::Pump
-                        && to.passes(fluid)
-                        && pumped >= fluids::arrival_ticks(&from, to, speed)
-                };
-                let count = push.iter().filter(reached).count();
-                let moved = fluids::share(count, n, |k, give| {
-                    push.iter()
-                        .filter(reached)
-                        .nth(k)
-                        .map_or(0, |to| self.fluid_fill(to, fluid, give))
-                });
-                if moved > 0 {
-                    self.fluid_take(&from, fluid, moved);
-                }
-                pump.push = push;
-            }
-        }
-        if !flowing {
-            pump.pumped = 0;
-            if let Some(run) = self.fluid_runs.get_mut(&pos)
-                && run.stop.is_none()
-            {
-                run.stop = Some(self.persisted.clock);
-            }
-        }
-        self.w.dims[0].pumps.insert(pos, pump);
-    }
-    pub(super) fn fluid_offer(&mut self, from: &End, amount: u32) -> Option<(Fluid, u32)> {
-        if from.kind == fluids::Endpoint::Pump {
-            return None;
-        }
-        if from.kind == fluids::Endpoint::Open {
-            return self.open_end(from, |open, front| open.drain(front, amount, None, false));
-        }
-        if let Some(fluid) = self.w.dims[0].plumbing.creative_fluid(from.pos) {
+    pub(super) fn fluid_offer(&mut self, from: Pos, amount: u32) -> Option<(Fluid, u32)> {
+        if let Some(fluid) = self.w.dims[0].plumbing.creative_fluid(from) {
             return fluid.map(|f| (f, amount));
         }
-        if self.w.is_boiler(0, from.pos) {
+        if self.w.is_boiler(0, from) {
             return None;
         }
-        if let Some(d) = self.w.dims[0].drains.get(&from.pos) {
+        if let Some(d) = self.w.dims[0].drains.get(&from) {
             return d.fluid.map(|(f, n)| (f, n.min(amount)));
         }
         self.w
-            .tank(0, from.pos)
+            .tank(0, from)
             .and_then(|(_, m)| m.tank.fluid.map(|f| (f, m.tank.amount.min(amount))))
     }
-    pub(super) fn fluid_take(&mut self, from: &End, fluid: Fluid, amount: u32) {
-        if from.kind == fluids::Endpoint::Open {
-            self.open_end(from, |open, front| {
-                open.drain(front, amount, Some(fluid), true)
-            });
-            return;
-        }
-        if self.w.dims[0].plumbing.creative_fluid(from.pos).is_some() {
-            return;
-        }
-        if let Some(d) = self.w.dims[0].drains.get_mut(&from.pos) {
-            create_engine::drain::drain(d, amount);
-            return;
-        }
-        self.w.drain_tank(0, from.pos, amount);
-    }
-    pub(super) fn fluid_fill(&mut self, to: &End, fluid: Fluid, amount: u32) -> u32 {
-        if to.kind == fluids::Endpoint::Pump {
-            return 0;
-        }
-        if to.kind == fluids::Endpoint::Open {
-            return self.open_end(to, |open, front| open.fill(front, fluid, amount, true));
-        }
-        if self.w.dims[0].plumbing.creative.contains_key(&to.pos) {
+    pub(super) fn fluid_take(&mut self, from: Pos, _fluid: Fluid, amount: u32) -> u32 {
+        if self.w.dims[0].plumbing.creative_fluid(from).is_some() {
             return amount;
         }
-        if let Some(took) = self.w.fill_boiler(0, to.pos, fluid, amount) {
+        if let Some(d) = self.w.dims[0].drains.get_mut(&from) {
+            return create_engine::drain::drain(d, amount).map_or(0, |(_, n)| n);
+        }
+        self.w.drain_tank(0, from, amount).map_or(0, |(_, n)| n)
+    }
+    pub(super) fn fluid_fill(&mut self, to: Pos, fluid: Fluid, amount: u32) -> u32 {
+        if self.w.dims[0].plumbing.creative.contains_key(&to) {
+            return amount;
+        }
+        if let Some(took) = self.w.fill_boiler(0, to, fluid, amount) {
             return took;
         }
-        if let Some(s) = self.w.dims[0].spouts.get_mut(&to.pos) {
+        if let Some(s) = self.w.dims[0].spouts.get_mut(&to) {
             return create_engine::spout::fill(s, fluid, amount);
         }
-        self.w.fill_tank(0, to.pos, fluid, amount)
-    }
-    fn pressure_paths(
-        &mut self,
-        pos: Pos,
-        facing: Dir,
-        speed: f32,
-        pump: &create_engine::world::Pump,
-    ) {
-        // The port retains endpoint pressures, not Java's per-connection pressure objects.
-        // Project endpoint pressures onto the first breadth-first path; raw stored
-        // connection pressures do not exist in the port's model.
-        // Functional flow/transfer differences are triaged separately from this abstraction gap.
-        self.fluid_pressures
-            .insert((pos, facing.opposite()), [speed.abs(), 0.]);
-        self.fluid_pressures
-            .insert((pos, facing), [0., speed.abs()]);
-        for (ends, ways, pull) in [
-            (&pump.pull, &pump.ways_pull, true),
-            (&pump.push, &pump.ways_push, false),
-        ] {
-            for end in ends {
-                if let Some((_, way)) = ways.iter().find(|(p, _)| *p == end.pos) {
-                    for step in way {
-                        for (side, inbound) in [(step.on, pull), (step.back, !pull)] {
-                            let entry = self.fluid_pressures.entry((step.pos, side)).or_default();
-                            let channel = &mut entry[usize::from(!inbound)];
-                            if *channel == 0. {
-                                *channel = end.pressure;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    pub(super) fn fluid_provided(&self, p: Pos) -> Vec<(Dir, Fluid)> {
-        let mut runs: Vec<_> = self.fluid_runs.iter().collect();
-        runs.sort_by_key(|(p, _)| **p);
-        let mut seen = 0;
-        let mut out = Vec::new();
-        for (_, run) in runs {
-            for f in run.flows.iter().filter(|f| f.pos == p) {
-                if seen & f.side.bit() != 0 {
-                    continue;
-                }
-                seen |= f.side.bit();
-                if f.inbound
-                    && run
-                        .stop
-                        .is_none_or(|stop| self.persisted.clock < stop + f.order as usize)
-                    && f.progress((self.persisted.clock - run.start) as f32) >= 1.
-                {
-                    out.push((f.side, run.fluid));
-                }
-            }
-        }
-        out
+        self.w.fill_tank(0, to, fluid, amount)
     }
     pub(super) fn fluid_network(&self, p: Pos) -> Option<crate::fluid_network::Observation> {
-        use crate::fluid_network::{Connection, Flight, Observation};
+        use crate::fluid_network::{Buffer, Connection, Flight, Observation};
         let block = self.w.block_at(0, p)?;
         if !matches!(
             block,
             Block::FluidPipe
                 | Block::EncasedFluidPipe
                 | Block::GlassFluidPipe
-                | Block::MechanicalPump
-                | Block::FluidValve
                 | Block::SmartFluidPipe
+                | Block::FluidValve
+                | Block::MechanicalPump
         ) {
             return None;
         }
-        let mut connections = BTreeMap::new();
-        for side in Dir::ALL {
-            {
-                connections.insert(
+        let world = &self.w.dims[0].fluid_transport;
+        let connections = Dir::ALL
+            .into_iter()
+            .map(|side| {
+                let c = world.connection(Face { pos: p, side });
+                let mut buffer = BTreeMap::new();
+                if let Some(c) = c {
+                    for end in c.open_ends() {
+                        if let Some((fluid, n)) = end.tank {
+                            *buffer.entry(fluid.key()).or_insert(0) += n;
+                        }
+                    }
+                }
+                (
                     format!("{side:?}").to_lowercase(),
                     Connection {
-                        pressure: self
-                            .fluid_pressures
-                            .get(&(p, side))
-                            .copied()
-                            .unwrap_or_default(),
-                        flow: None,
-                        buffer: self.w.dims[0]
-                            .open_ends
-                            .get(&(p, side))
-                            .and_then(|e| e.tank)
-                            .map(|(f, n)| crate::fluid_network::Buffer {
-                                fluids: BTreeMap::from([(f.key(), n)]),
-                            })
-                            .unwrap_or_default(),
+                        pressure: c.map_or([0.; 2], |c| c.pressure()),
+                        flow: c.and_then(|c| c.flow).map(|f| Flight {
+                            fluid: f.fluid.key(),
+                            inbound: f.inbound,
+                            progress: f.progress,
+                            complete: f.complete,
+                        }),
+                        buffer: Buffer { fluids: buffer },
                     },
-                );
-            }
-        }
-        let mut runs: Vec<_> = self.fluid_runs.iter().collect();
-        runs.sort_by_key(|(p, _)| **p);
-        let mut seen = 0;
-        for (_, run) in runs {
-            for f in run.flows.iter().filter(|f| f.pos == p) {
-                if seen & f.side.bit() != 0 {
-                    continue;
-                }
-                seen |= f.side.bit();
-                let elapsed = (self.persisted.clock - run.start) as f32;
-                if elapsed < f.start
-                    || run
-                        .stop
-                        .is_some_and(|stop| self.persisted.clock >= stop + f.order as usize)
-                {
-                    continue;
-                }
-                let progress = f.progress(elapsed);
-                connections
-                    .entry(format!("{:?}", f.side).to_lowercase())
-                    .or_default()
-                    .flow = Some(Flight {
-                    fluid: run.fluid.key(),
-                    inbound: f.inbound,
-                    progress,
-                    complete: progress >= 1.,
-                });
-            }
-        }
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
         let pump_pressure = (block == Block::MechanicalPump).then(|| {
             connections
                 .values()
@@ -361,13 +138,130 @@ impl Run {
                 .fold(0., f32::max)
         });
         Some(Observation {
-            pressure_model: "endpoint_paths".into(),
+            pressure_model: "stored_connections".into(),
             connections,
             pump_pressure,
         })
     }
 }
-
+impl Host for Run {
+    fn time(&self) -> i64 {
+        self.persisted.clock as i64
+    }
+    fn cell(&self, p: Pos, d: Dir) -> Cell {
+        self.pipe_cell_toward(p, d)
+    }
+    fn speed(&self, p: Pos) -> f32 {
+        self.w.speed(0, p).unwrap_or(0.)
+    }
+    fn tank_fluids(&self, face: Face) -> Vec<Fluid> {
+        let p = face.connected();
+        if self.w.is_boiler(0, p) {
+            return Vec::new();
+        }
+        let fluid = if let Some(fluid) = self.w.dims[0].plumbing.creative_fluid(p) {
+            fluid
+        } else if let Some(d) = self.w.dims[0].drains.get(&p) {
+            d.fluid.filter(|(_, n)| *n > 0).map(|(f, _)| f)
+        } else if let Some(s) = self.w.dims[0].spouts.get(&p) {
+            s.fluid.filter(|(_, n)| *n > 0).map(|(f, _)| f)
+        } else {
+            self.w
+                .tank(0, p)
+                .filter(|(_, m)| m.tank.amount > 0)
+                .and_then(|(_, m)| m.tank.fluid)
+        };
+        fluid.into_iter().collect()
+    }
+    fn offer(
+        &mut self,
+        face: Face,
+        source: &mut Source,
+        n: u32,
+        fluid: Option<Fluid>,
+    ) -> Option<(Fluid, u32)> {
+        match source {
+            Source::Open(open) => open.drain(
+                &mut super::fluid_world::Front {
+                    run: self,
+                    pos: face.connected(),
+                },
+                n,
+                fluid,
+                false,
+            ),
+            Source::Handler => self
+                .fluid_offer(face.connected(), n)
+                .filter(|(f, _)| fluid.is_none_or(|want| want == *f)),
+            _ => None,
+        }
+    }
+    fn drain(&mut self, face: Face, source: &mut Source, fluid: Fluid, n: u32) -> u32 {
+        match source {
+            Source::Open(open) => open
+                .drain(
+                    &mut super::fluid_world::Front {
+                        run: self,
+                        pos: face.connected(),
+                    },
+                    n,
+                    Some(fluid),
+                    true,
+                )
+                .map_or(0, |(_, n)| n),
+            Source::Handler => self.fluid_take(face.connected(), fluid, n),
+            _ => 0,
+        }
+    }
+    fn fill(
+        &mut self,
+        face: Face,
+        source: &mut Source,
+        fluid: Fluid,
+        n: u32,
+        execute: bool,
+    ) -> u32 {
+        if let Source::Open(open) = source {
+            return open.fill(
+                &mut super::fluid_world::Front {
+                    run: self,
+                    pos: face.connected(),
+                },
+                fluid,
+                n,
+                execute,
+            );
+        }
+        if execute {
+            return self.fluid_fill(face.connected(), fluid, n);
+        }
+        let p = face.connected();
+        if self.w.dims[0].plumbing.creative.contains_key(&p) {
+            return n;
+        }
+        if let Some(took) = self.w.simulate_fill_boiler(0, p, fluid, n) {
+            return took;
+        }
+        if let Some(s) = self.w.dims[0].spouts.get(&p) {
+            return create_engine::spout::fill(&mut s.clone(), fluid, n);
+        }
+        self.w.tank(0, p).map_or(0, |(_, m)| {
+            m.tank.clone().fill_amount(fluid, n, m.capacity())
+        })
+    }
+    fn identity(&self, face: Face) -> Pos {
+        self.w
+            .tank(0, face.connected())
+            .map_or(face.connected(), |(p, _)| p)
+    }
+    fn keep_alive(&mut self, face: Face) {
+        if self.w.block_at(0, face.connected()) == Some(Block::PortableFluidInterface)
+            && let Some(interface) = self.w.dims[0].psis.get_mut(&face.connected())
+        {
+            interface.on_content_transferred();
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -437,48 +331,7 @@ mod tests {
                 1000
             );
             if !reload {
-                let p = [2, 4, 0];
-                let sides = Dir::West.bit() | Dir::East.bit();
-                let cell = |pos: Pos, _| match pos {
-                    [0, 4, 0] => Cell::Open,
-                    [1, 4, 0] | [3, 4, 0] => Cell::Pipe(sides),
-                    [2, 4, 0] => Cell::Pump(Dir::East),
-                    [4, 4, 0] => Cell::Tank,
-                    _ => Cell::Solid,
-                };
-                let from = fluids::reach_toward(p, Dir::West, 32., true, cell)[0];
-                let to = fluids::reach_toward(p, Dir::East, 32., false, cell)[0];
-                let pull = fluids::ways_toward(p, Dir::West, true, cell);
-                let push = fluids::ways_toward(p, Dir::East, false, cell);
-                let raw = fluids::flows(
-                    p,
-                    Dir::East,
-                    32.,
-                    &from,
-                    &pull[0].1,
-                    &[(to, push[0].1.clone())],
-                    Fluid::Water,
-                );
-                let last = raw
-                    .iter()
-                    .find(|f| f.pos == [3, 4, 0] && f.side == Dir::East)
-                    .unwrap();
-                let at = first.unwrap();
-                let progress = last.progress((at - 61) as f32);
-                let observed = snapshot.checkpoints[&at].blocks["3,4,0"]
-                    .fluid_network
-                    .as_ref()
-                    .unwrap()
-                    .connections["east"]
-                    .flow
-                    .as_ref()
-                    .unwrap()
-                    .progress;
-                assert!((observed - progress).abs() < 1e-6);
-                println!(
-                    "Raw engine arrival {} ticks; first fill {at}; raw/observed last-half progress {progress}",
-                    fluids::arrival_ticks(&from, &to, 32.)
-                );
+                assert_eq!(first, Some(85));
             }
             println!(
                 "Rust-only cauldron replay: reload={reload}; first fill {first:?}; final 1000 mB; conserved at every checkpoint; no native peer"
@@ -491,7 +344,7 @@ mod tests {
 mod conversion_fidelity {
     use super::*;
     #[test]
-    fn live_conversion_buffer_follows_world_block_change_api() {
+    fn live_conversion_preserves_connection_owned_buffer() {
         let mut sc = crate::fluid_pumps::generate(1554);
         let fill=sc.events.iter().find(|e|matches!(&e.action,Some(crate::actions::Action::Use{item,..})if item=="minecraft:water_bucket")).unwrap().tick;
         super::tests::seed_native_cauldron_fill(&mut sc);
@@ -515,17 +368,30 @@ mod conversion_fidelity {
         let regular=raw.id("create:fluid_pipe[down=false,east=true,north=false,south=false,up=false,waterlogged=false,west=true]");
         let glass = raw.id("create:glass_fluid_pipe[alt=false,axis=x,waterlogged=false]");
         raw.w.block_changed(0, [1, 4, 0], AIR, regular);
-        raw.w.dims[0].open_ends.insert(
-            ([1, 4, 0], Dir::West),
-            create_engine::open_end::OpenEnd {
+        raw.w.dims[0].fluid_transport.register(
+            [1, 4, 0],
+            Cell::Pipe(Dir::East.bit() | Dir::West.bit()),
+            0.,
+        );
+        raw.w.dims[0]
+            .fluid_transport
+            .connection_mut(Face {
+                pos: [1, 4, 0],
+                side: Dir::West,
+            })
+            .unwrap()
+            .set_source(Source::open(create_engine::open_end::OpenEnd {
                 tank: Some((Fluid::Water, before.amount())),
                 pulling: true,
-            },
-        );
-        raw.w.block_changed(0, [1, 4, 0], regular, glass);
+            }));
+        raw.replace_pipe_state([1, 4, 0], glass);
         let expected = raw.w.dims[0]
-            .open_ends
-            .get(&([1, 4, 0], Dir::West))
+            .fluid_transport
+            .connection(Face {
+                pos: [1, 4, 0],
+                side: Dir::West,
+            })
+            .and_then(|c| c.open_end())
             .and_then(|e| e.tank)
             .map_or(0, |(_, n)| n);
         let tank_before = snapshot.checkpoints[&(fill + 40)].blocks["4,4,0"]

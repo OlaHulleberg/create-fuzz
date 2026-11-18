@@ -139,3 +139,5 @@ mod tests {
         assert!(!equal(&Some(a), &Some(b)));
     }
 }
+
+pub mod connections;

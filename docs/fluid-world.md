@@ -55,11 +55,11 @@ visible immediately until the next frame.
 
 Connection observations normalize all six sides and account for active, retained and
 network-held open-end buffers, deduplicating handler identity locally. Raw identities are
-never compared. Java retains per-connection pressures; the current port retains endpoint
-pressures and path/flow plans. Rust's `pressure_model=endpoint_paths` reports that projection
-and marks stored connection pressure as unavailable. Pressure-only projection differences
-are not sufficient evidence of a port defect; flow, transfer and glue traces establish the
-functional findings.
+never compared. Both adapters observe stored connection pressure and flow state.
+Rust's `pressure_model=stored_connections` reads the engine's per-pipe transport
+behaviours directly, including open-end source objects shared with network caches.
+Pressure, flow and transfer comparisons remain enabled.
+
 
 Machine observations preserve cycle counters, storage and held-item state. The existing belt
 `stalled` observation uses native previous-position equality on Java and the engine's stored

@@ -85,11 +85,6 @@ impl Run {
                 if self.native_failed {
                     unavailable.push(crate::fluid_world::OUTSIDE.into());
                 }
-                if !self.w.dims[0].pumps.is_empty() {
-                    unavailable.push(
-                        "stored-connection-pressure: endpoint path projection is compared".into(),
-                    );
-                }
                 unavailable
             },
             networks: Some(crate::observation::Networks { partitions, sizes }),

@@ -215,27 +215,18 @@ pub fn save_column(w: &CreateWorld, column: (i32, i32)) -> Compound {
         put_keys(&mut own, "create_machines", codes);
         data.insert("create_machines".into(), Tag::Compound(own));
     }
-    let mut ends: Vec<_> = d.open_ends.iter().filter(|((p, _), _)| here(p)).collect();
-    ends.sort_by_key(|((p, d), _)| (*p, Dir::ALL.iter().position(|x| x == d)));
-    if !ends.is_empty() {
-        let mut codes = Codes::default();
-        let v = ends
-            .iter()
-            .flat_map(|((p, d), e)| {
-                [
-                    p[0],
-                    p[1],
-                    p[2],
-                    Dir::ALL.iter().position(|x| x == d).unwrap_or(0) as i32,
-                    codes.code(e.tank.map(|t| t.0)),
-                    e.tank.map_or(0, |t| t.1 as i32),
-                    i32::from(e.pulling),
-                ]
-            })
-            .collect();
-        data.insert("open_ends".into(), Tag::IntArray(v));
-        put_keys(&mut data, "open_ends", codes);
-    }
+    let records = d
+        .fluid_transport
+        .pipes
+        .iter()
+        .filter(|(p, _)| here(p))
+        .map(|(p, b)| {
+            let mut data = super::connections::encode(b);
+            data.insert("Pos".into(), Tag::IntArray(p.to_vec()));
+            Tag::Compound(data)
+        })
+        .collect();
+    data.insert("Connections".into(), Tag::List(records));
     data
 }
 
@@ -396,17 +387,50 @@ pub fn load_column(w: &mut CreateWorld, data: &Compound) {
             }
         }
     }
+    if let Some(Tag::List(records)) = data.get("Connections") {
+        for record in records {
+            let Tag::Compound(d) = record else {
+                continue;
+            };
+            let Some(Tag::IntArray(p)) = d.get("Pos") else {
+                continue;
+            };
+            let [x, y, z] = p.as_slice() else {
+                continue;
+            };
+            if let Some(b) = super::connections::decode(d) {
+                w.dims[0].fluid_transport.pipes.insert([*x, *y, *z], b);
+            }
+        }
+    }
+    if data.contains_key("Connections") {
+        return;
+    }
     let k = keys(data, "open_ends");
     for c in ints(data, "open_ends").as_chunks::<7>().0 {
         let tank = Codes::fluid(&k, c[4])
             .map(|f| (f, c[5].max(0) as u32))
             .filter(|t| t.1 > 0);
-        w.dims[0].open_ends.insert(
-            ([c[0], c[1], c[2]], Dir::ALL[c[3].clamp(0, 5) as usize]),
-            create_engine::open_end::OpenEnd {
-                tank,
-                pulling: c[6] != 0,
-            },
-        );
+        let pos = [c[0], c[1], c[2]];
+        let side = Dir::ALL[c[3].clamp(0, 5) as usize];
+        let pipe = w.dims[0]
+            .fluid_transport
+            .pipes
+            .entry(pos)
+            .or_insert_with(|| {
+                create_engine::fluids::transport::FluidTransportBehaviour::new(side.bit())
+            });
+        if pipe.connection(side).is_none() {
+            pipe.interfaces.push((side, Default::default()));
+        }
+        if let Some(connection) = pipe.connection(side) {
+            connection.set_source(create_engine::fluids::transport::Source::open(
+                create_engine::open_end::OpenEnd {
+                    tank,
+                    pulling: c[6] != 0,
+                },
+            ));
+        }
+        w.dims[0].fluid_transport.changed.push(pos);
     }
 }
