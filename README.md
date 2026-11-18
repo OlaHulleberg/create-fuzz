@@ -5,7 +5,7 @@ Differential fuzzer for [create-horizon](https://github.com/OlaHulleberg/create-
 NeoForge 1.21.1) and in the port's engine, compares what they settle to, and shrinks every difference to a minimal
 case.
 
-- `java/`: a small NeoForge test mod. One headless dedicated server runs batches of scenarios side by side.
+- `java/`: a small NeoForge test mod. One headless dedicated server runs scenarios in isolated, serial namespaces.
 - `rust/`: the generator, the engine driver, the comparison and the shrinker.
 - `cases/`: hand-written scenarios.
 
@@ -34,6 +34,20 @@ You also need JDK 21 and Rust 1.99.1.
 To drive another checkout's engine (a worktree), set `CREATE_HORIZON=/path/to/checkout`: the driver is built
 against it in its own folder (`FUZZ_BUILD`, default `/mnt/lanes/fuzz-build`), and several drivers can share one
 server. `FUZZ_FOUND` sets where `fuzz` saves differences.
+
+The server queues requests by arrival (file modification time, filename only to break ties).
+After each case is disposed and its cleanup has settled, an unfinished batch goes to the back
+of the queue. Small checks and fluid-host RPCs therefore wait for case quanta rather than
+whole batches. A running case is never interrupted; its duration still bounds responsiveness.
+Suspended batches retain only inputs and results; namespace resets, leak assertions and
+response order within each batch are unchanged.
+
+The scheduler regression test needs only JDK 21:
+
+```sh
+javac -d /tmp/fair-inbox-test java/src/main/java/dev/createfuzz/RequestQueue.java java/src/test/java/dev/createfuzz/RequestQueueTest.java
+java -ea -cp /tmp/fair-inbox-test dev.createfuzz.RequestQueueTest
+```
 
 The server writes `work/default-states.json` when it starts: every Create block's default state from the running
 binary (property and value names as serialized). create-horizon's create-data takes it as

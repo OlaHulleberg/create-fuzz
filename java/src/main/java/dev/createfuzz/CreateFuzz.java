@@ -30,7 +30,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 
 /**
  * Runs fuzzing scenarios on a dedicated server without restarting it. A batch is a JSON array of
@@ -57,7 +56,7 @@ public class CreateFuzz {
     static final int SLOTS = 128;
 
     int startup = -1;
-    int poll;
+    final RequestQueue<Batch> requests = new RequestQueue<>();
 
     public CreateFuzz(IEventBus modBus) {
         SignalBlock.REGISTRY.register(modBus);
@@ -129,9 +128,14 @@ public class CreateFuzz {
             return;
         }
         if (batch == null) {
-            if (poll++ % 5 != 0) return;
-            Path next = nextInbox();
-            if (next == null) return;
+            requests.discover(dir.resolve("inbox"));
+            var request = requests.poll();
+            if (request == null) return;
+            if (request.value() != null) {
+                batch = request.value();
+                return;
+            }
+            Path next = request.path();
             com.google.gson.JsonElement input=null;
             try {
                 input=JsonParser.parseString(Files.readString(next));
@@ -157,6 +161,17 @@ public class CreateFuzz {
             return;
         }
         try {
+            // Yield only after disposal has settled, before materializing another case.
+            // No live world state or actors are suspended with the batch.
+            if (!batch.yielded && batch.settling == 1 && batch.activeCase > 0
+                    && batch.activeCase < batch.cases.size()) {
+                CaseIsolation.empty(level);
+                requests.discover(dir.resolve("inbox"));
+                batch.yielded = true;
+                requests.resume(batch);
+                batch = null;
+                return;
+            }
             if (batch.step(level)) {
                 CaseIsolation.empty(level);
                 batch.releaseActors(level);
@@ -193,14 +208,6 @@ public class CreateFuzz {
                                         .invoke(agent, true));
         } catch (Exception ex) {
             throw new RuntimeException("coverage requires the JaCoCo agent", ex);
-        }
-    }
-
-    Path nextInbox() {
-        try (Stream<Path> s = Files.list(dir.resolve("inbox"))) {
-            return s.filter(p -> p.toString().endsWith(".json")).sorted().findFirst().orElse(null);
-        } catch (IOException ex) {
-            return null;
         }
     }
 
@@ -249,6 +256,7 @@ public class CreateFuzz {
         int activeCase;
         int settling = 2;
         boolean coverageCaptured;
+        boolean yielded;
         final Path outputDirectory;
 
         Batch(String name, JsonArray in, ServerLevel level, Path directory) {
@@ -323,6 +331,7 @@ public class CreateFuzz {
                     CaseIsolation.clear(level, origins.get(i));
                     PlayerActor.release(level, actors.set(i, null));
                     activeCase++;
+                    yielded = false;
                     tick = 0;
                     settling = 2;
                     return false;
