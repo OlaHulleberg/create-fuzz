@@ -46,7 +46,8 @@ create-fuzz <command>
   fuzz <first-seed> <count> [batch]  generate, run and compare; mismatches go to $FUZZ_FOUND (found/)
   manifest <case.json>...        report 73-id domains and generated/manual/interaction coverage
   cover <rounds>                coverage-guided cases, corpus/ and work/coverage reports
-  repeat-java <rounds> <seed|case>...  compare repeated Java runs alone and in normal batches
+  fuzz-lane <first> <count> <lane> <stride> [batch]  compare one generator lane
+  repeat-java <rounds> [--compact] <seed|case>...  compare repeated Java runs alone and in normal batches
   shrink <case.json> [witness]   shrink preserving a difference substring; writes <case>.min.json
 ";
 
@@ -106,10 +107,24 @@ fn main() {
             "{}",
             serde_json::to_string_pretty(&generate::generate(args[1].parse().unwrap())).unwrap()
         ),
+        "fuzz-lane" => {
+            let first: u64 = args[1].parse().unwrap();
+            let count: u64 = args[2].parse().unwrap();
+            let lane: u64 = args[3].parse().unwrap();
+            let stride: u64 = args[4].parse().unwrap();
+            let batch = args.get(5).map_or(4, |value| value.parse().unwrap());
+            assert!(stride > 0 && lane < stride);
+            let seeds: Vec<_> = (first..first + count)
+                .filter(|seed| seed % stride == lane)
+                .collect();
+            fuzz_seeds(&seeds, batch);
+        }
         "repeat-java" => {
             let rounds = args[1].parse().unwrap();
+            let compact = args.iter().any(|arg| arg == "--compact");
             let probes: Vec<_> = args[2..]
                 .iter()
+                .filter(|arg| arg.as_str() != "--compact")
                 .map(|seed| {
                     if seed.ends_with(".json") {
                         load(seed)
@@ -118,7 +133,7 @@ fn main() {
                     }
                 })
                 .collect();
-            repeat_java::run(rounds, &probes);
+            repeat_java::run(rounds, &probes, compact);
         }
         "cover" => guided::run(args[1].parse().unwrap()),
         "fuzz" => {
@@ -177,6 +192,10 @@ fn check(cases: &[Scenario], names: &[String]) -> usize {
 /// saved as `found/<seed>.json`: the case, both snapshots and the differences.
 fn fuzz(first: u64, count: u64, batch: usize) {
     let seeds: Vec<u64> = (first..first + count).collect();
+    fuzz_seeds(&seeds, batch);
+}
+
+fn fuzz_seeds(seeds: &[u64], batch: usize) {
     let mut counts = Counts::default();
     for chunk in seeds.chunks(batch) {
         let cases: Vec<Scenario> = chunk.iter().map(|&s| generate::generate(s)).collect();
@@ -333,7 +352,7 @@ fn record_inner(sc: &Scenario, j: &Snapshot, counts: &mut Counts, verify_java: b
         if !disagreement.is_empty() {
             counts.unstable += 1;
             println!(
-                "DEBUG java-unstable seed {} rerun {}: {:?}",
+                "Java variation seed {} rerun {}: {:?}",
                 sc.seed, index, disagreement
             );
             #[derive(serde::Serialize)]

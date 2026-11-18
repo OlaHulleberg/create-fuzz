@@ -2,12 +2,24 @@
 use crate::{compare, generate, java};
 use std::collections::BTreeSet;
 
-pub fn run(rounds: usize, probes: &[crate::Scenario]) {
+pub fn run(rounds: usize, probes: &[crate::Scenario], compact: bool) {
     assert!(rounds >= 2 && !probes.is_empty());
     let dir = crate::fuzz_dir();
     let mut failures = 0;
     for probe in probes {
         failures += repeat(&dir, rounds, "alone", std::slice::from_ref(probe), &[0]);
+    }
+    if compact {
+        for group in probes.chunks(4) {
+            let selected: Vec<_> = (0..group.len()).collect();
+            failures += repeat(&dir, rounds, "shifted-batch", group, &selected);
+        }
+        println!("Java repeatability: {failures} differing snapshots");
+        assert_eq!(
+            failures, 0,
+            "Java snapshots must repeat without comparison exceptions"
+        );
+        return;
     }
     let seeds: Vec<_> = probes.iter().map(|probe| probe.seed).collect();
     let batches: BTreeSet<_> = seeds.iter().map(|seed| seed / 128 * 128).collect();
