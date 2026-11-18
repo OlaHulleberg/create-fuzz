@@ -47,6 +47,9 @@ final class Persistence {
             be.onChunkUnloaded();
             level.removeBlockEntity(pos);
         }
+        // Every case owns its complete kinetic world. Restored entities must not
+        // rejoin maps containing removed Java objects from the previous instance.
+        NetworkIsolation.reset(level);
         for(var entry:tags.entrySet()) {
             var pos=entry.getKey();
             var fresh=net.minecraft.world.level.block.entity.BlockEntity.loadStatic(pos,level.getBlockState(pos),entry.getValue(),level.registryAccess());

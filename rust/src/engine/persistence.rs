@@ -363,6 +363,8 @@ impl Run {
         for &(cx, cz) in &columns {
             self.w.column_unloaded(0, cx, cz);
         }
+        // The Java adapter recreates the isolated case's network namespace too.
+        self.w.dims[0].kinetics = create_engine::kinetics::Kinetics::new();
         let motors = match data.get("motors") {
             Some(Tag::IntArray(v)) => v
                 .as_chunks::<4>()
@@ -791,9 +793,15 @@ mod tests {
                     .network
                     .unwrap();
                 assert_eq!((net.capacity, net.size), (256., 1));
-                // Retained old generation remains in the registry, while the saved
-                // per-entity cached size remains one until Create prunes/syncs it.
-                assert_eq!(r.w.dims[0].kinetics.network_membership(p, 0).unwrap().1, 2);
+                // One physical entity must not become two registry members after
+                // replacing its runtime instance. Repeat to catch retained generations.
+                assert_eq!(r.w.dims[0].kinetics.network_membership(p, 0).unwrap().1, 1);
+                for _ in 0..2 {
+                    r.reload();
+                    r.w.tick(0, &mut Vec::new());
+                    assert_eq!(r.w.dims[0].kinetics.network_membership(p, 0).unwrap().1, 1);
+                    assert_eq!(r.w.saved_handle(0, p), Some(saved));
+                }
                 for _ in 1..saved.in_use {
                     r.w.tick_cranks(0);
                     r.save_kinetic_records();
@@ -1277,7 +1285,7 @@ mod reload_order_tests {
         r
     }
     #[test]
-    fn reload_matches_each_glue_load_callback_before_the_next_entity() {
+    fn reload_matches_fresh_glue_load_callbacks_before_the_next_entity() {
         let sc: Scenario =
             serde_json::from_str(include_str!("../persistence/sequencer-reload-case.json"))
                 .unwrap();
@@ -1306,6 +1314,7 @@ mod reload_order_tests {
             for (cx, cz) in columns {
                 r.w.column_unloaded(0, cx, cz);
             }
+            r.w.dims[0].kinetics = create_engine::kinetics::Kinetics::new();
             r.w.load_settings(0, motors.into_iter());
             // Independent fixture reference for kinetics.rs::block_entity_on_load:
             // this case has kinetic entities and one sequencer, no belt/handle/depot.
