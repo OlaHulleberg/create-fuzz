@@ -82,6 +82,7 @@ impl Run {
         }
     }
     pub(super) fn save_kinetic_records(&mut self) {
+        self.w.flush_kinetic_callbacks(0);
         self.persisted
             .handles
             .retain(|p, _| self.w.saved_handle(0, *p).is_some());
