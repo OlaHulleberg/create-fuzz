@@ -4,6 +4,8 @@ impl Run {
     /// One level tick: inputs, then the solve and what it breaks.
     pub(super) fn tick(&mut self) {
         self.persisted.clock += 1;
+        // Shape notifications from committed inputs precede the level tick.
+        self.tick_pipe_shapes();
         self.w.dims[0].fluid_transport.begin_tick();
         self.tick_world_fluids();
         if self.native_failed {

@@ -291,6 +291,51 @@ mod tests {
         }
     }
     #[test]
+    fn a_placed_branch_splits_pressure_on_the_next_scheduled_turn() {
+        // Java's 32 RPM pump: adding a second tank at turn 36 gives
+        // both branches pressure 16 at turn 37, after synchronous updateShape.
+        let placements = [
+            (20, [1, 3, 0], "create:fluid_pipe"),
+            (24, [2, 3, 0], "create:mechanical_pump"),
+            (28, [3, 3, 0], "create:fluid_pipe"),
+            (32, [4, 3, 0], "create:fluid_tank"),
+            (36, [3, 3, 1], "create:fluid_tank"),
+        ];
+        let events: Vec<_> = placements
+            .into_iter()
+            .map(|(tick, pos, item)| {
+                serde_json::json!({
+                    "tick": tick, "pos": pos, "action": {"kind":"use", "item":item,
+                    "face":"up", "hit":[0.5,1.0,0.5], "yaw":90.0, "pitch":0.0, "sneaking":false}
+                })
+            })
+            .collect();
+        let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({
+            "version":3, "seed":0, "ticks":40, "checkpoints":[36,37,38],
+            "blocks":[
+                {"pos":[1,4,-1], "state":"create:creative_motor[facing=east]", "motor":32},
+                {"pos":[2,4,-1], "state":"create:cogwheel[axis=x,waterlogged=false]"},
+                {"pos":[1,3,0], "state":"minecraft:stone"},
+                {"pos":[2,3,0], "state":"minecraft:stone"},
+                {"pos":[3,3,0], "state":"minecraft:stone"},
+                {"pos":[4,3,0], "state":"minecraft:stone"},
+                {"pos":[3,3,1], "state":"minecraft:stone"}
+            ], "events":events
+        }))
+        .unwrap();
+        let mut run = Run::new(&sc);
+        run.fluid_host_enabled = false;
+        let snapshot = super::super::execute(&sc, run);
+        let branch = snapshot.checkpoints[&37].blocks["3,4,0"]
+            .fluid_network
+            .as_ref()
+            .unwrap();
+        assert_eq!(branch.connections["east"].pressure, [0., 16.]);
+        assert_eq!(branch.connections["south"].pressure, [0., 16.]);
+        assert_eq!(branch.connections["west"].pressure, [16., 0.]);
+    }
+
+    #[test]
     fn cauldron_transfer_conserves_fluid_without_native_peer() {
         for reload in [false, true] {
             let mut sc = crate::fluid_pumps::generate(18);
