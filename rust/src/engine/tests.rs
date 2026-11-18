@@ -564,3 +564,34 @@ fn depot_refunds_merge_into_the_selected_stack_before_placement() {
         .is_err()
     );
 }
+
+#[test]
+fn sneak_wrench_removes_a_connected_sloped_belt() {
+    // Java builds all five segments at tick 20; WrenchItem.useOn ->
+    // IWrenchable.onSneakWrenched destroys the middle at tick 30.
+    let sc: crate::scenario::Scenario = serde_json::from_value(serde_json::json!({
+        "version":3,"ticks":35,"checkpoints":[21,31],"blocks":[
+            {"pos":[0,8,0],"state":"create:shaft[axis=x,waterlogged=false]"},
+            {"pos":[0,4,4],"state":"create:shaft[axis=x,waterlogged=false]"}
+        ],"events":[
+            {"tick":10,"pos":[0,8,0],"action":{"kind":"use","item":"create:belt_connector","face":"up","hit":[0.1,1.0,0.5],"yaw":266.0,"pitch":0.0,"sneaking":false}},
+            {"tick":20,"pos":[0,4,4],"action":{"kind":"use","item":"create:belt_connector","face":"up","hit":[0.9,1.0,0.1],"yaw":339.0,"pitch":0.0,"sneaking":false}},
+            {"tick":30,"pos":[0,6,2],"action":{"kind":"use","item":"create:wrench","face":"east","hit":[0.5,0.9,0.1],"yaw":288.0,"pitch":0.0,"sneaking":true}}
+        ]
+    })).unwrap();
+    let snap = super::run(&sc);
+    for (y, z) in [(8, 0), (7, 1), (6, 2), (5, 3), (4, 4)] {
+        let p = format!("0,{y},{z}");
+        assert!(
+            snap.checkpoints[&21].blocks[&p]
+                .state
+                .starts_with("create:belt[")
+        );
+        let expected = if z == 0 || z == 4 {
+            "create:shaft[axis=x,waterlogged=false]"
+        } else {
+            "minecraft:air"
+        };
+        assert_eq!(snap.checkpoints[&31].blocks[&p].state, expected);
+    }
+}

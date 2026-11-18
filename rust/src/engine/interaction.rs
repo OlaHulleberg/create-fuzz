@@ -135,6 +135,8 @@ impl Run {
             self.publish_interaction();
             return;
         }
+        // WrenchItem.useOn dispatches a sneaking belt use to
+        // IWrenchable.onSneakWrenched (destroyBlock), handled below like the glue.
         if let Some((block, _)) = own {
             let name = format!("create:{}", block.name());
             if !crate::fluids::contract()
@@ -148,7 +150,12 @@ impl Run {
                 && name != "create:andesite_casing"
                 && !(name == "create:belt"
                     && sneaking
-                    && ["create:andesite_casing", "create:brass_casing"].contains(&item))
+                    && [
+                        "create:andesite_casing",
+                        "create:brass_casing",
+                        "create:wrench",
+                    ]
+                    .contains(&item))
             {
                 self.notes.push(format!("adapter gap: RightClickBlock/value-box and block-use handlers for {name} at {p:?} are outside the supported subset; input retained"));
                 return;
