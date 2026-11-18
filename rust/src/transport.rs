@@ -70,7 +70,7 @@ pub struct Outcome {
     pub taken: Vec<Stack>,
 }
 
-/// Controlled item histories on player-connected belts. No slicing or pulley edits while loaded.
+/// Controlled item histories on player-connected belts.
 pub fn generate(seed: u64) -> crate::scenario::Scenario {
     use crate::{
         actions::{Action, Face},
@@ -271,6 +271,23 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
     }
     sc.checkpoints.extend(130..=150);
     sc.checkpoints.extend([159, 161, 180, 181, 195, 196, 200]);
+    // Translate the connected chain and all interactions together, preserving a
+    // valid 45 degree connector span. Vertical belts deliberately reject drops
+    // (BeltBlock.canTransportObjects); they are not item conveyors.
+    let rise = match (seed / 160) % 3 {
+        1 => 1,
+        2 => -1,
+        _ => 0,
+    };
+    if rise != 0 {
+        let elevate = |pos: &mut Pos| pos[1] += rise * pos[2].clamp(0, 4);
+        for b in &mut sc.blocks {
+            elevate(&mut b.pos);
+        }
+        for e in &mut sc.events {
+            elevate(&mut e.pos);
+        }
+    }
     sc
 }
 
