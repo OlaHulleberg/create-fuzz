@@ -431,6 +431,9 @@ pub fn load_column(w: &mut CreateWorld, data: &Compound) {
                 },
             ));
         }
-        w.dims[0].fluid_transport.changed.push(pos);
+        w.dims[0]
+            .fluid_transport
+            .changed
+            .push(create_engine::fluids::runtime::Change::Pipe(pos));
     }
 }

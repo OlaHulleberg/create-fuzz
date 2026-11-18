@@ -30,29 +30,37 @@ impl Run {
         }
     }
     pub(super) fn tick_pumps(&mut self) {
+        self.tick_pipe_shapes();
         let positions = self.w.fluid_transport_positions(0);
-        let mut world = std::mem::take(&mut self.w.dims[0].fluid_transport);
+        let mut transport = std::mem::take(&mut self.w.dims[0].fluid_transport);
         for &p in &positions {
-            world.register(p, self.pipe_cell(p), self.w.speed(0, p).unwrap_or(0.));
-        }
-        world.prepare(self);
-        for p in positions {
-            self.w.fluid_transport_base_tick(0, p);
-            if let Some((a, b)) = world.tick_pipe(self, p) {
-                self.set(p, AIR);
-                world.remove(p);
-                if let Some(state) = create_engine::open_end::flow_collision(a, b) {
-                    self.set(p, self.id(state));
-                }
-            }
-        }
-        for &p in world.pipes.keys() {
+            transport.register(p, self.pipe_cell(p), self.w.speed(0, p).unwrap_or(0.));
             self.mark_column(p);
         }
-        world
+        transport.prepare(self);
+        self.put_transport(transport);
+    }
+    pub(super) fn tick_transport_pipe(&mut self, pos: Pos) {
+        if !self.w.dims[0].fluid_transport.pipes.contains_key(&pos) {
+            return;
+        }
+        self.w.fluid_transport_base_tick(0, pos);
+        let mut transport = std::mem::take(&mut self.w.dims[0].fluid_transport);
+        if let Some((a, b)) = transport.tick_pipe(self, pos) {
+            self.set(pos, AIR);
+            transport.remove(pos);
+            if let Some(name) = create_engine::open_end::flow_collision(a, b) {
+                self.set(pos, self.id(name));
+            }
+        }
+        self.put_transport(transport);
+        self.mark_column(pos);
+    }
+    fn put_transport(&mut self, mut transport: create_engine::fluids::runtime::Transport) {
+        transport
             .changed
             .append(&mut self.w.dims[0].fluid_transport.changed);
-        self.w.dims[0].fluid_transport = world;
+        self.w.dims[0].fluid_transport = transport;
     }
     pub(super) fn fluid_offer(&mut self, from: Pos, amount: u32) -> Option<(Fluid, u32)> {
         if let Some(fluid) = self.w.dims[0].plumbing.creative_fluid(from) {
@@ -153,6 +161,12 @@ impl Host for Run {
     }
     fn speed(&self, p: Pos) -> f32 {
         self.w.speed(0, p).unwrap_or(0.)
+    }
+    fn notifies_pipe_neighbours(&self, pos: Pos) -> bool {
+        create_engine::fluids::notifies_pipe_neighbours(
+            self.w.block_at(0, pos),
+            Fluid::of_id(&parse_state(&self.name(self.at(pos))).0).is_some_and(|f| f.placeable()),
+        )
     }
     fn tank_fluids(&self, face: Face) -> Vec<Fluid> {
         let p = face.connected();

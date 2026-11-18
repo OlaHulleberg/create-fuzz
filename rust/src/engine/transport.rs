@@ -164,11 +164,12 @@ impl Run {
         self.belt_breaks();
         // The glue's shared level registration walk (BeltBlockEntity.tick and
         // DepotBehaviour.tick): apply transfers before the next entity's turn.
-        let pipes_changed = std::mem::replace(&mut self.w.dims[0].pipes_changed, false);
+        self.tick_pumps();
         let mut phase = self.w.transport_ticks(0);
         while let Some(turn) = phase.next(&mut self.w) {
             let c = match turn {
                 create_engine::world::TransportTick::Fluid(p) => {
+                    self.tick_transport_pipe(p);
                     self.tick_fluid_entity(p);
                     continue;
                 }
@@ -180,10 +181,9 @@ impl Run {
                     self.tick_drain(p);
                     continue;
                 }
-                create_engine::world::TransportTick::Pump(p) => {
-                    if self.w.dims[0].pumping.contains(&p) {
-                        self.pump(p, pipes_changed || self.w.dims[0].pipes_changed);
-                    }
+                create_engine::world::TransportTick::Pump(p)
+                | create_engine::world::TransportTick::Pipe(p) => {
+                    self.tick_transport_pipe(p);
                     continue;
                 }
                 create_engine::world::TransportTick::Depot(p) => {

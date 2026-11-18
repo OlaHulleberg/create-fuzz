@@ -19,7 +19,6 @@ impl Run {
     }
     pub(super) fn tick_fluids(&mut self) {
         self.tick_pipe_shapes();
-        self.tick_pumps();
     }
     pub(super) fn tick_fluid_entity(&mut self, p: Pos) {
         let enabled = self.w.table.get(self.at(p)).map(|(_, i)| i.enabled);
@@ -79,7 +78,10 @@ impl Run {
                 self.w.dims[0].plumbing.filters.remove(&p).is_some()
             };
             if changed {
-                self.w.dims[0].fluid_transport.changed.push(p);
+                self.w.dims[0]
+                    .fluid_transport
+                    .changed
+                    .push(create_engine::fluids::runtime::Change::Pipe(p));
                 self.w.dims[0].plumbing.filter_changes.push(p);
                 self.mark_column(p);
             }
