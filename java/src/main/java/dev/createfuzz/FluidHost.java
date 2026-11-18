@@ -9,43 +9,102 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.storage.ServerLevelData;
 
-/** Native environmental fluid ticks for the Rust driver, in a separate frozen region.
+/** Native environmental fluid ticks for the Rust driver, in a suspended per-case namespace.
  * Block entities and scheduled block ticks do not run here. Create's fluid network is run
  * exclusively by Rust; only the public native fluid tick scheduler advances. */
 final class FluidHost {
     private static final BlockPos ORIGIN = new BlockPos(2048, 0, 2048);
-    private static String owner;
-    private static long epoch;
-    private static net.minecraft.server.level.ServerPlayer actor;
-    static void reapStale(ServerLevel level) {
-        if(owner==null)return;
-        try {
-            long pid=Long.parseLong(owner.substring(0,owner.indexOf('-')));
-            if(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false))return;
-            abort(level);
-        }catch(NumberFormatException|IndexOutOfBoundsException ignored) { /* Diagnostic test owners have no process id. */ }
+    // Only one namespace is materialized at a time, just like ordinary Java cases.
+    // Suspended peers have no blocks, entities or ticks in the shared level.
+    private static final java.util.Map<String, Session> sessions = new java.util.LinkedHashMap<>();
+    private static final class Session {
+        long epoch;
+        final net.minecraft.util.RandomSource random = net.minecraft.util.RandomSource.create(0);
+        net.minecraft.server.level.ServerPlayer actor;
+        final java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> blocks = new java.util.LinkedHashMap<>();
+        final java.util.Map<BlockPos, net.minecraft.nbt.CompoundTag> blockEntities = new java.util.LinkedHashMap<>();
+        final java.util.List<net.minecraft.world.ticks.ScheduledTick<net.minecraft.world.level.material.Fluid>> ticks = new java.util.ArrayList<>();
     }
-    static boolean busy() {return owner!=null;}
+    static void reapStale(ServerLevel level) {
+        for (String key : new java.util.ArrayList<>(sessions.keySet())) {
+            try {
+                long pid = Long.parseLong(key.substring(0, key.indexOf('-')));
+                if (!ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false)) abortIfOwner(level, key);
+            } catch (NumberFormatException | IndexOutOfBoundsException ignored) { }
+        }
+    }
     static void prepare(ServerLevel level) {
         for(int x=(ORIGIN.getX()-24)>>4;x<=(ORIGIN.getX()+24)>>4;x++)
             for(int z=(ORIGIN.getZ()-24)>>4;z<=(ORIGIN.getZ()+24)>>4;z++) level.setChunkForced(x,z,true);
     }
-    static void abortIfOwner(ServerLevel level,String key) {if(key.equals(owner)) abort(level);}
-    static void abort(ServerLevel level) {CaseIsolation.assertContained(level,ORIGIN);clear(level);if(actor!=null)PlayerActor.release(level,actor);owner=null;actor=null;level.getServer().tickRateManager().setFrozen(false);}
-    static void clear(ServerLevel level) {
-        CaseIsolation.clear(level,ORIGIN);
+    static void abortIfOwner(ServerLevel level, String key) {
+        Session session = sessions.remove(key);
+        if (session != null) PlayerActor.release(level, session.actor);
     }
     static JsonObject handle(ServerLevel level, JsonObject request) throws Exception {
         reapStale(level);
         String key=request.get("owner").getAsString();
-        if(request.has("begin")) {
-            if(owner!=null&&!owner.equals(key)) throw new IllegalStateException("fluid host already owned by "+owner);
-            CaseIsolation.begin(level);
-            level.getServer().tickRateManager().setFrozen(true);
-            owner=key;epoch=level.getGameTime();clear(level);actor=PlayerActor.create(level,16);
+        if (request.has("begin")) {
+            if (sessions.containsKey(key)) throw new IllegalStateException("fluid host duplicate begin");
+            Session session = new Session();
+            session.epoch = level.getGameTime();
+            session.actor = PlayerActor.create(level,16);
+            sessions.put(key, session);
         }
-        if(!key.equals(owner)) throw new IllegalStateException("fluid host owner mismatch");
-        if(request.has("close")) {CaseIsolation.assertContained(level,ORIGIN);clear(level);if(actor!=null)PlayerActor.release(level,actor);owner=null;actor=null;level.getServer().tickRateManager().setFrozen(false);return new JsonObject();}
+        Session session = sessions.get(key);
+        if (session == null) throw new IllegalStateException("fluid host owner mismatch");
+        if (request.has("close")) {
+            abortIfOwner(level,key);
+            return new JsonObject();
+        }
+        CaseIsolation.begin(level);
+        long previousTime = level.getGameTime();
+        var randomField = net.minecraft.world.level.Level.class.getDeclaredField("random");
+        randomField.setAccessible(true);
+        var previousRandom = level.random;
+        try {
+            randomField.set(level,session.random);
+            // No neighbour notifications while restoring a previously observed frame.
+            for (var entry : session.blocks.entrySet()) level.setBlock(entry.getKey(),entry.getValue(),18);
+            for (var entry : session.blockEntities.entrySet()) {
+                var entity = level.getBlockEntity(entry.getKey());
+                if (entity == null) throw new IllegalStateException("fluid host lost block entity at " + entry.getKey());
+                entity.loadWithComponents(entry.getValue(),level.registryAccess());
+            }
+            var bounds = new BoundingBox(ORIGIN.getX()-24,level.getMinBuildHeight(),ORIGIN.getZ()-24,
+                    ORIGIN.getX()+24,level.getMaxBuildHeight(),ORIGIN.getZ()+24);
+            level.getFluidTicks().clearArea(bounds);
+            for (var scheduled : session.ticks) level.getFluidTicks().schedule(scheduled);
+            JsonObject result = frame(level,request,session);
+            CaseIsolation.assertContained(level,ORIGIN);
+            session.blocks.clear();
+            session.blockEntities.clear();
+            for (var pos : BlockPos.betweenClosed(ORIGIN.offset(-24,0,-24),ORIGIN.offset(24,24,24))) {
+                var state = level.getBlockState(pos);
+                if (!state.isAir()) session.blocks.put(pos.immutable(),state);
+                var entity = level.getBlockEntity(pos);
+                if (entity != null) session.blockEntities.put(pos.immutable(),entity.saveWithFullMetadata(level.registryAccess()));
+            }
+            session.ticks.clear();
+            for(int x=(ORIGIN.getX()-24)>>4;x<=(ORIGIN.getX()+24)>>4;x++)
+                for(int z=(ORIGIN.getZ()-24)>>4;z<=(ORIGIN.getZ()+24)>>4;z++)
+                    ((net.minecraft.world.ticks.LevelChunkTicks<net.minecraft.world.level.material.Fluid>)level.getChunk(x,z).getFluidTicks()).getAll().forEach(session.ticks::add);
+            return result;
+        } finally {
+            try { CaseIsolation.assertContained(level,ORIGIN); }
+            finally {
+                try { CaseIsolation.clear(level,ORIGIN); }
+                finally {
+                    randomField.set(level,previousRandom);
+                    ((ServerLevelData)level.getLevelData()).setGameTime(previousTime);
+                }
+            }
+            CaseIsolation.empty(level);
+        }
+    }
+    private static JsonObject frame(ServerLevel level, JsonObject request, Session session) throws Exception {
+        long epoch = session.epoch;
+        var actor = session.actor;
         long clock=request.get("clock").getAsLong();
         var data=(ServerLevelData)level.getLevelData();
         data.setGameTime(epoch+clock-(request.has("bucket")?0:1));

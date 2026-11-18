@@ -142,7 +142,6 @@ public class CreateFuzz {
                     return;
                 }
                 FluidHost.reapStale(level);
-                if(FluidHost.busy()) throw new IllegalStateException("fluid world active; use one runner per private server");
                 server.tickRateManager().setFrozen(false);
                 JsonArray cases=input.getAsJsonArray();
                 batch = new Batch(next.getFileName().toString(), cases, level, dir);

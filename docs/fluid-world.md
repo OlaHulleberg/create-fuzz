@@ -14,8 +14,9 @@ cauldron/beehive drains and spill reactions. Open ends retain their own partial 
 
 Native fluid scheduling belongs to the host. `fluid_host.rs` and Java `FluidHost` run that
 host boundary in a separate region of the same pinned Java binary used for comparison.
-The level is frozen while servicing a Rust case, and only its public native fluid scheduler
-is advanced explicitly. Java Create block-entity ticks, scheduled block ticks, kinetic
+Each Rust case owns a suspended namespace. Its blocks and pending native fluid ticks are
+materialized only during a synchronous request; only the public native fluid scheduler
+is advanced explicitly. The shared server keeps ticking between requests. Java Create block-entity ticks, scheduled block ticks, kinetic
 solves and fluid-network transfers do not run in this region. Rust owns those Create
 subsystems. Java's normal placement/shape callbacks may run when a host state changes;
 only native block changes and waterlogging are returned to Rust. Other Create state
@@ -28,7 +29,9 @@ Create fluid phase and kinetic solve follow on Rust. This provides the same nati
 NeoForge's implementation sources. It measures port behavior under that controlled host;
 it does not establish equivalence of every native behavior in the port's target game.
 
-The service has one owner per private server and releases it when the Rust run ends.
+The service keeps independent namespaces for concurrent runners and releases each when
+its Rust run ends (or its owning process exits). Ordinary reference batches run serially
+through the same server while these namespaces remain suspended.
 `fuzz rust` therefore also needs the server for fluid-world scenarios. Pure engine and
 callback unit tests remain independent of the service. Ordinary dry scenarios keep the
 standalone driver path.
@@ -81,9 +84,15 @@ double-precision hit. This matters for equal-distance glass-wrench choices at de
 the same local decimal can round differently in different batch slots. Comparisons remain
 strict; there is no geometric tie allowance. Dry standalone Rust traces use origin zero.
 
-The native peer participates in `CaseIsolation`: it enters a fresh namespace before freezing,
-records its owned region with the shared disposer, releases its fresh actor, and unfreezes
-before the next case. Fluid boundaries and escaped entities fail explicitly. Unobserved item
+The native peer participates in `CaseIsolation`: each frame enters a fresh namespace,
+restores its blocks, block-entity data and exact scheduled fluid ticks (including priority
+and tie order), and saves them before clearing the entire materialized region. Each peer
+has its own actor and deterministic random source; the ambient random source and game time
+are restored before returning. No peer blocks, entities, scheduled ticks or Create networks
+remain live between requests. Existing empty-level, containment and build-stamp assertions
+continue to apply. Native block ticks and block events remain unexecuted, as in the frozen
+host contract. `FUZZ_DIR=<private server directory> python3 tools/test-fluid-host.py` checks
+interleaved peer frames, ordinary batches and disposal after a rejected third peer. Fluid boundaries and escaped entities fail explicitly. Unobserved item
 drops are counted and disposed while still inside the owned region; escape checks run first.
 Normal reference cases also assert containment before disposal. No boundary failure is
 converted into a partial successful case.
