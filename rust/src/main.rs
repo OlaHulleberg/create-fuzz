@@ -37,6 +37,7 @@ use std::path::{Path, PathBuf};
 
 const HELP: &str = "\
 create-fuzz <command>
+  compare-records <main.json> <branch.json> audit recorded runs against one Java trace
   diff-files <java.json> <rust.json> compare recorded snapshots offline
   rust <case.json>               run one case through the port's engine, print its snapshot
   java <case.json>               run one case on the Java server, print its snapshot
@@ -56,10 +57,34 @@ fn main() {
         std::process::exit(2);
     };
     match cmd.as_str() {
+        "compare-records" => {
+            #[derive(serde::Deserialize)]
+            struct Record {
+                java: Snapshot,
+                rust: Snapshot,
+            }
+            let read = |path: &str| -> Record {
+                serde_json::from_reader(std::io::BufReader::new(
+                    std::fs::File::open(path).expect("record file"),
+                ))
+                .expect("record JSON")
+            };
+            let main = read(&args[1]);
+            let branch = read(&args[2]);
+            let result = serde_json::json!({
+                "java_changes": compare::diff(&main.java, &branch.java),
+                "main": compare::diff(&main.java, &main.rust),
+                "branch_same_java": compare::diff(&main.java, &branch.rust),
+                "branch_own_java": compare::diff(&branch.java, &branch.rust),
+            });
+            println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        }
         "diff-files" => {
             let read = |path: &str| -> Snapshot {
-                serde_json::from_reader(std::fs::File::open(path).expect("snapshot file"))
-                    .expect("snapshot JSON")
+                serde_json::from_reader(std::io::BufReader::new(
+                    std::fs::File::open(path).expect("snapshot file"),
+                ))
+                .expect("snapshot JSON")
             };
             println!(
                 "{}",
