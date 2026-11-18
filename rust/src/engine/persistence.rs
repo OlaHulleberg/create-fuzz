@@ -649,6 +649,48 @@ mod tests {
     }
 
     #[test]
+    fn recoloured_valve_publishes_cleared_kinetics_before_reload() {
+        let sc: Scenario = serde_json::from_value(serde_json::json!({"ticks":20,"events":[{"tick":10,"pos":[0,8,0],"state":"create:red_valve_handle[facing=up]"}],"blocks":[
+            {"pos":[0,7,0],"state":"create:shaft[axis=y]"},
+            {"pos":[0,8,0],"state":"create:copper_valve_handle[facing=up]"},
+            {"pos":[0,6,0],"state":"create:shaft[axis=y]"}
+        ]}))
+        .unwrap();
+        let mut r = Run::new(&sc);
+        for block in &sc.blocks {
+            r.place(block);
+            r.tick();
+        }
+        let p = [0, 8, 0];
+        r.use_item(
+            p,
+            "minecraft:air",
+            create_engine::kinetics::Dir::Up,
+            [0.1, 0.5, 0.1],
+            0.0,
+            0.0,
+            true,
+        );
+        r.tick();
+        r.use_item(
+            p,
+            "minecraft:red_dye",
+            create_engine::kinetics::Dir::Up,
+            [0.5; 3],
+            0.0,
+            0.0,
+            true,
+        );
+        let saved = codec::saved_from_nbt(&r.persisted.kinetics[&(p, 0)]).unwrap();
+        assert_eq!(saved.speed, 0.0);
+        assert_eq!(saved.source, None);
+        assert_eq!(saved.network, None);
+        r.reload();
+        r.tick();
+        assert_eq!(r.w.speed(0, [0, 7, 0]), Some(-32.0));
+    }
+
+    #[test]
     fn motor_interaction_publishes_before_reload_without_tick() {
         let sc: Scenario = serde_json::from_value(serde_json::json!({"ticks":20,"blocks":[{"pos":[0,8,0],"state":"create:creative_motor[facing=east]","motor":32}]})).unwrap();
         let mut r = Run::new(&sc);

@@ -119,6 +119,7 @@ impl Run {
                     let next =
                         crate::scenario::format_state(&format!("create:{}", to.name()), &props);
                     self.set(p, self.id(&next));
+                    self.publish_interaction();
                 } else {
                     let selected = self.handles.get(&p).map_or(45, |h| h.selected);
                     if self.w.use_valve(0, p, sneaking, selected) {
