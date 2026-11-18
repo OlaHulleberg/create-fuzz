@@ -4,6 +4,7 @@ impl Run {
     /// One level tick: inputs, then the solve and what it breaks.
     pub(super) fn tick(&mut self) {
         self.persisted.clock += 1;
+        self.w.dims[0].fluid_transport.begin_tick();
         self.tick_world_fluids();
         if self.native_failed {
             return;
