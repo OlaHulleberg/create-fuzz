@@ -163,6 +163,26 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
             );
         }
     }
+    if mode == 0 && (seed / 160) % 3 == 0 && (seed / 480) % 2 == 1 {
+        event(66, [0, 8, 5], Action::Remove);
+        for (tick, pos, item) in [
+            (70, [0, 8, 4], "create:belt_connector"),
+            (80, [0, 8, 5], "create:wrench"),
+        ] {
+            event(
+                tick,
+                pos,
+                Action::Use {
+                    item: item.into(),
+                    face: Face::South,
+                    hit: [0.5, 0.5, 1.],
+                    yaw: 0.,
+                    pitch: 0.,
+                    sneaking: false,
+                },
+            );
+        }
+    }
     let at = if mode == 3 { [0, 8, 3] } else { [0, 8, 1] };
     for (tick, item, count) in [
         (40, "minecraft:iron_ingot", 16),
