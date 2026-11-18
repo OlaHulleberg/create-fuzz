@@ -208,12 +208,12 @@ impl Run {
             spout::OnBelt::Pass => belt::Process::Pass,
             spout::OnBelt::Hold => belt::Process::Hold,
             spout::OnBelt::Fill(out) => {
-                let mut filled = item.clone();
+                let mut filled = item.processing_copy();
                 filled.item = out;
                 filled.count = 1;
                 filled.progress = None;
                 let held = if item.count > 1 {
-                    let mut rest = item.clone();
+                    let mut rest = item.processing_copy();
                     rest.count -= 1;
                     Some(rest)
                 } else {
