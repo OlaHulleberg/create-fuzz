@@ -71,8 +71,17 @@ final class CaseIsolation {
     }
 
     static void clear(ServerLevel level, BlockPos origin) {
+        clear(level, origin, 24);
+    }
+
+    /** A rejected case can have notified or spilled into the containment guard ring. */
+    static void clearRejected(ServerLevel level, BlockPos origin) {
+        clear(level, origin, 32);
+    }
+
+    private static void clear(ServerLevel level, BlockPos origin, int radius) {
         cleared.add(origin.immutable());
-        for (var pos : BlockPos.betweenClosed(origin.offset(-24, 0, -24), origin.offset(24, 24, 24)))
+        for (var pos : BlockPos.betweenClosed(origin.offset(-radius, 0, -radius), origin.offset(radius, 24, radius)))
             if (!level.getBlockState(pos).isAir()) level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
         // The old AABB missed drops which fell below zero or escaped a slot.
         var entities = new ArrayList<Entity>();
@@ -83,8 +92,8 @@ final class CaseIsolation {
                     || Math.abs(entity.getZ() - origin.getZ()) > 26) escapedEntities++;
             entity.discard();
         }
-        var bounds = new BoundingBox(origin.getX() - 24, level.getMinBuildHeight(), origin.getZ() - 24,
-                origin.getX() + 24, level.getMaxBuildHeight(), origin.getZ() + 24);
+        var bounds = new BoundingBox(origin.getX() - radius, level.getMinBuildHeight(), origin.getZ() - radius,
+                origin.getX() + radius, level.getMaxBuildHeight(), origin.getZ() + radius);
         level.getBlockTicks().clearArea(bounds);
         level.getFluidTicks().clearArea(bounds);
         // With one active case, these callbacks cannot belong to another case.

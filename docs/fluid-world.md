@@ -96,3 +96,9 @@ interleaved peer frames, ordinary batches and disposal after a rejected third pe
 drops are counted and disposed while still inside the owned region; escape checks run first.
 Normal reference cases also assert containment before disposal. No boundary failure is
 converted into a partial successful case.
+
+Failed reference requests dispose their batch before checking emptiness or publishing an
+error. Rejected peers also clear the containment guard ring, including its scheduled block
+and fluid ticks. A secondary cleanup error is reported with that request and does not
+escape the server tick listener. The namespace regression exercises rejection and malformed
+input between live peer frames and verifies that the same server boot remains usable.

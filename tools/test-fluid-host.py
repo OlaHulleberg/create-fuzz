@@ -50,6 +50,7 @@ def close(owner):
 alone = 'probe-' + str(uuid.uuid4())
 expected = [frame(alone, clock) for clock in range(1, 21)]
 close(alone)
+boot = json.loads((root / 'harness-runtime.json').read_text())['boot']
 a, b = ['probe-' + str(uuid.uuid4()) for _ in range(2)]
 try:
     for clock in range(1, 21):
@@ -62,8 +63,26 @@ try:
             exchange(dict(owner='fault-' + str(uuid.uuid4()), begin=True, clock=1,
                           changes=[dict(pos=[0, 1, 2], state='minecraft:water[level=0]')],
                           native=[], manual=[], region=region), error=True)
+        if clock in (5, 10, 15):
+            # A reference case must dispose live blocks and their pending fluid ticks
+            # before checking emptiness, then keep serving the two suspended peers.
+            rejected = dict(version=3, seed=0, ticks=40,
+                            blocks=[dict(pos=[0, 4, 0], state='minecraft:water[level=0]')], events=[])
+            result = exchange([rejected], False, error=True)
+            assert 'fluid reaches the scenario boundary' in result['error'], result
+            failed = dict(rejected, events=[dict(tick=1, pos=[0, 4, 0], state='minecraft:unknown_block')])
+            result = exchange([failed], False, error=True)
+            assert 'bad state' in result['error'], result
+            # Guard-ring ticks also belong to the rejected namespace.
+            result = exchange(dict(owner='spill-' + str(uuid.uuid4()), begin=True, clock=1,
+                                   changes=[dict(pos=[25, 1, 0], state='minecraft:water[level=0]')],
+                                   native=[], manual=[], region=region), error=True)
+            assert 'leaked fluid' in result['error'], result
+            exchange([dict(version=3, seed=0, ticks=2, blocks=[], events=[])], False)
+            assert json.loads((root / 'harness-runtime.json').read_text())['boot'] == boot
+            assert json.loads((root / 'harness-health.json').read_text())['scheduled_ticks'] == 0
         assert frame(b, clock) == expected[clock - 1], ('second peer', clock)
 finally:
     close(a)
     close(b)
-print('20 frames: alone == two interleaved peers, with ordinary batches between every frame')
+print('20 frames: alone == two interleaved peers; rejected fixtures, bad states and guard-ring spills disposed; same server boot remains usable')

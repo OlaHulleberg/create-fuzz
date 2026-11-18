@@ -149,29 +149,24 @@ public class CreateFuzz {
                 batch.start(level);
                 if (batch.name.startsWith("cover-")) coverage(null);
             } catch (Exception ex) {
-                if(next.getFileName().toString().startsWith("fluid-host-") && input!=null && input.isJsonObject() && input.getAsJsonObject().has("owner")) FluidHost.abortIfOwner(level,input.getAsJsonObject().get("owner").getAsString());
+                try {
+                    if(next.getFileName().toString().startsWith("fluid-host-") && input!=null && input.isJsonObject() && input.getAsJsonObject().has("owner")) FluidHost.abortIfOwner(level,input.getAsJsonObject().get("owner").getAsString());
+                } catch (Exception cleanup) { ex.addSuppressed(cleanup); }
                 fail(level, next.getFileName().toString(), ex);
             }
             return;
         }
-        boolean done;
         try {
-            done = batch.step(level);
-        } catch (Exception ex) {
-            fail(level, batch.name, ex);
-            return;
-        }
-        if (done) {
-            try {
+            if (batch.step(level)) {
+                CaseIsolation.empty(level);
+                batch.releaseActors(level);
                 if (batch.name.startsWith("cover-") && !batch.coverageCaptured)
                     coverage(dir.resolve("outbox").resolve(batch.name + ".exec"));
                 writeResponse(dir.resolve("outbox").resolve(batch.name),batch.results);
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
+                batch = null;
             }
-            CaseIsolation.empty(level);
-            batch.releaseActors(level);
-            batch = null;
+        } catch (Exception ex) {
+            fail(level, batch.name, ex);
         }
     }
 
@@ -217,19 +212,28 @@ public class CreateFuzz {
 
     /** A batch that could not run: its answer is the error, and its area is cleared. */
     void fail(ServerLevel level, String name, Exception ex) {
+        // Detach before disposing: a secondary cleanup failure must remain request-local.
+        Batch failed = batch;
+        batch = null;
+        if (failed != null) {
+            try {
+                for (BlockPos origin : failed.origins) CaseIsolation.clearRejected(level, origin);
+                CaseIsolation.empty(level);
+            } catch (Exception cleanup) { ex.addSuppressed(cleanup); }
+            finally {
+                try { failed.releaseActors(level); }
+                catch (Exception cleanup) { ex.addSuppressed(cleanup); }
+            }
+        }
         try {
             Files.deleteIfExists(dir.resolve("inbox").resolve(name));
             JsonObject o = new JsonObject();
             o.addProperty("error", ex + (ex.getCause() != null ? ": " + ex.getCause() : ""));
             writeResponse(dir.resolve("outbox").resolve(name),o);
             System.err.println("fuzz request failed: "+name+": "+ex);
+            for (var cleanup : ex.getSuppressed()) System.err.println("fuzz cleanup failed: " + cleanup);
         } catch (IOException ignored) {
         }
-        if (batch != null) {
-            CaseIsolation.empty(level);
-            batch.releaseActors(level);
-        }
-        batch = null;
     }
 
     /** One batch's cases, run side by side. */

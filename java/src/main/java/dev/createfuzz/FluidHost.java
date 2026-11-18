@@ -62,6 +62,7 @@ final class FluidHost {
         var randomField = net.minecraft.world.level.Level.class.getDeclaredField("random");
         randomField.setAccessible(true);
         var previousRandom = level.random;
+        boolean complete = false;
         try {
             randomField.set(level,session.random);
             // No neighbour notifications while restoring a previously observed frame.
@@ -89,11 +90,15 @@ final class FluidHost {
             for(int x=(ORIGIN.getX()-24)>>4;x<=(ORIGIN.getX()+24)>>4;x++)
                 for(int z=(ORIGIN.getZ()-24)>>4;z<=(ORIGIN.getZ()+24)>>4;z++)
                     ((net.minecraft.world.ticks.LevelChunkTicks<net.minecraft.world.level.material.Fluid>)level.getChunk(x,z).getFluidTicks()).getAll().forEach(session.ticks::add);
+            complete = true;
             return result;
         } finally {
             try { CaseIsolation.assertContained(level,ORIGIN); }
             finally {
-                try { CaseIsolation.clear(level,ORIGIN); }
+                try {
+                    if (complete) CaseIsolation.clear(level,ORIGIN);
+                    else CaseIsolation.clearRejected(level,ORIGIN);
+                }
                 finally {
                     randomField.set(level,previousRandom);
                     ((ServerLevelData)level.getLevelData()).setGameTime(previousTime);
