@@ -105,7 +105,13 @@ pub fn generate(seed: u64) -> crate::scenario::Scenario {
     } else if mode == 2 {
         block([0, 8, 5], "create:shaft[axis=x,waterlogged=false]", None);
         block([0, 8, 8], "create:shaft[axis=x,waterlogged=false]", None);
-        block([-1, 8, 5], "create:creative_motor[facing=east]", Some(32));
+        // Separate drive permits slower/faster and opposing receiving belts.
+        let receiver_speed = [16, 64, -32, 0][(seed as usize / 480) % 4];
+        block(
+            [-1, 8, 5],
+            "create:creative_motor[facing=east]",
+            Some(receiver_speed),
+        );
         block([0, 8, 9], "minecraft:stone", None);
     } else {
         block([0, 8, 5], "minecraft:stone", None);
