@@ -53,15 +53,18 @@ final class CaseIsolation {
     static long unobservedDrops;
     /** Item flight after the controlled landing boundary is outside the driver contract. */
     static void disposeUnobservedDrops(ServerLevel level, BlockPos origin) {
-        assertContained(level,origin);
+        assertEntityBounds(level,origin);
         var drops=new ArrayList<Entity>();
         for(var entity:level.getAllEntities()) if(entity instanceof net.minecraft.world.entity.item.ItemEntity) drops.add(entity);
         for(var entity:drops) {unobservedDrops++;entity.discard();}
     }
-    static void assertContained(ServerLevel level, BlockPos origin) {
+    static void assertEntityBounds(ServerLevel level, BlockPos origin) {
         for (var entity : level.getAllEntities())
             if (!(entity instanceof Player) && (entity.getY() < -1.5 || Math.abs(entity.getX()-origin.getX())>26 || Math.abs(entity.getZ()-origin.getZ())>26))
                 throw new IllegalStateException("case isolation: leaked entity outside owned region at "+entity.blockPosition());
+    }
+    static void assertContained(ServerLevel level, BlockPos origin) {
+        assertEntityBounds(level,origin);
         for (var pos : BlockPos.betweenClosed(origin.offset(-32,1,-32),origin.offset(32,24,32)))
             if ((Math.abs(pos.getX()-origin.getX())>24 || Math.abs(pos.getZ()-origin.getZ())>24) && !level.getFluidState(pos).isEmpty())
                 throw new IllegalStateException("case isolation: leaked fluid at "+pos);
@@ -152,6 +155,11 @@ final class CaseIsolation {
         level.addFreshEntity(escaped);
         expectLeak("leaked entity", () -> empty(level));
         clear(level, origin);
+        var spilled=origin.offset(25,8,0);
+        level.setBlock(spilled,Blocks.WATER.defaultBlockState(),3);
+        expectLeak("leaked fluid",()->assertContained(level,origin));
+        level.setBlock(spilled,Blocks.AIR.defaultBlockState(),3);
+        level.getFluidTicks().clearArea(new BoundingBox(-32,level.getMinBuildHeight(),-32,32,level.getMaxBuildHeight(),32));
         level.scheduleTick(origin.above(8), Blocks.STONE, 100);
         expectLeak("scheduled ticks", () -> empty(level));
         clear(level, origin);
