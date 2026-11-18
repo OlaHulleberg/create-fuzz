@@ -86,23 +86,29 @@ impl Run {
             taken,
         })
     }
-    pub(super) fn tick_fluid_machines(&mut self) {
+    pub(super) fn spout_on_depot(&mut self, depot: Pos) {
+        let p = add(depot, [0, 2, 0]);
+        let Some(mut s) = self.w.dims[0].spouts.get(&p).copied() else {
+            return;
+        };
         let recipes = crate::fluid_recipes::filling();
-        let spouts: Vec<_> = self.w.dims[0]
-            .spouts
-            .iter()
-            .filter(|(_, s)| s.fluid.is_some() || s.processing >= 0)
-            .map(|(&p, &s)| (p, s))
-            .collect();
-        for (p, mut s) in spouts {
+        let Some(mut h) = self.w.dims[0].depots.get(&depot).copied().flatten() else {
+            return;
+        };
+        {
             let depot = add(p, [0, -2, 0]);
             let held = self.depot_stacks.get(&depot).cloned();
             let before = s.fluid;
-            let filled = spout::step(
-                &mut s,
-                held.as_ref().map(|stack| stack.item.as_str()),
-                &recipes,
-            );
+            let result = held
+                .as_ref()
+                .map(|stack| spout::on_depot(&mut s, &mut h, &stack.item, &recipes));
+            if let Some(Some(h)) = self.w.dims[0].depots.get_mut(&depot) {
+                h.locked = !matches!(result, Some(spout::OnBelt::Pass));
+            }
+            let filled = match result {
+                Some(spout::OnBelt::Fill(out)) => Some(out),
+                _ => None,
+            };
             if let (Some(item), Some(mut stack)) = (filled, held) {
                 if stack.count == 1 {
                     stack.item = item;
@@ -133,13 +139,9 @@ impl Run {
                 self.mark_column(p);
             }
         }
-        let drains: Vec<_> = self.w.dims[0]
-            .drains
-            .iter()
-            .filter(|(_, d)| d.held.is_some())
-            .map(|(&p, _)| p)
-            .collect();
-        for p in drains {
+    }
+    pub(super) fn tick_drain(&mut self, p: Pos) {
+        for p in [p] {
             let result = drain::tick(
                 self.w.dims[0].drains.get_mut(&p).unwrap(),
                 &crate::fluid_recipes::emptying(),
@@ -282,6 +284,8 @@ mod tests {
         let mut direct = spout::Spout::default();
         spout::fill(&mut direct, Fluid::Tea, 1000);
         run.w.dims[0].spouts.insert(p, direct);
+        let mut held = create_engine::depot::Held::new(180, false);
+        run.w.depot_put(0, depot, Some(held));
         let mut left = 4;
         for _ in 0..100 {
             let item = if left > 0 {
@@ -289,10 +293,19 @@ mod tests {
             } else {
                 "create:builders_tea"
             };
-            if spout::step(&mut direct, Some(item), &crate::fluid_recipes::filling()).is_some() {
+            spout::tick(&mut direct);
+            if matches!(
+                spout::on_depot(
+                    &mut direct,
+                    &mut held,
+                    item,
+                    &crate::fluid_recipes::filling()
+                ),
+                spout::OnBelt::Fill(_)
+            ) {
                 left -= 1;
             }
-            run.tick_fluid_machines();
+            run.tick_transport();
             assert_eq!(run.w.dims[0].spouts[&p], direct);
             assert_eq!(run.depot_stacks[&depot].count, left.max(1));
         }
@@ -332,7 +345,7 @@ mod tests {
         );
         for _ in 0..23 {
             drain::tick(&mut direct, &crate::fluid_recipes::emptying());
-            run.tick_fluid_machines();
+            run.tick_drain(p);
             assert_eq!(run.w.dims[0].drains[&p], direct);
         }
         assert_eq!(direct.fluid, Some((Fluid::Water, 1000)));

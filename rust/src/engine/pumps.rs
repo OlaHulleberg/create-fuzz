@@ -34,12 +34,9 @@ impl Run {
         }
     }
     pub(super) fn tick_pumps(&mut self) {
-        let changed = std::mem::replace(&mut self.w.dims[0].pipes_changed, false);
         let pumps = self.w.dims[0].pumping.clone();
         self.fluid_pressures.clear();
-        for &pos in &pumps {
-            self.pump(pos, changed);
-        }
+
         self.fluid_runs.retain(|p, _| pumps.contains(p));
         let now = self.persisted.clock;
         self.fluid_runs.retain(|_, r| {
@@ -66,7 +63,7 @@ impl Run {
             }
         }
     }
-    fn pump(&mut self, pos: Pos, changed: bool) {
+    pub(super) fn pump(&mut self, pos: Pos, changed: bool) {
         let speed = self.w.speed(0, pos).unwrap_or(0.);
         let Some(facing) = self.w.table.get(self.at(pos)).and_then(|(_, i)| i.facing) else {
             return;

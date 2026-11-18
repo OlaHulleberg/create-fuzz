@@ -50,7 +50,6 @@ impl Run {
                 self.set(p, self.id(&next));
             }
         }
-        self.tick_fluid_machines();
     }
     pub(super) fn fluid_use(
         &mut self,
