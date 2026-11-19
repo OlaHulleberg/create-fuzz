@@ -16,6 +16,7 @@ mod observation;
 mod persistence;
 mod pipes;
 mod pumps;
+mod sources;
 mod transport;
 
 use crate::scenario::{
@@ -87,6 +88,14 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     for face in ["up", "down", "north", "south", "east", "west"] {
         push(format!("create:creative_motor[facing={face}]"));
     }
+    // Engines turn their shaft into a powered shaft (`PoweredShaftBlock.getEquivalent`).
+    for axis in ["x", "y", "z"] {
+        for water in ["true", "false"] {
+            push(format!(
+                "create:powered_shaft[axis={axis},waterlogged={water}]"
+            ));
+        }
+    }
     for entry in crate::catalogue::entries().iter().filter(|e| {
         e.id == "create:belt"
             || e.id == "create:fluid_valve"
@@ -150,6 +159,10 @@ pub struct Run {
     fluid_native_schedule: Vec<Pos>,
     fluid_water_due: BTreeMap<usize, Vec<Pos>>,
     fluid_domain: std::collections::BTreeSet<Pos>,
+    /// `FluidState.getFlow` at every wheel's sample cells, as the native host reported it.
+    wheel_fluid_flow: HashMap<Pos, [f64; 3]>,
+    /// Each wheel's flow score (`WaterWheelBlockEntity.flowScore`), for observations.
+    wheel_scores: HashMap<Pos, i8>,
     _guard: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -204,6 +217,8 @@ impl Run {
             fluid_native_schedule: Vec::new(),
             fluid_water_due: BTreeMap::new(),
             fluid_domain: sc.region().into_iter().collect(),
+            wheel_fluid_flow: HashMap::new(),
+            wheel_scores: HashMap::new(),
             _guard: guard,
         }
     }

@@ -137,6 +137,7 @@ impl Run {
         }
         let changes = std::mem::take(&mut self.fluid_host_changes);
         let native = std::mem::take(&mut self.fluid_native_schedule);
+        let flows = self.wheel_samples();
         let mut host = self
             .fluid_host
             .take()
@@ -147,6 +148,7 @@ impl Run {
             manual,
             native,
             self.fluid_domain.iter().copied().collect(),
+            flows.clone(),
         );
         let results = match results {
             Ok(frame) => frame,
@@ -159,6 +161,11 @@ impl Run {
             }
         };
         self.fluid_host = Some(host);
+        let crate::fluid_host::Frame { flows: answers, .. } = &results;
+        self.wheel_fluid_flow.clear();
+        for (p, flow) in flows.into_iter().zip(answers.iter().copied()) {
+            self.wheel_fluid_flow.insert(p, flow);
+        }
         self.apply_native_frame(results);
     }
     fn apply_native_frame(&mut self, results: crate::fluid_host::Frame) {

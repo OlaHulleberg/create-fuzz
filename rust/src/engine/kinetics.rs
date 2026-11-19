@@ -11,6 +11,7 @@ impl Run {
         if self.native_failed {
             return;
         }
+        self.apply_wheel_flow();
         self.w.tick_cranks(0);
         for h in self.handles.values_mut() {
             h.remaining = h.remaining.saturating_sub(1);

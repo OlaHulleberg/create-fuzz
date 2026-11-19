@@ -137,6 +137,16 @@ final class FluidHost {
             }
             FluidBounds.check(level,ORIGIN,request.getAsJsonArray("region"));
         }
+        // The native flow vector at the requested cells (`FluidState.getFlow`), which water
+        // wheels read through `WaterWheelBlockEntity.getFlowVectorAtPosition`. Queried after
+        // this frame's fluid ticks, like the level's own scheduled block ticks.
+        var flows = new JsonArray();
+        for (var value : request.getAsJsonArray("flows")) {
+            var xyz=value.getAsJsonArray();
+            var pos=ORIGIN.offset(xyz.get(0).getAsInt(),xyz.get(1).getAsInt(),xyz.get(2).getAsInt());
+            var flow=level.getFluidState(pos).getFlow(level,pos);
+            flows.add(CreateFuzz.GSON.toJsonTree(new double[]{flow.x,flow.y,flow.z}));
+        }
         CaseIsolation.disposeUnobservedDrops(level,ORIGIN);
         var out=new JsonObject();var states=new JsonArray();
         for(var value:request.getAsJsonArray("region")) {
@@ -151,7 +161,7 @@ final class FluidHost {
         var rules=new JsonObject();
         rules.addProperty("water_source_conversion",level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_WATER_SOURCE_CONVERSION));
         rules.addProperty("lava_source_conversion",level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_LAVA_SOURCE_CONVERSION));
-        rules.addProperty("evaporates",level.dimensionType().ultraWarm());out.add("rules",rules);
+        rules.addProperty("evaporates",level.dimensionType().ultraWarm());out.add("rules",rules);out.add("flows",flows);
         return out;
     }
 }
