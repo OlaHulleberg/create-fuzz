@@ -1,4 +1,25 @@
 use super::*;
+use create_engine::{
+    Block,
+    kinetics::{Axis, Dir},
+    place,
+};
+
+fn axis_name(axis: Axis) -> &'static str {
+    match axis {
+        Axis::X => "x",
+        Axis::Y => "y",
+        Axis::Z => "z",
+    }
+}
+
+fn cog_item(item: &str) -> Option<bool> {
+    match item {
+        "create:cogwheel" => Some(false),
+        "create:large_cogwheel" => Some(true),
+        _ => None,
+    }
+}
 
 impl Run {
     pub(super) fn action(&mut self, p: Pos, action: &crate::actions::Action) {
@@ -84,7 +105,7 @@ impl Run {
         pitch: f32,
         sneaking: bool,
     ) {
-        use create_engine::{Block, board, place};
+        use create_engine::board;
         if item == "minecraft:air" && self.transport_empty_use(p, face, sneaking) {
             return;
         }
@@ -150,7 +171,8 @@ impl Run {
                 && !crate::actions::BLOCKS.contains(&name.as_str())
                 && name != "create:andesite_encased_shaft"
                 && name != "create:brass_encased_shaft"
-                && name != "create:powered_shaft"
+                && !name.ends_with("_encased_cogwheel")
+                && !name.ends_with("_encased_large_cogwheel")
                 && name != "create:brass_casing"
                 && name != "create:andesite_casing"
                 && !(name == "create:belt"
@@ -176,6 +198,23 @@ impl Run {
             return;
         }
         if !sneaking {
+            if let Some(large) = cog_item(item)
+                && let Some((clicked_large, axis)) = self.w.cog_at(0, p)
+                && let Some((target, axis)) = place::cog_helper(
+                    large,
+                    p,
+                    place::ClickedCog {
+                        large: clicked_large,
+                        axis,
+                    },
+                    hit,
+                    |q, large, axis| self.w.valid_cog_position(0, q, large, axis),
+                    |q| self.replaceable(q),
+                )
+            {
+                self.place_cog(target, item, large, axis);
+                return;
+            }
             // decor/brackets.rs runs before the wrench item's use_on.
             if item == "create:wrench" && {
                 let removed = self.brackets.remove(&p).is_some();
@@ -217,22 +256,33 @@ impl Run {
                 return;
             }
             // transmission.rs Clicked: casing, then the shaft placement helper.
-            if let Some((Block::Shaft | Block::PoweredShaft, info)) = own {
-                let axis = info.axis.expect("shaft axis");
-                if item == "create:brass_casing" || item == "create:andesite_casing" {
-                    let next = format!(
-                        "create:{}_encased_shaft[axis={}]",
-                        if item == "create:brass_casing" {
-                            "brass"
-                        } else {
-                            "andesite"
-                        },
-                        format!("{axis:?}").to_lowercase()
+            if let Some((block, info)) = own
+                && matches!(block, Block::Shaft | Block::Cogwheel | Block::LargeCogwheel)
+            {
+                let axis = info.axis.expect("relay axis");
+                if let Some(casing) = match item {
+                    "create:brass_casing" => Some("brass"),
+                    "create:andesite_casing" => Some("andesite"),
+                    _ => None,
+                } {
+                    let mut next = format!(
+                        "create:{casing}_encased_{}[axis={}]",
+                        block.name(),
+                        axis_name(axis)
                     );
+                    if block != Block::Shaft {
+                        for (positive, key) in [(true, "top_shaft"), (false, "bottom_shaft")] {
+                            let d = Dir::from_axis(axis, positive);
+                            let connected =
+                                self.w
+                                    .has_shaft_towards(0, add(p, d.offset()), d.opposite());
+                            next = with_prop(&next, key, if connected { "true" } else { "false" });
+                        }
+                    }
                     self.switch(p, self.id(&next));
                     return;
                 }
-                if item == "create:shaft" {
+                if block == Block::Shaft && (item == "create:shaft" || cog_item(item).is_some()) {
                     let at = place::pole_helper(
                         p,
                         axis,
@@ -246,11 +296,13 @@ impl Run {
                         |q| self.at(q) == AIR,
                     );
                     if let Some(q) = at {
-                        let next = format!(
-                            "create:shaft[axis={},waterlogged=false]",
-                            format!("{axis:?}").to_lowercase()
-                        );
-                        self.set(q, self.id(&next));
+                        if let Some(large) = cog_item(item) {
+                            self.place_cog(q, item, large, axis);
+                        } else {
+                            let next =
+                                format!("create:shaft[axis={},waterlogged=false]", axis_name(axis));
+                            self.set(q, self.id(&next));
+                        }
                         return;
                     }
                 }
@@ -258,12 +310,19 @@ impl Run {
         }
         // Item use_on: bracket, wrench (including subsystem casing removal), BlockItem.
         if item == "create:metal_bracket" || item == "create:wooden_bracket" {
-            if let Some((Block::Shaft, info)) = own {
+            if let Some((block, info)) = own
+                && matches!(block, Block::Shaft | Block::Cogwheel | Block::LargeCogwheel)
+            {
+                let kind = if block == Block::Shaft {
+                    create_engine::decor::BracketKind::Shaft
+                } else {
+                    create_engine::decor::BracketKind::Cog
+                };
                 let toward = place::ordered_by_nearest(yaw, pitch)[0].opposite();
                 if let Some(b) = create_engine::decor::bracket_for_click(
                     item == "create:wooden_bracket",
                     info.axis,
-                    create_engine::decor::BracketKind::Shaft,
+                    kind,
                     face,
                     toward,
                 ) {
@@ -272,7 +331,7 @@ impl Run {
                 }
             } else if own.is_some() {
                 self.notes.push(format!(
-                    "adapter gap: bracket target outside shaft subset at {p:?}"
+                    "adapter gap: bracket target outside relay subset at {p:?}"
                 ));
             }
             return;
@@ -282,19 +341,48 @@ impl Run {
             if name == "minecraft:air" || name == "minecraft:stone" {
                 return;
             }
-            // `LargeWaterWheelBlock.onWrenched` and `WaterWheelStructuralBlock.onWrenched` pass;
-            // the frame's cells implement no IWrenchable turning, but a sneak wrench on one
-            // removes its wheel (`WaterWheelStructuralBlock.onSneakWrenched`).
-            if name == "create:large_water_wheel" && !sneaking {
-                return;
-            }
-            if name == "create:water_wheel_structure" {
-                if sneaking {
-                    // `onSneakWrenched` redirects the click at the wheel itself.
-                    if let Some(master) = self.w.wheel_master(0, p, state) {
-                        self.set(master, AIR);
+            if let Some((block, info)) = own
+                && matches!(
+                    block,
+                    Block::AndesiteEncasedCogwheel
+                        | Block::BrassEncasedCogwheel
+                        | Block::AndesiteEncasedLargeCogwheel
+                        | Block::BrassEncasedLargeCogwheel
+                )
+            {
+                let axis = info.axis.expect("encased cog axis");
+                let large = name.ends_with("_large_cogwheel");
+                let next = if sneaking {
+                    let bare = if large { "large_cogwheel" } else { "cogwheel" };
+                    format!("create:{bare}[axis={},waterlogged=false]", axis_name(axis))
+                } else if face.axis() == axis {
+                    let (key, on) = if face == Dir::from_axis(axis, true) {
+                        ("top_shaft", info.top_shaft)
+                    } else {
+                        ("bottom_shaft", info.bottom_shaft)
+                    };
+                    with_prop(&self.name(state), key, if on { "false" } else { "true" })
+                } else {
+                    let turned =
+                        create_engine::wrench::clockwise(Dir::from_axis(axis, true), face.axis());
+                    let swap = matches!(
+                        (face.axis(), axis),
+                        (Axis::X, Axis::Y) | (Axis::Y, Axis::Z) | (Axis::Z, Axis::X)
+                    );
+                    let (top, bottom) = if swap {
+                        (info.bottom_shaft, info.top_shaft)
+                    } else {
+                        (info.top_shaft, info.bottom_shaft)
+                    };
+                    if !self.w.valid_cog_position(0, p, large, turned.axis()) {
+                        return;
                     }
-                }
+                    format!(
+                        "{name}[axis={},top_shaft={top},bottom_shaft={bottom}]",
+                        axis_name(turned.axis())
+                    )
+                };
+                self.switch(p, self.id(&next));
                 return;
             }
             if sneaking {
@@ -357,6 +445,13 @@ impl Run {
         if item == "create:shaft" {
             // `ShaftBlock.pickCorrectShaftType`: a shaft placed in front of an engine.
             self.apply_shaft_changes();
+        }
+    }
+
+    fn place_cog(&mut self, p: Pos, item: &str, large: bool, axis: Axis) {
+        if self.w.valid_cog_position(0, p, large, axis) {
+            let state = format!("{item}[axis={},waterlogged=false]", axis_name(axis));
+            self.set(p, self.id(&state));
         }
     }
 
@@ -434,22 +529,27 @@ impl Run {
             self.w
                 .has_shaft_towards(0, add(p, d.offset()), d.opposite())
         };
+        let near = place::Nearby {
+            large_cog_above: self.w.large_cog_axis(0, add(p, [0, 1, 0])),
+            small_cog_clicked: self
+                .w
+                .cog_at(0, add(p, face.opposite().offset()))
+                .and_then(|(large, axis)| (!large).then_some(axis)),
+            controller_below: self
+                .w
+                .table
+                .get(self.at(add(p, [0, -1, 0])))
+                .filter(|(block, _)| *block == Block::RotationSpeedController)
+                .and_then(|(_, info)| info.axis),
+        };
         let mut next = if let Some(f) = create_engine::place::facing(b, ctx, shaft) {
             format!("{block}[facing={}]", format!("{f:?}").to_lowercase())
         } else {
-            let (a, _) = create_engine::place::axis(
-                b,
-                ctx,
-                shaft,
-                create_engine::place::Nearby {
-                    large_cog_above: self
-                        .w
-                        .cog_at(0, add(p, [0, 1, 0]))
-                        .and_then(|(large, axis)| large.then_some(axis)),
-                    ..Default::default()
-                },
-            )
-            .expect("placement axis");
+            let (a, _) = place::axis(b, ctx, shaft, near).expect("placement axis");
+            if let Some(large) = cog_item(block) {
+                self.place_cog(p, block, large, a);
+                return;
+            }
             format!("{block}[axis={}]", format!("{a:?}").to_lowercase())
         };
         // Start from the port's declared default for properties placement does not select.
@@ -478,13 +578,6 @@ impl Run {
                 );
             }
         }
-        let near = create_engine::place::Nearby {
-            large_cog_above: self
-                .w
-                .cog_at(0, add(p, [0, 1, 0]))
-                .and_then(|(large, axis)| large.then_some(axis)),
-            ..Default::default()
-        };
         let measured = crate::trig::exact_tie(yaw, pitch)
             .then(|| crate::trig::nearest_property(b, ctx, shaft, near))
             .flatten();

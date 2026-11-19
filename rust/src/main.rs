@@ -22,6 +22,7 @@ mod guided;
 mod handles;
 mod java;
 mod mutate;
+mod network_inputs;
 mod observation;
 mod persistence;
 mod program;
