@@ -358,11 +358,13 @@ impl Run {
                     self.brackets.insert(p, b);
                     self.mark_column(p);
                 }
-            } else if own.is_some() {
+            } else if own.is_some_and(|(block, _)| block == Block::FluidPipe) {
                 self.notes.push(format!(
                     "adapter gap: bracket target outside relay subset at {p:?}"
                 ));
             }
+            // glue/decor/brackets.rs use_bracket: a block without bracket support takes
+            // nothing (BracketBlockItem.useOn returns FAIL without a bracket behaviour).
             return;
         }
         if item == "create:wrench" {
