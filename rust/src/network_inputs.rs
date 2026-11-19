@@ -547,7 +547,7 @@ pub fn shaft_extension(seed: u64) -> Scenario {
         version: 3,
         seed,
         day_time: 0,
-        ticks: 110,
+        ticks: 125,
         checkpoints: vec![6, 11, 16, 21, 26, 31, 36, 41, 47, 52],
         blocks: [floor, blocker]
             .map(|pos| Placed {
@@ -617,7 +617,7 @@ pub fn vertical_sequencer(seed: u64) -> Scenario {
         version: 3,
         seed,
         day_time: 0,
-        ticks: 115,
+        ticks: 125,
         checkpoints: vec![13, 17, 24, 27, 33, 39, 45, 49],
         blocks: [support, arm]
             .map(|pos| Placed {
@@ -641,5 +641,37 @@ pub fn vertical_sequencer(seed: u64) -> Scenario {
             wrench(44, Face::Up),
             wrench(48, Face::South),
         ],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn player_casing_registers_both_cog_sizes() {
+        for (seed, name) in [(5, "cogwheel"), (69, "large_cogwheel")] {
+            let case = super::relays(seed);
+            let snapshot = crate::engine::run(&case);
+            assert_eq!(
+                snapshot.checkpoints[&26].blocks["0,8,0"].state,
+                format!(
+                    "create:andesite_encased_{name}[axis=y,bottom_shaft=false,top_shaft=false]"
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn controller_uses_a_player_crank_and_breaks_the_overspeed_gear() {
+        let snapshot = crate::engine::run(&super::controller_cog(6));
+        let loaded = &snapshot.checkpoints[&30].blocks;
+        assert_eq!(
+            loaded["-2,8,0"].state,
+            "create:hand_crank[facing=west,waterlogged=false]"
+        );
+        assert_eq!(loaded["1,10,0"].kinetic.as_ref().unwrap().speed, -256.);
+        assert_eq!(
+            snapshot.checkpoints[&40].blocks["0,9,0"].state,
+            "minecraft:air"
+        );
     }
 }
