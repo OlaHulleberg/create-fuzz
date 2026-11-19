@@ -195,11 +195,18 @@ impl Run {
                 return;
             }
         }
-        // interaction/values.rs: the motor's active value box consumes the click first.
+        // interaction/values.rs: the motor's or controller's active value box consumes the
+        // click first, whatever is held.
         if !sneaking
-            && let Some((Block::CreativeMotor, info)) = own
+            && let Some((block, info)) = own
             && self.w.value_box_active(0, p)
-            && let Some(slot) = info.facing.and_then(|f| board::motor_slot(f, face))
+            && let Some(slot) = match block {
+                Block::CreativeMotor => info.facing.and_then(|f| board::motor_slot(f, face)),
+                Block::RotationSpeedController => {
+                    info.axis.and_then(|a| board::controller_slot(a, face))
+                }
+                _ => None,
+            }
             && board::hits_box(slot, hit)
         {
             return;
