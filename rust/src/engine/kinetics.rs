@@ -6,11 +6,14 @@ impl Run {
         self.persisted.clock += 1;
         // Shape notifications from committed inputs precede the level tick.
         self.tick_pipe_shapes();
+        self.tick_structures();
+        self.tick_large_wheels();
         self.w.dims[0].fluid_transport.begin_tick();
         self.tick_world_fluids();
         if self.native_failed {
             return;
         }
+        self.apply_wheel_flow();
         self.w.tick_cranks(0);
         for h in self.handles.values_mut() {
             h.remaining = h.remaining.saturating_sub(1);
@@ -54,6 +57,8 @@ impl Run {
         }
         let mut events = Vec::new();
         self.tick_fluids();
+        self.tick_boilers();
+        self.tick_burners();
         self.tick_transport();
         self.save_fluid_entities();
         self.w.settle_belts(0);

@@ -16,6 +16,9 @@ pub(super) struct Store {
     pub fluid_columns: BTreeMap<(i32, i32), Compound>,
     pub fluid_entities: HashMap<Pos, Compound>,
     pub chain_entities: HashMap<Pos, Compound>,
+    /// Powered shafts' engines, as their block entity data holds them
+    /// (`PoweredShaftBlockEntity.write`'s `Direction` and `EnginePower`).
+    pub engines: HashMap<Pos, Compound>,
     pub dirty_columns: std::collections::BTreeSet<(i32, i32)>,
     pub brackets: HashMap<Pos, create_engine::decor::Bracket>,
     pub conveyors: HashMap<Pos, Vec<Pos>>,
@@ -30,6 +33,7 @@ type ReloadData = (
     Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
     FluidReload,
+    Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
     Vec<(Pos, Compound)>,
 );
@@ -83,6 +87,24 @@ impl Run {
     }
     pub(super) fn save_kinetic_records(&mut self) {
         self.w.flush_kinetic_callbacks(0);
+        // `PoweredShaftBlockEntity.write`: the engine its block entity is powered by. A shaft
+        // that is gone has no record; a plain shaft writes none either.
+        self.persisted
+            .engines
+            .retain(|p, _| self.w.block_at(0, *p) == Some(create_engine::Block::PoweredShaft));
+        for p in self.entity_order.clone() {
+            if self.w.block_at(0, p) != Some(create_engine::Block::PoweredShaft) {
+                continue;
+            }
+            let out = self.w.shaft_steam(0, p);
+            self.persisted.engines.insert(
+                p,
+                Compound::from([
+                    ("Direction".into(), Tag::Int(i32::from(out.direction))),
+                    ("EnginePower".into(), Tag::Float(out.efficiency.to_bits())),
+                ]),
+            );
+        }
         self.persisted
             .handles
             .retain(|p, _| self.w.saved_handle(0, *p).is_some());
@@ -344,6 +366,7 @@ impl Run {
             },
             self.persisted.chain_entities.iter().collect::<Vec<_>>(),
             self.persisted.valve_pointers.iter().collect::<Vec<_>>(),
+            self.persisted.engines.iter().collect::<Vec<_>>(),
         ))
         .unwrap();
         let (
@@ -358,6 +381,7 @@ impl Run {
             fluids,
             chains,
             valve_pointers,
+            saved_engines,
         ): ReloadData = serde_json::from_slice(&bytes).unwrap();
         self.depot_stacks = slots.into_iter().collect();
         self.handles = handles.into_iter().collect();
@@ -388,6 +412,7 @@ impl Run {
         let saved_belts: HashMap<_, _> = saved_belts.into_iter().collect();
         let saved_depots: HashMap<_, _> = saved_depots.into_iter().collect();
         let saved_handles: HashMap<_, _> = saved_handles.into_iter().collect();
+        let saved_engines: HashMap<_, _> = saved_engines.into_iter().collect();
         let sequences: HashMap<_, _> = sequences.into_iter().collect();
         let entities: HashMap<_, _> = entities
             .into_iter()
@@ -397,6 +422,26 @@ impl Run {
         // Complete one block_entity_on_load callback before starting the next one.
         for &(p, s) in &blocks {
             self.w.block_loaded(0, p, s);
+            // `PoweredShaftBlockEntity.read`: the engine and its power are the shaft's fields
+            // again before its first tick, so it keeps turning as it did when saved.
+            if let Some(data) = saved_engines.get(&p) {
+                let direction = match data.get("Direction") {
+                    Some(Tag::Int(v)) => *v as i8,
+                    _ => 1,
+                };
+                let efficiency = match data.get("EnginePower") {
+                    Some(Tag::Float(bits)) => f32::from_bits(*bits),
+                    _ => 0.0,
+                };
+                self.w.restore_shaft_steam(
+                    0,
+                    p,
+                    create_engine::steam::Output {
+                        direction,
+                        efficiency,
+                    },
+                );
+            }
             let signal = match chains.get(&p).and_then(|data| data.get("Signal")) {
                 Some(Tag::Int(signal)) => *signal,
                 _ => 0,
@@ -455,6 +500,16 @@ impl Run {
             if !restored_depots.contains(&p) && self.w.dims[0].depots.contains_key(&p) {
                 self.w
                     .depot_put(0, p, Some(create_engine::depot::Held::new(180, false)));
+            }
+        }
+        // `WaterWheelBlockEntity.read` keeps the saved flow score until the wheel looks again.
+        let wheels: Vec<(Pos, i8)> = self.wheel_scores.iter().map(|(p, s)| (*p, *s)).collect();
+        for (p, score) in wheels {
+            if matches!(
+                self.w.block_at(0, p),
+                Some(create_engine::Block::WaterWheel | create_engine::Block::LargeWaterWheel)
+            ) {
+                self.w.restore_wheel_flow(0, p, i32::from(score));
             }
         }
     }

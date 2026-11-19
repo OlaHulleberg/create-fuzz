@@ -139,6 +139,7 @@ impl Run {
             belt: self.w.dims[0].belt_of.get(&p).copied(),
             motor_rpm,
             steam: self.w.shaft_steam(0, p),
+            flow: self.wheel_scores.get(&p).copied().unwrap_or(0),
             ..Settings::default()
         };
         let both = parts(block, info, &settings);

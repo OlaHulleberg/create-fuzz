@@ -309,12 +309,95 @@
       "observations": [
         "state"
       ]
+    },
+    {
+      "id": "create:steam_engine",
+      "properties": {
+        "face": [
+          "floor",
+          "wall",
+          "ceiling"
+        ],
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "waterlogged": [
+          "true",
+          "false"
+        ]
+      },
+      "source": "SteamEngineBlock.createBlockStateDefinition; FaceAttachedHorizontalDirectionalBlock; SimpleWaterloggedBlock",
+      "inputs": [
+        "use placement on a tank, floor/wall/ceiling",
+        "shaft placement helper",
+        "remove",
+        "waterlog"
+      ],
+      "observations": [
+        "face",
+        "facing",
+        "waterlogged"
+      ]
+    },
+    {
+      "id": "create:blaze_burner",
+      "properties": {
+        "blaze": [
+          "none",
+          "smouldering",
+          "fading",
+          "kindled",
+          "seething"
+        ],
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ]
+      },
+      "source": "BlazeBurnerBlock.createBlockStateDefinition; BlazeBurnerBlockEntity fuel and heat",
+      "inputs": [
+        "state placement",
+        "blaze cake use",
+        "creative blaze cake use"
+      ],
+      "observations": [
+        "blaze",
+        "facing"
+      ]
+    },
+    {
+      "id": "create:water_wheel_structure",
+      "properties": {
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east",
+          "up",
+          "down"
+        ]
+      },
+      "source": "WaterWheelStructuralBlock.createBlockStateDefinition; LargeWaterWheelBlock.tick",
+      "inputs": [
+        "large water wheel placement and reconstruction",
+        "use",
+        "sneak wrench",
+        "break"
+      ],
+      "observations": [
+        "facing"
+      ]
     }
   ],
   "unimplemented": {
     "open ends/world": "Overworld native fluid ticks, host replacement/collision/face support, source drain/renewal, placement, waterlogging, cauldrons/hives and spills are driven for contained fixtures. Other dimensions and entity/fire/candle workloads require additional contracts.",
     "spouts/drains": "Audited component-free tea/honey/chocolate recipes and ordinary buckets are driven. Component-bearing potions, sequenced assemblies, arbitrary recipes, block spouting integrations and native item entity flight need additional contracts.",
-    "boilers": "BoilerData is source-audited as a tank/water-supply reader; active boiler heat, rolling water supply and engine/whistle adapters are not driven.",
+    "boilers": "BoilerData is source-audited through the tank water supply, the heat of the blocks under the tank (blaze burners, magma and lit campfires) and the engine/shaft pair; every engine drives a powered shaft at the boiler's efficiency and its stress capacity is observed.",
     "hoses/interfaces/effects": "World/entity/contraption callbacks absent.",
     "stored connection pressures": "The port retains endpoint pressures and flow paths, not stored Java PipeConnection pressures. Endpoint-path projections remain compared and are labeled in snapshots; pressure-only differences are not treated as port defects."
   }

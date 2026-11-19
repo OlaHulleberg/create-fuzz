@@ -137,8 +137,12 @@ impl Run {
         }
         // WrenchItem.useOn dispatches a sneaking belt use to
         // IWrenchable.onSneakWrenched (destroyBlock), handled below like the glue.
-        if let Some((block, _)) = own {
+        if let Some((block, info)) = own {
             let name = format!("create:{}", block.name());
+            if block == Block::BlazeBurner && self.use_burner(p, item) {
+                return;
+            }
+            let _ = info;
             if !crate::fluids::contract()
                 .blocks
                 .iter()
@@ -146,6 +150,7 @@ impl Run {
                 && !crate::actions::BLOCKS.contains(&name.as_str())
                 && name != "create:andesite_encased_shaft"
                 && name != "create:brass_encased_shaft"
+                && name != "create:powered_shaft"
                 && name != "create:brass_casing"
                 && name != "create:andesite_casing"
                 && !(name == "create:belt"
@@ -181,8 +186,38 @@ impl Run {
             } {
                 return;
             }
+            // `SteamEngineBlock.useItemOn`: a shaft item goes through the engine's placement
+            // helper, at the shaft two blocks in front, on an axis it can turn.
+            if item == "create:shaft"
+                && let Some((Block::SteamEngine, info)) = own
+                && let (Some(f), Some(facing)) = (info.face, info.facing)
+            {
+                let connected = create_engine::steam::connected_direction(f, facing);
+                let shaft = create_engine::steam::shaft_pos(p, connected);
+                let mut axis = None;
+                for d in place::ordered_by_nearest(yaw, pitch) {
+                    if create_engine::steam::is_shaft_valid(connected, d.axis()) {
+                        axis = Some(d.axis());
+                        break;
+                    }
+                }
+                if let Some(axis) = axis
+                    && self.replaceable(shaft)
+                {
+                    let water = parse_state(&self.name(self.at(shaft)))
+                        .1
+                        .iter()
+                        .any(|(k, v)| k == "waterlogged" && v == "true");
+                    let next = format!(
+                        "create:powered_shaft[axis={},waterlogged={water}]",
+                        format!("{axis:?}").to_lowercase()
+                    );
+                    self.set(shaft, self.id(&next));
+                }
+                return;
+            }
             // transmission.rs Clicked: casing, then the shaft placement helper.
-            if let Some((Block::Shaft, info)) = own {
+            if let Some((Block::Shaft | Block::PoweredShaft, info)) = own {
                 let axis = info.axis.expect("shaft axis");
                 if item == "create:brass_casing" || item == "create:andesite_casing" {
                     let next = format!(
@@ -203,10 +238,10 @@ impl Run {
                         axis,
                         hit.map(|v| v - 0.5),
                         |q| {
-                            self.w
-                                .table
-                                .get(self.at(q))
-                                .is_some_and(|(b, i)| b == Block::Shaft && i.axis == Some(axis))
+                            self.w.table.get(self.at(q)).is_some_and(|(b, i)| {
+                                matches!(b, Block::Shaft | Block::PoweredShaft)
+                                    && i.axis == Some(axis)
+                            })
                         },
                         |q| self.at(q) == AIR,
                     );
@@ -247,6 +282,21 @@ impl Run {
             if name == "minecraft:air" || name == "minecraft:stone" {
                 return;
             }
+            // `LargeWaterWheelBlock.onWrenched` and `WaterWheelStructuralBlock.onWrenched` pass;
+            // the frame's cells implement no IWrenchable turning, but a sneak wrench on one
+            // removes its wheel (`WaterWheelStructuralBlock.onSneakWrenched`).
+            if name == "create:large_water_wheel" && !sneaking {
+                return;
+            }
+            if name == "create:water_wheel_structure" {
+                if sneaking {
+                    // `onSneakWrenched` redirects the click at the wheel itself.
+                    if let Some(master) = self.w.wheel_master(0, p, state) {
+                        self.set(master, AIR);
+                    }
+                }
+                return;
+            }
             if sneaking {
                 if name == "create:andesite_encased_shaft" || name == "create:brass_encased_shaft" {
                     let axis = props.iter().find(|(k, _)| k == "axis").unwrap().1.clone();
@@ -271,7 +321,20 @@ impl Run {
             let rotated = create_engine::wrench::rotated(&props.into_iter().collect(), false, face);
             let next =
                 crate::scenario::format_state(&name, &rotated.into_iter().collect::<Vec<_>>());
+            // `IWrenchable.onWrenched` keeps the old state when the turned one cannot stand.
+            if name == "create:steam_engine" && !self.steam_engine_survives(p, &next) {
+                return;
+            }
+            if name == "create:water_wheel" && !self.water_wheel_survives(p, &next) {
+                return;
+            }
+            if name == "create:powered_shaft" && !self.powered_shaft_survives(p, &next) {
+                return;
+            }
             self.switch(p, self.id(&next));
+            // `updateAfterWrenched`: `Block.updateFromNeighbourShapes` runs the block's own
+            // shape update, which is how a wheel looks at its flow again.
+            self.w.neighbor_changed(0, p, self.at(p));
             return;
         }
         if item == "minecraft:air"
@@ -291,6 +354,10 @@ impl Run {
             return;
         }
         self.place_player(p, item, yaw, pitch, face, sneaking);
+        if item == "create:shaft" {
+            // `ShaftBlock.pickCorrectShaftType`: a shaft placed in front of an engine.
+            self.apply_shaft_changes();
+        }
     }
 
     pub(super) fn switch(&mut self, p: Pos, id: u32) {
@@ -319,6 +386,18 @@ impl Run {
         sneaking: bool,
     ) {
         if self.place_pipe(p, block, yaw, pitch, sneaking) {
+            return;
+        }
+        if block == "create:water_wheel" {
+            self.place_water_wheel(p, yaw, pitch, sneaking, face);
+            return;
+        }
+        if block == "create:large_water_wheel" {
+            self.place_large_wheel(p, yaw, pitch, sneaking, face);
+            return;
+        }
+        if block == "create:steam_engine" {
+            self.place_steam_engine(p, yaw, face);
             return;
         }
         if block == "create:fluid_tank" {

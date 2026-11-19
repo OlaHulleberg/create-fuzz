@@ -144,7 +144,8 @@ mod tests {
             assert!(
                 sc.events
                     .iter()
-                    .all(|e| e.tick + crate::generate::SETTLE <= sc.ticks)
+                    .all(|e| e.tick + crate::generate::SETTLE <= sc.ticks),
+                "seed {seed}: an event is too close to the end",
             );
             assert!(sc.blocks.len() as u32 + crate::generate::SETTLE <= sc.ticks);
         }

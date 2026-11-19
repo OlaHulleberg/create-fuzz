@@ -16,6 +16,7 @@ mod observation;
 mod persistence;
 mod pipes;
 mod pumps;
+mod sources;
 mod transport;
 
 use crate::scenario::{
@@ -87,6 +88,14 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     for face in ["up", "down", "north", "south", "east", "west"] {
         push(format!("create:creative_motor[facing={face}]"));
     }
+    // Engines turn their shaft into a powered shaft (`PoweredShaftBlock.getEquivalent`).
+    for axis in ["x", "y", "z"] {
+        for water in ["true", "false"] {
+            push(format!(
+                "create:powered_shaft[axis={axis},waterlogged={water}]"
+            ));
+        }
+    }
     for entry in crate::catalogue::entries().iter().filter(|e| {
         e.id == "create:belt"
             || e.id == "create:fluid_valve"
@@ -150,6 +159,10 @@ pub struct Run {
     fluid_native_schedule: Vec<Pos>,
     fluid_water_due: BTreeMap<usize, Vec<Pos>>,
     fluid_domain: std::collections::BTreeSet<Pos>,
+    /// `FluidState.getFlow` at every wheel's sample cells, as the native host reported it.
+    wheel_fluid_flow: HashMap<Pos, [f64; 3]>,
+    /// Each wheel's flow score (`WaterWheelBlockEntity.flowScore`), for observations.
+    wheel_scores: HashMap<Pos, i8>,
     _guard: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -204,6 +217,8 @@ impl Run {
             fluid_native_schedule: Vec::new(),
             fluid_water_due: BTreeMap::new(),
             fluid_domain: sc.region().into_iter().collect(),
+            wheel_fluid_flow: HashMap::new(),
+            wheel_scores: HashMap::new(),
             _guard: guard,
         }
     }
@@ -296,6 +311,10 @@ impl Run {
             || funnel(old_block).is_some_and(|material| funnel(new_block) == Some(material));
         if !retains {
             self.entity_order.retain(|pos| *pos != p);
+            // The block entity's own data goes with it (`WaterWheelBlockEntity.write`'s
+            // `FlowScore`, `PoweredShaftBlockEntity.write`'s engine).
+            self.wheel_scores.remove(&p);
+            self.persisted.engines.remove(&p);
         }
         if new_block.is_some_and(|block| block.has_block_entity())
             && !self.entity_order.contains(&p)
@@ -346,6 +365,7 @@ impl Run {
             self.belt_casing.remove(&p);
         }
         self.w.block_changed(0, p, old, new);
+        self.break_wheels();
         if self.w.table.get(new).map(|(b, _)| b)
             == Some(create_engine::Block::AdjustableChainGearshift)
             && self.w.table.get(old).map(|(b, _)| b)
@@ -365,6 +385,8 @@ impl Run {
             let q = add(p, d);
             let s = self.at(q);
             if s != AIR {
+                // `updateShape` of each neighbour; a frame cell's is the engine's
+                // (`WaterWheelStructuralBlock.updateShape`), which schedules its tick.
                 self.w.neighbor_changed(0, q, s);
                 if new == AIR && self.hangs_on(q, s, p) {
                     fallen.push(q);
@@ -405,6 +427,10 @@ impl Run {
             self.notes.push(format!("unknown state {}", b.state));
         }
         self.set(b.pos, id);
+        // `SteamEngineBlock.onPlace` turns the shaft in front of it now, not on the next tick.
+        if self.w.block_at(0, b.pos) == Some(create_engine::Block::SteamEngine) {
+            self.apply_shaft_changes();
+        }
     }
 
     /// A player setting the motor's value board (`set_motor`), the tick after placing it.

@@ -29,6 +29,8 @@ pub struct Cell {
 pub struct Frame {
     pub states: Vec<Cell>,
     pub rules: crate::fluid_world::Rules,
+    /// `FluidState.getFlow` at each requested cell, in request order.
+    pub flows: Vec<[f64; 3]>,
 }
 #[derive(Serialize)]
 pub struct Bucket {
@@ -89,8 +91,9 @@ impl Host {
         manual: Vec<Pos>,
         native: Vec<Pos>,
         region: Vec<Pos>,
+        flows: Vec<Pos>,
     ) -> Result<Frame, String> {
-        self.frame(serde_json::json!({"clock":clock,"changes":changes,"manual":manual,"native":native,"region":region}))
+        self.frame(serde_json::json!({"clock":clock,"changes":changes,"manual":manual,"native":native,"region":region,"flows":flows}))
     }
     pub fn bucket(
         &mut self,
@@ -99,7 +102,7 @@ impl Host {
         region: Vec<Pos>,
         bucket: Bucket,
     ) -> Result<Frame, String> {
-        self.frame(serde_json::json!({"clock":clock,"changes":changes,"manual":[],"native":[],"region":region,"bucket":bucket}))
+        self.frame(serde_json::json!({"clock":clock,"changes":changes,"manual":[],"native":[],"region":region,"flows":[],"bucket":bucket}))
     }
     fn frame(&mut self, mut request: serde_json::Value) -> Result<Frame, String> {
         request["owner"] = self.owner.clone().into();
