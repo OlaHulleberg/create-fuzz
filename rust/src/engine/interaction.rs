@@ -514,6 +514,24 @@ impl Run {
             self.set(p, self.id(block));
             return;
         }
+        if block == "create:vertical_gearbox" {
+            let shafts: Vec<_> = [Dir::South, Dir::West, Dir::North, Dir::East]
+                .into_iter()
+                .filter(|d| {
+                    self.w
+                        .has_shaft_towards(0, add(p, d.offset()), d.opposite())
+                })
+                .collect();
+            let axis = create_engine::decor::vertical_gearbox_axis(
+                &shafts,
+                place::horizontal_direction(yaw),
+            );
+            self.set(
+                p,
+                self.id(&format!("create:gearbox[axis={}]", axis_name(axis))),
+            );
+            return;
+        }
         let b = create_engine::Block::ALL
             .iter()
             .copied()
@@ -529,6 +547,20 @@ impl Run {
             self.w
                 .has_shaft_towards(0, add(p, d.offset()), d.opposite())
         };
+        if matches!(b, Block::Speedometer | Block::Stressometer) {
+            let (facing, along) = create_engine::gauge::placement(
+                face,
+                place::ordered_by_nearest(yaw, pitch)[0],
+                place::horizontal_direction(yaw),
+                self.w
+                    .has_shaft_towards(0, add(p, face.opposite().offset()), face),
+                shaft,
+            );
+            let state =
+                format!("{block}[facing={facing:?},axis_along_first={along}]").to_lowercase();
+            self.set(p, self.id(&state));
+            return;
+        }
         let near = place::Nearby {
             large_cog_above: self.w.large_cog_axis(0, add(p, [0, 1, 0])),
             small_cog_clicked: self

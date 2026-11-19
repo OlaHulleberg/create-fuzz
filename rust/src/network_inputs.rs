@@ -115,3 +115,66 @@ pub fn relays(seed: u64) -> Scenario {
         events,
     }
 }
+
+/// Place gauges or a vertical gearbox with one, two competing, or no eligible shafts.
+pub fn instruments(seed: u64) -> Scenario {
+    let face = [Face::Up, Face::East, Face::South][(seed / 64 % 3) as usize];
+    let pos = [0, 8, 0];
+    let offset = face.dir().offset();
+    let cell = [offset[0], pos[1] + offset[1], offset[2]];
+    let shaft = match face {
+        Face::Up => "y",
+        Face::East => "x",
+        Face::South => "z",
+        _ => unreachable!(),
+    };
+    let item = [
+        "create:speedometer",
+        "create:stressometer",
+        "create:vertical_gearbox",
+    ][(seed / 192 % 3) as usize];
+    let on_shaft = (seed / 576).is_multiple_of(3);
+    let state = if on_shaft {
+        format!("create:shaft[axis={shaft}]")
+    } else {
+        "minecraft:stone".into()
+    };
+    let mut blocks = vec![crate::scenario::Placed {
+        pos,
+        state,
+        motor: None,
+    }];
+    if seed / 576 % 3 == 2 {
+        for (axis, [dx, dz]) in [("x", [1, 0]), ("z", [0, 1])] {
+            blocks.push(crate::scenario::Placed {
+                pos: [cell[0] + dx, cell[1], cell[2] + dz],
+                state: format!("create:shaft[axis={axis}]"),
+                motor: None,
+            });
+        }
+    }
+    let hit = face.point(0.5, 0.5);
+    let mut placement = use_item(8, pos, item, face, hit, false);
+    if let Some(Action::Use { yaw, .. }) = &mut placement.action {
+        *yaw = [0., 90., 180., 270.][(seed / 1728 % 4) as usize];
+    }
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 90,
+        checkpoints: vec![9, 21],
+        blocks,
+        events: vec![
+            placement,
+            use_item(
+                20,
+                cell,
+                "create:wrench",
+                Face::North,
+                Face::North.point(0.5, 0.5),
+                false,
+            ),
+        ],
+    }
+}
