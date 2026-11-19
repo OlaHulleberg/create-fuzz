@@ -63,6 +63,9 @@ fn generate_base(seed: u64) -> Scenario {
     if seed % 32 == 9 {
         return crate::transport::generate(seed);
     }
+    if seed % 32 == 22 {
+        return crate::slicer::generate(seed);
+    }
     if seed % 16 == 15 {
         return crate::belts::generate(seed);
     }

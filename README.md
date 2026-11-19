@@ -238,6 +238,13 @@ use `chain_link`, the server transaction sent after the player's chain selection
 Snapshots compare controller/index/length/casing and sorted conveyor link offsets.
 See [item transport](docs/item-transport.md) for player stack landings/uses, movement, belt/depot handoff, stalls, per-tick observations and explicit native-flight/component boundaries. Inventory-backed splitting remains separate.
 
+The belt slicer family (seeds congruent to 22 modulo 32) cuts and joins loaded belts:
+interior wrench splits on both sides of a segment (creative, and refused in survival, whose
+actor holds no connector or shafts), shortening from either end, lengthening, joins with and
+without a flipped partner, the maximum length, and the connector's refusals (cross axes, range,
+obstacles, cross shafts, opposing driven ends, a forgotten first shaft) and its 5-tick item
+cooldown, which the driver models as the game does for the port.
+
 The water wheel family (seeds congruent to 20 modulo 32) drives a wheel's flow from a
 contained falling-water column, both flow signs, a lava column, the plank material through
 player uses (a non-block item, the wheel's own spruce, an invalid block and a valid plank),
