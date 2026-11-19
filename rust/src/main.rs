@@ -5,6 +5,7 @@ mod belts;
 mod brass;
 mod brass_funnels;
 mod catalogue;
+mod chute_columns;
 mod chutes;
 mod compare;
 mod corpus;

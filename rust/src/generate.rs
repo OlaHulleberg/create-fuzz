@@ -83,6 +83,10 @@ fn generate_base(seed: u64) -> Scenario {
     if seed % 64 == 23 {
         return crate::funnel_push::generate(seed);
     }
+    // The actions lane's 35 mod 64: chute columns at belt ends.
+    if seed % 64 == 35 {
+        return crate::chute_columns::generate(seed);
+    }
     // The actions lane's 39 mod 64: brass funnels' filters and amounts.
     if seed % 64 == 39 {
         return crate::brass_funnels::generate(seed);

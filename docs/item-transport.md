@@ -107,16 +107,16 @@ extracting (`supportsDirectBeltInput`), into the depot under it; any other funne
 them at the end. Java keeps a stack a funnel emptied in the belt's list until the next tick;
 both observers report such a stack as `minecraft:air` with count 0. A funnel-held item counts
 as stalled from its second tick at the entry, as Java's `prevBeltPosition` comparison does;
-the engine keeps that in `at_funnel`. Funnels in a mode the driver does not run (a belt funnel
-pushing onto its belt, an extracting funnel) and brass funnels' filters are adapter gaps with a
-note. `funnel` observes `extractionCooldown`, 0 in every mode the driver runs.
+the engine keeps that in `at_funnel`. Extracting funnels are adapter gaps with a note; brass
+funnels' filters are covered below. `funnel` observes `extractionCooldown`, 0 in every mode the driver runs.
 
 A vertical chute at a belt's end takes a stack while it is empty and no chute above leads
 into it (`canDirectlyInsert`); with no fans it falls at gravity's `chute::MOTION` and leaves at
 the bottom into a belt segment (from above), a depot, or the chute below, or out of the bottom
 (native item flight), and waits at the middle over a solid block (`handleDownwardOutput`).
-`chute` observes its stack and, while it holds one, the position. Diagonal and smart chutes,
-fans, and chutes taking from an inventory above are outside the adapter.
+`chute` observes its stack and, while it holds one, the position. Diagonal and smart chutes and
+fans are covered by the chute columns below; chutes taking from an inventory above are outside the
+adapter.
 
 Dyes and water buckets colour or wash the whole belt (`applyColor`); an unchanged colour
 passes the click to the item. The connector carries the clicked segment's colour to a
@@ -181,8 +181,50 @@ unless it is a pushing funnel) or, pulling, takes its resting stack into the dep
 (`handleBeltFunnelOutput`). The driver mirrors the glue's `tick_funnels`: each funnel is due
 again the next tick, `EXTRACTION_COOLDOWN` + 1 ticks after a stack left, and never while dormant;
 `funnel` observes `extractionCooldown` as the ticks before its next turn. Redstone pauses them.
-Extracting funnels (their stacks fly off as item entities), brass funnels' filters and amounts,
-inventories other than depots and a funnel over an ejector are adapter gaps with a note.
+Extracting funnels (their stacks fly off as item entities), inventories other than depots and a
+funnel over an ejector are adapter gaps with a note; brass funnels' filters and amounts are below.
 
 Depot observations add the comparator output (`getComparatorInputOverride`): the held stack and
 outputs over the held stack's size (an ejector's stack size), as the glue's `analog.rs` reads it.
+
+## Depot output buffers
+
+A depot's output buffer (`processingOutputBuffer`) is driven by a spout over the depot (the fluid
+items family's world: a creative tank, pump and pipe feeding a spout two blocks over a depot)
+filling a stack of glass bottles (honey) or sweet berries (chocolate): every filled item but the
+last goes into the buffer. The driver keeps the buffer's eight slots in place (the glue's block
+entity slots `depot::OUTPUTS`), so the item handler's slots 1..8 (`DepotItemHandler`) reach the
+stack the buffer put there, simulated or not; inserts are refused while any slot holds a stack, as
+are landings (`item_landed`); a player's empty hand takes everything; and a pulling belt funnel on
+the depot exports the outputs, then the resting held stack, into the depot behind it
+(`handleBeltFunnelOutput`). Funnels pushing from a depot take from its held slot and outputs
+together (`extract_matching` over the slots). Merging is an ejector's alone (`enableMerging` is
+called only by `EjectorBlockEntity`); a mismatched merging stack drops (native item flight), and
+oversized stacks cannot enter through the plain-stack contract.
+
+## Brass funnels' filters and amounts
+
+Brass funnels at belts (taking off the belt, pushing onto it from the depot behind, on a depot
+beside the belt pulling or pushing, and facing up at the belt's end) get a filter by a click on
+the filter slot (`FunnelFilterSlotPositioning`) while their amount board does not show
+(`acceptsValueSettings` false: `ValueSettingsInputHandler` calls `onShortInteract` on the
+server). While it shows, the server does nothing on the click: the client sends a
+`ValueSettingsPacket`, the `filter_setting` action, either the release of a short click (its
+`interact` item and face: `onShortInteract`) or a board pick (row 0 "up to", row 1 exactly, and the
+count: `setValueSettings`). The driver mirrors the glue's `use_funnel_filter`, `value_settings`,
+`funnel_passes` and `funnel_extraction`. `funnel` adds a brass funnel's filter, its count within
+the filter's stack size (a count above it moves no more) and whether it is "up to". Extracting
+funnels stay outside the comparison: every stack they move flies off as an item entity, and the
+next extraction waits for that entity to leave (`lastObserved`), which is native physics.
+
+## Chute columns
+
+Columns of chutes at a belt's end: vertical and diagonal chutes in the shapes `updateChuteState`
+settles them in, a smart chute with a filter (a click on a side slot) and redstone beside it, and
+an encased fan under the column blowing its stacks up into a depot over the top. The driver
+mirrors the glue's `tick_chute_shapes`, `tick_chutes` (falling and rising, `chute_motion` from the
+fans' push and pull, the diagonal chute's target), `chute_accepts` and the belt end's
+`direct_input_accepts`. The chutes are placed before the belt, so that Java ticks them before it as
+the port's logistics phase does (that order is F5). Chutes taking from an inventory above or lifting
+entities and belt items from below (`handleInputFromAbove`, `findEntities`, `extractFromBelt`),
+encased chutes and stacks blown out of the top (native item flight) are adapter gaps with a note.
