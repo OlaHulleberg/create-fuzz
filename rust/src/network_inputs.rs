@@ -1186,6 +1186,111 @@ pub fn wrench_pickup(seed: u64) -> Scenario {
     }
 }
 
+/// Rotation speed controllers on both axes: the target set before any input, the
+/// helper's large cog fitted on either axis, a crank input, a zero target, a shaft
+/// item used on the controller, and controllers placed under a vertical large cog
+/// and under a small cog, whose targets are then changed.
+pub fn controller_axes(seed: u64) -> Scenario {
+    let up = |tick, pos, item, yaw: f32| {
+        let mut change = use_item(tick, pos, item, Face::Up, Face::Up.point(0.5, 0.5), false);
+        if let Some(Action::Use { yaw: y, .. }) = &mut change.action {
+            *y = yaw;
+        }
+        change
+    };
+    let yaw = [0., 90.][((seed >> 6) & 1) as usize];
+    let setting = |tick, pos, value| action(tick, pos, Action::SpeedSetting { row: 0, value });
+    let controller = [0, 8, 0];
+    let vertical = [4, 8, 0];
+    let small = [8, 8, 0];
+    let (shaft, crank, face) = if yaw == 0. {
+        ([-1, 8, 0], [-2, 8, 0], Face::West)
+    } else {
+        ([0, 8, -1], [0, 8, -2], Face::North)
+    };
+    let blocks = [
+        ([0, 7, 0], "minecraft:stone".to_string()),
+        ([4, 7, 0], "minecraft:stone".into()),
+        ([8, 7, 0], "minecraft:stone".into()),
+        ([4, 9, 0], "create:large_cogwheel[axis=y]".into()),
+        ([8, 9, 0], "create:cogwheel[axis=x]".into()),
+    ]
+    .map(|(pos, state)| Placed {
+        pos,
+        state,
+        motor: None,
+    })
+    .to_vec();
+    let turn = |tick| {
+        use_item(
+            tick,
+            crank,
+            "minecraft:air",
+            face,
+            face.point(0.5, 0.5),
+            false,
+        )
+    };
+    let along = if yaw == 0. { Face::East } else { Face::South };
+    let events = vec![
+        up(4, [0, 7, 0], "create:rotation_speed_controller", yaw),
+        setting(6, controller, 64),
+        use_item(
+            8,
+            controller,
+            "create:large_cogwheel",
+            Face::North,
+            Face::North.point(0.8, 0.4),
+            false,
+        ),
+        up(10, shaft, "create:shaft", yaw),
+        use_item(
+            12,
+            shaft,
+            "create:hand_crank",
+            face,
+            face.point(0.5, 0.5),
+            false,
+        ),
+        turn(14),
+        setting(16, controller, 96),
+        turn(20),
+        setting(22, controller, 0),
+        turn(26),
+        // The face along the controller's axis has no value box, so the click reaches
+        // SpeedControllerBlock.useItemOn with an item its helper does not take.
+        use_item(
+            28,
+            controller,
+            "create:shaft",
+            along,
+            along.point(0.5, 0.5),
+            false,
+        ),
+        use_item(
+            29,
+            controller,
+            "create:shaft",
+            Face::South,
+            Face::South.point(0.5, 0.5),
+            false,
+        ),
+        up(30, [4, 7, 0], "create:rotation_speed_controller", yaw),
+        setting(32, vertical, 32),
+        up(34, [8, 7, 0], "create:rotation_speed_controller", yaw),
+        setting(36, small, 32),
+    ];
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 110,
+        checkpoints: vec![5, 7, 9, 13, 15, 17, 21, 23, 27, 29, 31, 33, 35, 37],
+        blocks,
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
