@@ -14,10 +14,9 @@ impl Run {
             return;
         }
         self.apply_wheel_flow();
-        self.w.tick_cranks(0);
-        for h in self.handles.values_mut() {
-            h.remaining = h.remaining.saturating_sub(1);
-        }
+        let mut events = Vec::new();
+        // Clutches and gearshifts follow redstone (`ClutchBlock.neighborChanged`): the
+        // callback runs with the block change, before any block entity of this tick.
         for p in self.w.take_redstone(0) {
             let state = self.at(p);
             let Some(was) = self.w.powered(state) else {
@@ -43,6 +42,15 @@ impl Run {
                 let signal = i32::from(self.signal(p));
                 self.w.set_chain_signal(0, p, signal);
             }
+        }
+        // The scheduled block ticks the detach owes (`GearshiftBlock.tick`): the level runs
+        // them before block entities tick, so the transmission re-attaches before any base
+        // tick of this tick.
+        self.w.reattach_scheduled_transmissions(0, &mut events);
+        self.publish_after_effects(events);
+        self.w.tick_cranks(0);
+        for h in self.handles.values_mut() {
+            h.remaining = h.remaining.saturating_sub(1);
         }
         self.apply_chain_shapes();
         let mut steps = Vec::new();
