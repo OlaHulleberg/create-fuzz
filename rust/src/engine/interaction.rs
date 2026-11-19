@@ -123,7 +123,9 @@ impl Run {
         if self.tunnel_use(p, item, face, hit, sneaking) {
             return;
         }
-        if self.funnel_filter_use(p, item, face, hit, sneaking) {
+        if self.funnel_filter_use(p, item, face, hit, sneaking)
+            || self.smart_chute_filter_use(p, item, face, hit, sneaking)
+        {
             return;
         }
         if self.fluid_use(p, item, face, hit, sneaking) {

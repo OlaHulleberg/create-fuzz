@@ -20,15 +20,22 @@ impl Run {
     }
     /// `filter_max`: the filter's stack size, 64 without one.
     fn funnel_filter_max(&self, p: Pos) -> i32 {
-        self.funnel_filters.get(&p).map_or(64, |item| {
-            i32::from(
-                crate::transport::Stack {
-                    item: item.clone(),
-                    count: 1,
-                }
-                .limit(),
-            )
-        })
+        self.funnel_filters
+            .get(&p)
+            .map_or(64, |item| self.funnel_filter_max_of(item))
+    }
+    /// The stack size of a filter of `item` (64 for an empty hand).
+    pub(super) fn funnel_filter_max_of(&self, item: &str) -> i32 {
+        if item == "minecraft:air" {
+            return 64;
+        }
+        i32::from(
+            crate::transport::Stack {
+                item: item.to_string(),
+                count: 1,
+            }
+            .limit(),
+        )
     }
     /// `funnel_supports` (`supportsAmountOnFilter`): a belt funnel pushing, or over a belt
     /// segment; an extracting funnel.
@@ -77,7 +84,7 @@ impl Run {
     }
     /// `set_funnel_filter` (`FilteringBehaviour.onShortInteract`): the held item becomes the
     /// filter, an empty hand clears it; an exact amount fits the new filter's stack size.
-    fn set_funnel_filter(&mut self, p: Pos, item: &str) {
+    pub(super) fn set_funnel_filter(&mut self, p: Pos, item: &str) {
         if item == "minecraft:air" {
             self.funnel_filters.remove(&p);
         } else {

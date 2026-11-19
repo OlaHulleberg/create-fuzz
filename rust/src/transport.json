@@ -118,18 +118,33 @@
       "id": "create:chute",
       "properties": {
         "facing": [
-          "down"
+          "down",
+          "north",
+          "south",
+          "west",
+          "east"
         ],
         "shape": [
           "normal",
-          "window"
+          "window",
+          "intersection"
         ],
         "waterlogged": [
           "false",
           "true"
         ]
       },
-      "source": "ChuteBlock.createBlockStateDefinition (vertical chutes only)"
+      "source": "ChuteBlock.createBlockStateDefinition (no encased chutes)"
+    },
+    {
+      "id": "create:smart_chute",
+      "properties": {
+        "powered": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "SmartChuteBlock.createBlockStateDefinition"
     }
   ],
   "items": [

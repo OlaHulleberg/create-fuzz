@@ -424,7 +424,10 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                 "create:brass_belt_funnel",
                 "create:andesite_funnel",
                 "create:brass_funnel",
-                "create:chute"
+                "create:chute",
+                "create:smart_chute",
+                // Only blowing into chutes: its current meets no item outside them.
+                "create:encased_fan"
             ]
             .contains(&id.as_str())
                 || crate::fluids::contract()

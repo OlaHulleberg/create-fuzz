@@ -92,13 +92,18 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             push(format!("create:shaft[axis={axis},waterlogged={water}]"));
         }
     }
-    // Vertical chutes beside belts.
-    for shape in ["normal", "window"] {
-        for water in ["false", "true"] {
-            push(format!(
-                "create:chute[facing=down,shape={shape},waterlogged={water}]"
-            ));
+    // Chutes beside belts, and the shapes `tick_chute_shapes` gives them.
+    for facing in ["down", "north", "south", "west", "east"] {
+        for shape in ["normal", "window", "intersection"] {
+            for water in ["false", "true"] {
+                push(format!(
+                    "create:chute[facing={facing},shape={shape},waterlogged={water}]"
+                ));
+            }
         }
+    }
+    for powered in ["false", "true"] {
+        push(format!("create:smart_chute[powered={powered}]"));
     }
     // Funnels at a belt's end.
     for funnel in ["andesite_funnel", "brass_funnel"] {
@@ -216,8 +221,8 @@ pub struct Run {
     chute_stacks: HashMap<Pos, crate::transport::Stack>,
     /// Brass tunnels' side filters (`tunnel_filters`): plain item ids.
     tunnel_filters: HashMap<(Pos, create_engine::kinetics::Dir), String>,
-    /// Brass funnels' filters (plain item ids) and amount boards (`chute_filters`,
-    /// `filter_amounts`).
+    /// Brass funnels' and smart chutes' filters (plain item ids) and amount boards
+    /// (`chute_filters`, `filter_amounts`).
     funnel_filters: HashMap<Pos, String>,
     filter_amounts: HashMap<Pos, create_engine::board::FilterAmount>,
     handles: HashMap<Pos, crate::handles::Handle>,
