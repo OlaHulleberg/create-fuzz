@@ -119,10 +119,9 @@ pub fn generate(seed: u64) -> Scenario {
     // A funnel over a segment pushing onto the belt from the depot behind it.
     let z = 1 + r.below((length - 2) as u32) as i32;
     let (facing, shape) = if r.chance(0.6) {
-        (
-            movement,
-            *r.pick(&["retracted", "extended", "pushing", "pushing"]),
-        )
+        // Along the belt only retracted and extended are reachable (`getShapeForPosition`,
+        // `onWrenched`); `updateShape` turns a pushing one back to retracted.
+        (movement, *r.pick(&["retracted", "extended"]))
     } else {
         (*r.pick(&[Dir::East, Dir::West]), "pushing")
     };
