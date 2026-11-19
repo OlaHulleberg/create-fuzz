@@ -60,6 +60,63 @@ Each generator extension has its own signed commit. Existing case files were not
 changed. No new kinetics/belt discrepancy was isolated by these added histories;
 known baseline differences are not re-reported as new findings.
 
+## Water wheel and steam engine sources
+
+The water wheel family (seeds congruent to 20 modulo 32) and the steam engine family
+(seeds congruent to 21 modulo 32) close the generator side of those sources:
+
+- Water wheel (`waterwheel.rs`): a small wheel in a contained falling-water column, both
+  flow signs, two columns cancelling, a lava column (the lava advancement input), the
+  plank material through player uses (a non-block item, the wheel's own spruce, an invalid
+  block item and a valid plank), player placement along and across an existing wheel's axis
+  (accepted and refused by `canSurvive`), a stone blocked above the wheel so a
+  non-consuming use cannot place, and a reload. Large wheels add the room check, the
+  `LargeWaterWheelBlockItem` retry at the clicked face, an extension train, the eight
+  controller cells, material through a cell, a sneak wrench that redirects to the wheel,
+  a broken cell and a cell obstructed before the wheel's own tick.
+- Steam engine (`steam_engine.rs`): a tank with active heat (a blaze burner fed a blaze
+  cake) or passive heat (magma, a lit or unlit campfire), a creative actor's water buckets
+  at two supply-sample phases, floor/wall engines with a converted shaft and an invalid
+  same-axis shaft, a boxed-in waterlogged engine (its source would otherwise spread),
+  a second boiler whose shaft is placed through the engine's placement helper and then
+  removed with a sneak wrench, an engine over stone (refused), an engine removed and a tank
+  block removed.
+- Driver support: `FluidHost` answers `FluidState.getFlow` for the wheel's sample cells,
+  the driver runs the large wheel's scheduled frame reconstruction and the structural
+  cells' own ticks/removals, counts engines per boiler, reads the heat under the tank,
+  samples the water supply, converts shafts to powered shafts and back, ticks blaze burners
+  and restores a wheel's flow score on reload. Waterlogged engines are boxed in so the
+  native fluid cannot reach the fixture boundary.
+
+The measurement is the union of two campaigns: `./run.sh fuzz cover 120` over the shared
+corpus (77 scenarios) and `./run.sh fuzz cover 1` replayed from 62 generated
+water-wheel/steam cases. JaCoCo unions both exec sets offline
+(`tools/coverage/report.sh` with campaign 1's union as the merged input and campaign 2's
+union as the new data). The final union is 2834/14674 branch outcomes covered;
+`input/campaign.json` records both commands, the corpus hash of the second campaign and
+the union input hash. The class-level distribution moves slightly between runs because a
+class loaded in one campaign is analyzed from its transformed binary, not the jar.
+
+Core harness-gap groups in these areas: steamEngine 47 groups/121 branches became
+44/65; waterwheel 63/138 became 32/51 (the core total went from 1552 to 1483). The
+remaining groups are listed in `kinetics-core.md`; every one still has a reviewed
+explanation (no `out-of-scope:environment-source-adapter` rule remains, because the
+adapters now exist).
+
+### Differences found by the new inputs
+
+All are after a reload, and all are Java-versus-port:
+
+- A flowing water wheel reloaded by `Action::Reload`: the port reports a network size of
+  2 while Java keeps 1 (`cases/`-style probe: wheel, contained column, reload).
+- A running boiler reloaded: the port stops driving every powered shaft (generated 64 ->
+  0) while Java keeps them at 64; `probe-steam-reload` is an 11-block case.
+- A large wheel whose frame is rebuilt around a reload: one frame cell differs for a tick
+  (seed 436 is a record of this).
+
+These are the only seeds that differ in the 0..700 seed sweep run against the private
+server: every seed congruent to 20 or 21 modulo 64 (the families' reload variants).
+
 ## Open work items
 
 The generated reports contain every remaining harness-gap explanation and the

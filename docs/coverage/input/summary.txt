@@ -1,1 +1,1 @@
-2107/14674 branches covered; 12567 never reached
+2834/14674 branches covered; 11840 never reached

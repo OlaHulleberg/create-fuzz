@@ -1,12 +1,13 @@
 {
-  "command": "./run.sh fuzz cover 100",
+  "command": "./run.sh fuzz cover 120 and ./run.sh fuzz cover 1 (union of both exec sets)",
   "complete": true,
-  "corpus_scenarios": 72,
-  "corpus_sha256": "8ef3183746d9b88d64cc2ecb48420b2360cac5166122e518bf2e37d1bbe4f0fa",
+  "corpus_scenarios": 63,
+  "corpus_sha256": "1e5f4ba6fe451edf41ddf66994d988f7d66012f898a0858c794e725d715ec281",
   "create": "b62e837acab5e2ceeb7bfd0c9fd551c64b52dd18",
-  "engine": "8e78a89be9f660b3dfef59f9620b73859f910921",
-  "fuzzer": "707c1a94fc0b3c5ab46e786e8680a1906de1171d",
+  "engine": "857e70a65cf97d7dcf0a0e97a0e793236f57b224",
+  "fuzzer": "e9cc479f762b8c92e7f365d8cf318b9d3a634faa",
   "includes": "com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.content.logistics.depot.*:com.simibubi.create.content.logistics.funnel.*:com.simibubi.create.content.logistics.tunnel.*:com.simibubi.create.content.logistics.box.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*",
-  "never_reached_sha256": "b51d375e55d0388afd53e8b50a09e8fbbc51bce8698b36945a3cd6b3603292ef",
-  "port": "25621"
+  "never_reached_sha256": "99ec0cbc3f1a2af46fc2c4c832c081ba68b865d35c4f76a77f3124b9ee70cf0f",
+  "port": "25610",
+  "union": "campaign 1 (shared corpus, 120 rounds) plus campaign 2 (62 wheel/engine cases, 1 mutation round)"
 }

@@ -238,6 +238,23 @@ use `chain_link`, the server transaction sent after the player's chain selection
 Snapshots compare controller/index/length/casing and sorted conveyor link offsets.
 See [item transport](docs/item-transport.md) for player stack landings/uses, movement, belt/depot handoff, stalls, per-tick observations and explicit native-flight/component boundaries. Inventory-backed splitting remains separate.
 
+The water wheel family (seeds congruent to 20 modulo 32) drives a wheel's flow from a
+contained falling-water column, both flow signs, a lava column, the plank material through
+player uses (a non-block item, the wheel's own spruce, an invalid block and a valid plank),
+player-placed wheels along and across the existing wheel's axis, and the large wheel's room
+check, item retry at the clicked face, extension train, controller cells, frame material,
+sneak wrench and break cascades. The Rust driver asks the native fluid host for
+`FluidState.getFlow` at each wheel's sample cells and runs the frame's scheduled shape
+reconstruction, so flow scores and controller cells are compared per checkpoint.
+
+The steam engine family (seeds congruent to 21 modulo 32) builds tanks with active
+(blaze burner fed a blaze cake) and passive (magma, a lit or unlit campfire) heat, water
+supplied by a creative actor's bucket, floor/wall/ceiling engines, a waterlogged boxed-in
+engine, valid and same-axis shafts, the engine's and powered shaft's placement helpers, a
+sneak wrench, engine removal and a tank block removal. The driver counts engines per
+boiler, reads the heat under the tank, samples the water supply, converts shafts to powered
+shafts and back through `PoweredShaftBlock.getEquivalent`, and ticks blaze burners.
+
 Fluid histories use `fluids.json` state domains and version-3 player uses for pipe/pump/tank placement, wrench/glass/copper casing, creative actor bucket exchange (`game_mode`), smart filter slots, and redstone-controlled valve transmissions. `fluid_inputs.rs` drives creative tanks, drains, depot/belt spouts and a startup-audited component-free recipe subset. Observations include tank shapes/contents, six connection pressures and flights, world fluid state, machine storage/cycles/held items, filters and depot output slots. Rust reads the engine's stored per-side pressure, flow progress and open-end buffers directly, including sources retained by a live network. Component-bearing potions, arbitrary recipes, contraptions and item entity flight are outside the admitted contract.
 
 Shrinking evaluates one candidate at a time. Check/fuzz batches are bounded by observed checkpoint cells and JSON records stream through buffered readers/writers. On the shared VM, run runtime sweeps and shrinks one at a time under `prlimit --as=3000000000`, after checking at least 4 GiB is available.
