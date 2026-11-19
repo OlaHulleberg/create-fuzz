@@ -313,3 +313,88 @@ pub fn switched_shaft(seed: u64) -> Scenario {
         events,
     }
 }
+
+/// Attempt assisted large-cog placement with the slot blocked, then drive a
+/// diagonal small cog from the controller across the rotation-speed limit.
+pub fn controller_cog(seed: u64) -> Scenario {
+    let controller = [0, 8, 0];
+    let gear = [0, 9, 0];
+    let support = [-1, 8, 0];
+    let crank = [-2, 8, 0];
+    let floor = [0, 7, 0];
+    let gear_support = [1, 10, -1];
+    let blocker = if seed & 64 == 0 {
+        (gear, "minecraft:stone")
+    } else {
+        ([1, 9, 0], "create:cogwheel[axis=z]")
+    };
+    let up =
+        |tick, p, item, sneak| use_item(tick, p, item, Face::Up, Face::Up.point(0.5, 0.5), sneak);
+    let fit_gear = |tick| {
+        use_item(
+            tick,
+            controller,
+            "create:large_cogwheel",
+            Face::North,
+            Face::North.point(0.82, 0.35),
+            false,
+        )
+    };
+    let turn = |tick| {
+        use_item(
+            tick,
+            crank,
+            "minecraft:air",
+            Face::West,
+            Face::West.point(0.5, 0.5),
+            false,
+        )
+    };
+    let blocks = [
+        (support, "create:shaft[axis=x]"),
+        (floor, "minecraft:stone"),
+        (gear_support, "minecraft:stone"),
+        blocker,
+    ]
+    .map(|(pos, state)| Placed {
+        pos,
+        state: state.into(),
+        motor: None,
+    })
+    .to_vec();
+    let events = vec![
+        up(6, floor, "create:rotation_speed_controller", false),
+        fit_gear(9),
+        action(12, blocker.0, Action::Remove),
+        fit_gear(14),
+        use_item(
+            17,
+            gear_support,
+            "create:cogwheel",
+            Face::South,
+            Face::South.point(0.5, 0.5),
+            true,
+        ),
+        use_item(
+            19,
+            support,
+            "create:hand_crank",
+            Face::West,
+            Face::West.point(0.5, 0.5),
+            false,
+        ),
+        turn(22),
+        action(28, controller, Action::SpeedSetting { row: 1, value: 128 }),
+        turn(33),
+        action(38, controller, Action::SpeedSetting { row: 1, value: 129 }),
+    ];
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 115,
+        checkpoints: vec![10, 15, 21, 25, 30, 40],
+        blocks,
+        events,
+    }
+}

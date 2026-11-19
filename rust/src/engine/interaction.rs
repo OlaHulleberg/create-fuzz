@@ -215,6 +215,21 @@ impl Run {
                 self.place_cog(target, item, large, axis);
                 return;
             }
+            // SpeedControllerBlock's placement helper sends the held large cog above it.
+            if item == "create:large_cogwheel"
+                && let Some((Block::RotationSpeedController, info)) = own
+            {
+                let target = add(p, Dir::Up.offset());
+                let axis = if info.axis == Some(Axis::X) {
+                    Axis::Z
+                } else {
+                    Axis::X
+                };
+                if self.replaceable(target) && self.w.valid_cog_position(0, target, true, axis) {
+                    self.place_cog(target, item, true, axis);
+                    return;
+                }
+            }
             // decor/brackets.rs runs before the wrench item's use_on.
             if item == "create:wrench" && {
                 let removed = self.brackets.remove(&p).is_some();
