@@ -125,3 +125,48 @@ redstone block, casing or depot stands on it (`updateCoverProperty` on a change 
 casing); a tunnel and a funnel not facing up never cover it, and taking the casing off keeps
 the flag, as in Java. Item handler access (`capability`, see player actions) reaches depots
 and belt segments.
+
+## Brass tunnel distribution
+
+Brass tunnels over parallel belts form a group across their axis (`isConnected`: both have
+flaps). One that distributes (`hasDistributionBehaviour`: flaps, and connected or a flap across
+its axis) takes a whole stack off its belt or from a belt ending into its segment while it
+holds none (`setStackToDistribute`), and from its item handler (`BrassTunnelItemHandler`).
+The driver mirrors the glue's `tick_brass`: two ticks after a stack arrives (then every
+`brassTunnelTimer`) it gathers the group's outputs (`addValidOutputsOf`: its own sides across
+the belt first, then ahead; depots and belts beside it, the belt ahead) and splits the stack
+among them as the selection mode says, filtered sides first (`tunnel::distribute`);
+synchronizing tunnels hand out only while the whole group holds stacks. The mode is picked
+with `scroll_setting`, side filters with a click on their slot (plain items only). A brass
+tunnel's saved state follows the glue's column record (`brass_to_nbt`: stack, mode and the
+side it came in by).
+
+`tunnel` adds `brass` for a brass tunnel: the stack it holds and the side it came in by,
+`distributionProgress` (only while it holds a stack or hands out with its group: `tick` reads
+it only then, and a tunnel that never held one starts at 0 while an emptied one is -1),
+`previousOutputIndex`, `syncedOutputActive`, `connectedLeft`/`Right`, the mode and the sided
+filters. `RANDOMIZE` starts at `level.random` on Java and is never generated; a stack thrown
+off the belt ahead (native item flight) is an adapter gap with a note, and the family keeps a
+belt segment ahead of every tunnel. `DistanceLeft`/`DistanceRight` are written and read by
+`BrassTunnelBlockEntity` and read nowhere else in Create, so they are not an observable.
+
+A stack a funnel or tunnel emptied is reported as `minecraft:air` with count 0 on both sides
+(the port's `count == 0` item is an empty stack).
+
+## Weighted ejectors
+
+An ejector (its default target, one block ahead: `EntityLauncher(1, 0)`) is driven by a motor
+on its shaft. The driver mirrors the glue's `tick_ejectors` after logistics (the arms
+subsystem): its redstone (`tick_arm_signals`), the engine's `Ejector::tick` with the glue's
+`EjectorWorld` (its depot's stacks, the target's simulated insertion, the obstacle scan through
+`clip_blocks` over any block but air, extracting funnels let through), `land` into what stands
+at the target (an ejector merges, a depot takes while empty, a belt from above), stacks landing
+on it and belts ending into it merging onto what it holds (`depot_insert`), its item handler
+(`DepotItems`), and its stack size (`scroll_setting`). Ejectors wake when their depot changes
+(`wake_ejectors`). A stack the throw drops (native item flight) and a belt funnel on top are
+adapter gaps with a note; entities on the plate are not generated.
+
+`ejector` observes its state, power, plate (`lidProgress`), launcher distances, stack size,
+the stacks in flight (ticks flown, stack) and `earlyTargetTime`; the plate and the time compare
+within the transport tolerance. The depot observation covers ejectors too and lists an ejector's
+merging stacks (`DepotBehaviour.incoming`) as pending items.

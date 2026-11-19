@@ -279,3 +279,27 @@ as `depot_contents_changed` sets it) and gives from the held slot; belts and and
 have no handler in the port. The outcome joins `item_outcomes` with `handler` (whether one
 was given), the offered stack, the remainder and what was extracted. Other blocks' handlers
 are adapter gaps with a note.
+
+### Value board picks on scroll values
+
+`scroll_setting` is a pick on a block's value board for its `ScrollValueBehaviour`, as the
+client's `ValueSettingsPacket` sends it: `row` and `value`.
+
+```json
+{"tick":40,"pos":[0,9,2],"action":{"kind":"scroll_setting","row":0,"value":2}}
+```
+
+Java calls `setValueSettings(player, new ValueSettings(row, value), false)` on the block
+entity's `ScrollValueBehaviour` (a `ScrollOptionBehaviour` is one: a brass tunnel's selection
+mode takes the option's ordinal; a weighted ejector's `maxStackSize` takes the count, 0 for
+any). Rust follows the glue's `interaction/values.rs`: a brass tunnel takes
+`board::option_value` against its current mode and hands it to its group (`set_brass_mode`);
+an ejector's stack size is `value` clamped to 0..64. The value board's opening hold and
+`isActive` gate are the client's and are not part of this input.
+
+A brass tunnel's side filter is set by the ordinary `use` primitive: the held item clicked on
+the side's filter slot (`BrassTunnelFilterSlot`, the side's face at the slot's point), which
+`ValueSettingsInputHandler` routes to `FilteringBehaviour.onShortInteract` on Java and the
+glue's `use_tunnel_filter` on Rust. An empty-hand `use` off the mode slot on top takes the
+stacks of the tunnel's group (`BrassTunnelBlock.useWithoutItem`); a plain `use` records no
+item outcome.
