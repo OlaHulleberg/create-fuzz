@@ -253,6 +253,11 @@ pulleys horizontal, sloped, vertical and sideways belts, then breaks a segment. 
 family (1 modulo 32) inserts into and extracts from a depot through its item handler
 (`capability`), with belt handoffs, player pickups and a belt segment's own handler.
 
+The funnel family (seeds congruent to 4 modulo 32) puts belt funnels over loaded belts with
+depots behind them, a floor funnel at the belt's end, and player pickups that free a blocked
+funnel. The chute family (5 modulo 32) ends belts at vertical chutes over depots, belts,
+chutes, stone or nothing, and under a chute leading into them.
+
 The water wheel family (seeds congruent to 20 modulo 32) drives a wheel's flow from a
 contained falling-water column, both flow signs, a lava column, the plank material through
 player uses (a non-block item, the wheel's own spruce, an invalid block and a valid plank),

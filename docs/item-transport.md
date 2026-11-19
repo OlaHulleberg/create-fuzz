@@ -94,8 +94,29 @@ not distribute: a distributing brass tunnel is an adapter gap with a note.
 Snapshots add `tunnel` (`BeltTunnelBlockEntity.flaps` keys and `sides`, by name),
 `funnel` (`extractionCooldown`) and `chute` (its item and position) where those block
 entities stand, and the `belt` observation adds `covered` and `color`. Rust computes a
-tunnel's flaps from its current neighbours as the glue does. Funnels and chutes are not
-driven yet; a case holding one differs on these fields rather than passing.
+tunnel's flaps from its current neighbours as the glue does.
+
+## Funnels and chutes at belts
+
+Belt funnels are placed by a state event on a belt: side funnels (pulling) and retracted or
+extended funnels facing against the belt's way. The engine's `checkForFunnels` runs through
+the driver's `funnel`/`funnel_insert` surroundings, which mirror the glue's `BeltSide`: an
+andesite funnel puts the whole stack into the inventory behind it, a depot through its item
+handler. A floor funnel at a belt's end takes the stacks that reach it only facing up and not
+extracting (`supportsDirectBeltInput`), into the depot under it; any other funnel there holds
+them at the end. Java keeps a stack a funnel emptied in the belt's list until the next tick;
+both observers report such a stack as `minecraft:air` with count 0. A funnel-held item counts
+as stalled from its second tick at the entry, as Java's `prevBeltPosition` comparison does;
+the engine keeps that in `at_funnel`. Funnels in a mode the driver does not run (a belt funnel
+pushing onto its belt, an extracting funnel) and brass funnels' filters are adapter gaps with a
+note. `funnel` observes `extractionCooldown`, 0 in every mode the driver runs.
+
+A vertical chute at a belt's end takes a stack while it is empty and no chute above leads
+into it (`canDirectlyInsert`); with no fans it falls at gravity's `chute::MOTION` and leaves at
+the bottom into a belt segment (from above), a depot, or the chute below, or out of the bottom
+(native item flight), and waits at the middle over a solid block (`handleDownwardOutput`).
+`chute` observes its stack and, while it holds one, the position. Diagonal and smart chutes,
+fans, and chutes taking from an inventory above are outside the adapter.
 
 Dyes and water buckets colour or wash the whole belt (`applyColor`); an unchanged colour
 passes the click to the item. The connector carries the clicked segment's colour to a
