@@ -255,3 +255,41 @@ phase order, synchronize's gather tick, the item handler without distribution, t
 distribution state, an emptied stack saved as one item; ejectors: an empty ejector taking one
 item, idle wind-up, the ejector's depot never sliding, the whole-block obstacle scan; funnels: the
 phase order). None is allowed in `allow.rs`.
+
+## Belt phase, third round
+
+Branch `belts-cover3` adds four families in the actions lane's residues: depot output buffers
+(55 mod 64: a spout filling a stack on a depot, item handler access to the buffer's slots, pickups,
+landings and a pulling belt funnel exporting the outputs), brass funnels' filters and amounts
+(39 mod 64: the `filter_setting` action), chute columns (35 mod 64: diagonal and smart chutes and
+encased fans) and presses over depots and belts (7 mod 64). `belts.md` and `input/` come from the
+union of the second round's four exec sets with a fifth: `fuzz cover 0` over a 48-scenario corpus
+(12 seeds of each new family, now in `replay-corpus`), private server `FUZZ_PORT=25634`, fuzzer
+5ef4a08, the port at 4625fb5. Union: 4195/15274 branches covered (3961 before).
+
+Missed branch outcomes by family (all categories / harness-gap), before (the second round's) and
+after:
+
+| Family | Before | After |
+| --- | ---: | ---: |
+| funnels | 381 / 265 | 346 / 245 |
+| tunnels | 93 / 79 | 93 / 79 |
+| brass distribution | 112 / 96 | 112 / 96 |
+| ejector | 281 / 159 | 281 / 159 |
+| slicer and connector | 183 / 100 | 183 / 100 |
+| depot | 132 / 56 | 122 / 46 |
+| belt core | 963 / 472 | 953 / 462 |
+| chutes | 464 / 378 | 373 / 287 |
+| packages | 237 / 183 | 237 / 183 |
+
+The press classes (`kinetics/press`, outside the belts report) go from 200 to 147 missed branch
+outcomes. The harness-gap reasons of the depot, funnel, chute, press and belt processing classes
+now name what the new families leave.
+
+`fuzz 0 2000` on this branch (private server, the port at 4625fb5): 1724 matched, 276 differed,
+0 java-unstable, 0 driver-unsupported (`input/differing-seeds.tsv`). Each differing seed is
+attributed to a finding (the first two rounds' create-horizon issues #130-#154, or this round's
+O1-O3, C3-C5 and P1, shrunk for the lead), but for seeds 806 and 1318: a filter-slot click on a
+brass tunnel side without a slot reaches the driver's unsupported-use note (a harness gap; in Java
+it does nothing). Seed 1366, Java-unstable in the first round, now differs stably: the slicer's
+split halves stay one network in the port (F2, #131). None is allowed in `allow.rs`.
