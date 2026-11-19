@@ -116,6 +116,8 @@ final class TransportObservations {
             // An ejector's merging stacks slide in (`incoming`) before they join the held one.
             List<TransportedItemStack> incoming=field(depot,DepotBehaviour.class,"incoming");
             for(var s:incoming) items.add(item(s,true,null));
+            // SharedDepotBlockMethods.getComparatorInputOverride.
+            out.addProperty("comparator",be.getBlockState().getAnalogOutputSignal(be.getLevel(),be.getBlockPos()));
             net.neoforged.neoforge.items.IItemHandler buffer=field(depot,DepotBehaviour.class,"processingOutputBuffer");
             for(int i=0;i<buffer.getSlots();i++)if(!buffer.getStackInSlot(i).isEmpty())outputs.add(ItemInputs.stack(buffer.getStackInSlot(i)).getAsJsonObject());
         }

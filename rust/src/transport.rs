@@ -61,6 +61,9 @@ pub struct Contents {
     pub outputs: Vec<Stack>,
     pub kind: String,
     pub items: Vec<Item>,
+    /// A depot's or ejector's comparator output (`getComparatorInputOverride`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comparator: Option<i32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Outcome {
