@@ -515,3 +515,55 @@ pub fn chain_junction(seed: u64) -> Scenario {
         events,
     }
 }
+
+/// Extend a pole past several shafts, then block that end and try the other
+/// side. Casing disables assisted extension until sneak-wrenched off.
+pub fn shaft_extension(seed: u64) -> Scenario {
+    let floor = [0, 7, 0];
+    let shaft = [0, 8, 0];
+    let tip = [0, 10, 0];
+    let blocker = [0, 11, 0];
+    let up = |tick, pos, item, sneak| {
+        use_item(tick, pos, item, Face::Up, Face::Up.point(0.5, 0.5), sneak)
+    };
+    let first = if seed & 64 == 0 {
+        "create:andesite_casing"
+    } else {
+        "create:brass_casing"
+    };
+    let gear = if seed & 128 == 0 {
+        "create:cogwheel"
+    } else {
+        "create:large_cogwheel"
+    };
+    let mut place_shaft = up(5, floor, "create:shaft", false);
+    if let Some(Action::Use { pitch, .. }) = &mut place_shaft.action {
+        *pitch = 80.;
+    }
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 110,
+        checkpoints: vec![6, 11, 16, 21, 26, 31, 36, 41, 47, 52],
+        blocks: [floor, blocker]
+            .map(|pos| Placed {
+                pos,
+                state: "minecraft:stone".into(),
+                motor: None,
+            })
+            .to_vec(),
+        events: vec![
+            place_shaft,
+            up(10, shaft, "create:shaft", false),
+            up(15, shaft, "create:shaft", false),
+            up(20, shaft, gear, false),
+            up(25, tip, first, false),
+            up(30, tip, "create:wrench", true),
+            up(35, tip, "create:metal_bracket", false),
+            up(40, tip, "create:wrench", false),
+            up(46, tip, "create:wooden_bracket", false),
+            action(51, tip, Action::Remove),
+        ],
+    }
+}

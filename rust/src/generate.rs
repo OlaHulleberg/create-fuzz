@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 64 == 54 {
+        return crate::network_inputs::shaft_extension(seed);
+    }
     if seed % 64 == 38 {
         return crate::network_inputs::chain_junction(seed);
     }
