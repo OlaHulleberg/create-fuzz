@@ -1,7 +1,7 @@
 //! Player histories for kinetic network construction and reconfiguration.
 
 use crate::actions::{Action, Face};
-use crate::scenario::{Change, Pos, Scenario};
+use crate::scenario::{Change, Placed, Pos, Scenario};
 
 fn action(tick: u32, pos: Pos, action: Action) -> Change {
     Change {
@@ -230,6 +230,85 @@ pub fn competing_sources(seed: u64) -> Scenario {
         day_time: 0,
         ticks: 120,
         checkpoints: vec![19, 21, 24, 26, 30, 32, 35, 39, 46, 70],
+        blocks,
+        events,
+    }
+}
+
+/// Place a relay while powered, then reconnect it with either side as the
+/// input. Both crank supports are also live shaft neighbours.
+pub fn switched_shaft(seed: u64) -> Scenario {
+    let relay = [0, 8, 0];
+    let floor = [0, 7, 0];
+    let signal = [0, 9, 0];
+    let floor_use = |tick, item, sneaking| {
+        use_item(
+            tick,
+            floor,
+            item,
+            Face::Up,
+            Face::Up.point(0.5, 0.5),
+            sneaking,
+        )
+    };
+    let item = if seed & 64 == 0 {
+        "create:clutch"
+    } else {
+        "create:gearshift"
+    };
+    let mut blocks = vec![Placed {
+        pos: floor,
+        state: "minecraft:stone".into(),
+        motor: None,
+    }];
+    let mut events = Vec::new();
+    for (side, face) in [(-1, Face::West), (1, Face::East)] {
+        let shaft = [side, 8, 0];
+        blocks.push(Placed {
+            pos: shaft,
+            state: "create:shaft[axis=x]".into(),
+            motor: None,
+        });
+        events.push(use_item(
+            5,
+            shaft,
+            "create:hand_crank",
+            face,
+            face.point(0.5, 0.5),
+            false,
+        ));
+    }
+    let turn = |tick, x, face, backwards| {
+        use_item(
+            tick,
+            [x, 8, 0],
+            "minecraft:air",
+            face,
+            face.point(0.5, 0.5),
+            backwards,
+        )
+    };
+    events.extend([
+        action(8, signal, Action::Signal { strength: 15 }),
+        floor_use(10, item, false),
+        turn(12, -2, Face::West, false),
+        action(17, signal, Action::Remove),
+        action(23, signal, Action::Signal { strength: 15 }),
+        action(29, [-2, 8, 0], Action::Remove),
+        turn(32, 2, Face::East, seed & 128 != 0),
+        action(37, signal, Action::Remove),
+        action(43, relay, Action::Remove),
+        floor_use(48, item, true),
+        action(52, relay, Action::Remove),
+        floor_use(56, item, false),
+        turn(60, 2, Face::East, false),
+    ]);
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 135,
+        checkpoints: vec![11, 14, 18, 24, 30, 34, 38, 44, 49, 57, 62, 90],
         blocks,
         events,
     }
