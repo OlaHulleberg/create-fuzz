@@ -328,6 +328,10 @@ fn observing_pending_items_does_not_flush_the_transport_queue() {
         if let Some(a) = &e.action {
             r.action(e.pos, a);
         }
+        // Past the connector's 5-tick item cooldown before the next click.
+        for _ in 0..5 {
+            r.tick();
+        }
     }
     r.tick();
     r.item_input(
@@ -446,6 +450,10 @@ fn sneaking_casing_on_a_belt_reaches_normal_item_placement() {
     for e in &sc.events {
         if let Some(a) = &e.action {
             r.action(e.pos, a);
+        }
+        // Past the connector's 5-tick item cooldown before the next click.
+        for _ in 0..5 {
+            r.tick();
         }
     }
     r.tick();

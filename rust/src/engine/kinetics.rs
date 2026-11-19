@@ -3,6 +3,7 @@ use super::*;
 impl Run {
     /// One level tick: inputs, then the solve and what it breaks.
     pub(super) fn tick(&mut self) {
+        self.now += 1;
         self.persisted.clock += 1;
         // Shape notifications from committed inputs precede the level tick.
         self.tick_pipe_shapes();

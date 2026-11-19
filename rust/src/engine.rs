@@ -143,6 +143,12 @@ pub struct Run {
     item_outcomes: Vec<crate::transport::Outcome>,
     chains: create_engine::chain_conveyor::Chains<()>,
     connector: Option<Pos>,
+    /// The tick from which the belt connector's `useOn` runs again: Create starts the item's
+    /// 5-tick cooldown (`addCooldown(this, 5)`) when it remembers or connects a shaft, and the
+    /// game skips an item's `useOn` while it cools down (the block's own use still runs).
+    connector_ready: u32,
+    /// Ticks run so far: the tick whose actions run now.
+    now: u32,
     belt_casing: HashMap<Pos, String>,
     handles: HashMap<Pos, crate::handles::Handle>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
@@ -201,6 +207,8 @@ impl Run {
             item_outcomes: Vec::new(),
             chains: Default::default(),
             connector: None,
+            connector_ready: 0,
+            now: 0,
             belt_casing: HashMap::new(),
             handles: HashMap::new(),
             brackets: HashMap::new(),
