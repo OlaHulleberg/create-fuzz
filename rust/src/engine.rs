@@ -13,6 +13,7 @@ mod ejectors;
 mod fluid_machines;
 mod fluid_world;
 mod fluids;
+mod funnels;
 mod interaction;
 mod kinetics;
 mod observation;

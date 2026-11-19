@@ -288,7 +288,7 @@ impl Run {
     pub(super) fn tick_transport(&mut self) {
         // The glue's logistics phase: chutes, funnels, tunnels, then covers, then transport.
         self.tick_chutes();
-        self.note_funnel_modes();
+        self.tick_funnels();
         self.tick_tunnels();
         self.tick_brass();
         for p in std::mem::take(&mut self.cover_checks) {
