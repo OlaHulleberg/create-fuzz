@@ -124,11 +124,8 @@ pub const ITEMS: &[&str] = &[
     "create:brass_casing",
     "create:metal_bracket",
     "create:wooden_bracket",
-    "minecraft:oak_planks",
-    "minecraft:spruce_planks",
-    "minecraft:stone",
-    "create:blaze_cake",
-    "create:creative_blaze_cake",
+    "create:extendo_grip",
+    "minecraft:stick",
 ];
 impl Action {
     pub fn validate(&self) {

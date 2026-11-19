@@ -872,6 +872,75 @@ pub fn contested_placement(seed: u64) -> Scenario {
     }
 }
 
+/// Turn a player-placed crank holding other items: the crank's use takes the click
+/// with a stick, an extendo grip, a wrench or a block item, while a sneaking player
+/// holding an item uses the item instead and an empty sneaking hand turns it back.
+pub fn held_crank(seed: u64) -> Scenario {
+    let shaft = [0, 8, 0];
+    let crank = [-1, 8, 0];
+    let gauge = [1, 8, 0];
+    let west = |tick, pos, item, sneaking| {
+        use_item(
+            tick,
+            pos,
+            item,
+            Face::West,
+            Face::West.point(0.5, 0.5),
+            sneaking,
+        )
+    };
+    let held = [
+        "minecraft:stick",
+        "create:extendo_grip",
+        "create:wrench",
+        "create:cogwheel",
+        "create:shaft",
+    ];
+    let mut events = vec![
+        west(4, shaft, "create:hand_crank", false),
+        use_item(
+            5,
+            shaft,
+            "create:speedometer",
+            Face::East,
+            Face::East.point(0.5, 0.5),
+            false,
+        ),
+    ];
+    let mut checkpoints = vec![6];
+    let mut tick = 8;
+    for i in 0..held.len() {
+        let item = held[(i + (seed / 64) as usize) % held.len()];
+        events.push(west(tick, crank, item, false));
+        checkpoints.extend([tick + 1, tick + 4]);
+        tick += 13;
+    }
+    for (item, sneaking) in [
+        ("create:extendo_grip", true),
+        ("minecraft:air", true),
+        ("create:shaft", true),
+    ] {
+        events.push(west(tick, crank, item, sneaking));
+        checkpoints.extend([tick + 1, tick + 4]);
+        tick += 13;
+    }
+    events.push(action(tick, gauge, Action::Remove));
+    checkpoints.push(tick + 1);
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: tick + 75,
+        checkpoints,
+        blocks: vec![Placed {
+            pos: shaft,
+            state: "create:shaft[axis=x]".into(),
+            motor: None,
+        }],
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

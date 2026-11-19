@@ -151,7 +151,10 @@ impl Run {
                 return;
             }
         }
-        if item == "minecraft:air" && own.is_some_and(|(b, _)| b == Block::HandCrank) {
+        // glue/interaction/crank.rs: the crank's own use turns it whatever is held. The port
+        // skips it for a sneaking player holding an item, who uses the item instead.
+        if (item == "minecraft:air" || !sneaking) && own.is_some_and(|(b, _)| b == Block::HandCrank)
+        {
             self.w.turn_crank(0, p, sneaking);
             self.publish_interaction();
             return;
