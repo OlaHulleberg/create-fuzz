@@ -245,6 +245,14 @@ without a flipped partner, the maximum length, and the connector's refusals (cro
 obstacles, cross shafts, opposing driven ends, a forgotten first shaft) and its 5-tick item
 cooldown, which the driver models as the game does for the port.
 
+The tunnel family (seeds congruent to 24 modulo 32) places andesite and brass tunnels on
+belts beside depots and cross belts, with neighbouring tunnels, the wrench's window toggle,
+outputs taken away and back, stacks through andesite junctions, and the tunnel losing its
+casing or belt. The belt surface family (25 modulo 32) dyes, washes, cases, covers and
+pulleys horizontal, sloped, vertical and sideways belts, then breaks a segment. The depot
+family (1 modulo 32) inserts into and extracts from a depot through its item handler
+(`capability`), with belt handoffs, player pickups and a belt segment's own handler.
+
 The water wheel family (seeds congruent to 20 modulo 32) drives a wheel's flow from a
 contained falling-water column, both flow signs, a lava column, the plank material through
 player uses (a non-block item, the wheel's own spruce, an invalid block and a valid plank),

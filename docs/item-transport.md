@@ -78,3 +78,29 @@ funnels/tunnels, fluids, item components/packages, depot output buffers and
 native ejected-entity flight require further adapters. They are not claimed as
 item transport coverage. Unsupported machine worlds/structural use actions are
 rejected explicitly; generated ends do not eject into unmodelled native flight.
+
+## Tunnels, covers, dyes and item access
+
+Tunnels are placed by the player's tunnel item on a belt's top face. Java runs
+`BeltTunnelItem`; Rust follows the glue: the default state is placed, and the logistics
+phase's `tick_tunnels` cases the belt in the tunnel's own kind, gives the shape from the
+outputs beside the segment (`hasValidOutput`) and from tunnels or extended belt funnels on
+both ends (windows), and breaks a tunnel without a cased horizontal belt. The wrench toggles
+a window (`onWrenched`, without neighbour updates); a sneak wrench takes the tunnel.
+Andesite junctions hand single items to depots and belts beside the segment while more than
+one is left (`BeltTunnelInteractionHandler`). Brass tunnels are generated only where they do
+not distribute: a distributing brass tunnel is an adapter gap with a note.
+
+Snapshots add `tunnel` (`BeltTunnelBlockEntity.flaps` keys and `sides`, by name),
+`funnel` (`extractionCooldown`) and `chute` (its item and position) where those block
+entities stand, and the `belt` observation adds `covered` and `color`. Rust computes a
+tunnel's flaps from its current neighbours as the glue does. Funnels and chutes are not
+driven yet; a case holding one differs on these fields rather than passing.
+
+Dyes and water buckets colour or wash the whole belt (`applyColor`); an unchanged colour
+passes the click to the item. The connector carries the clicked segment's colour to a
+segment it adds and to a belt it joins. A cased horizontal segment is covered while a stone,
+redstone block, casing or depot stands on it (`updateCoverProperty` on a change above, or on
+casing); a tunnel and a funnel not facing up never cover it, and taking the casing off keeps
+the flag, as in Java. Item handler access (`capability`, see player actions) reaches depots
+and belt segments.
