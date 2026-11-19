@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 64 == 57 {
+        return crate::network_inputs::wrench_pickup(seed);
+    }
     if seed % 64 == 25 {
         return crate::network_inputs::valve_rim(seed);
     }

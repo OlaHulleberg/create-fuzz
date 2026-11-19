@@ -1141,6 +1141,51 @@ pub fn valve_rim(seed: u64) -> Scenario {
     }
 }
 
+/// Pick gearboxes on each axis and a bracketed shaft up with a sneaking wrench,
+/// which takes their drops (a horizontal gearbox drops a vertical gearbox item).
+pub fn wrench_pickup(seed: u64) -> Scenario {
+    let face = [Face::Up, Face::North, Face::East][(seed / 64 % 3) as usize];
+    let cells = [
+        ([0, 8, 0], "create:gearbox[axis=y]"),
+        ([2, 8, 0], "create:gearbox[axis=x]"),
+        ([4, 8, 0], "create:gearbox[axis=z]"),
+        ([6, 8, 0], "create:shaft[axis=x]"),
+    ];
+    let mut events = vec![use_item(
+        4,
+        [6, 8, 0],
+        "create:metal_bracket",
+        Face::Up,
+        Face::Up.point(0.5, 0.5),
+        false,
+    )];
+    for (i, (pos, _)) in cells.iter().enumerate() {
+        events.push(use_item(
+            8 + 3 * i as u32,
+            *pos,
+            "create:wrench",
+            face,
+            face.point(0.5, 0.5),
+            true,
+        ));
+    }
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 95,
+        checkpoints: vec![5, 9, 12, 15, 18, 21],
+        blocks: cells
+            .map(|(pos, state)| Placed {
+                pos,
+                state: state.into(),
+                motor: None,
+            })
+            .to_vec(),
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
