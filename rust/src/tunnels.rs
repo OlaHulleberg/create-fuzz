@@ -242,6 +242,9 @@ pub fn generate(seed: u64) -> Scenario {
     }
     sc.checkpoints.extend([tick, tick + 1, tick + 2, tick + 5]);
     sc.ticks = sc.ticks.max(tick + 10);
+    // Settle past the last input (`generate::SETTLE`), as mutation keeps it.
+    let last = sc.events.iter().map(|e| e.tick).max().unwrap_or(0);
+    sc.ticks = sc.ticks.max(last + crate::generate::SETTLE);
     sc.events.sort_by_key(|e| e.tick);
     sc.checkpoints.retain(|t| *t <= sc.ticks);
     sc.checkpoints.sort_unstable();

@@ -74,6 +74,9 @@ pub fn generate(seed: u64) -> Scenario {
         2 => join(&mut r, &mut sc, speed),
         _ => refusals(&mut r, &mut sc, speed),
     }
+    // Settle past the last input (`generate::SETTLE`), as mutation keeps it.
+    let last = sc.events.iter().map(|e| e.tick).max().unwrap_or(0);
+    sc.ticks = sc.ticks.max(last + crate::generate::SETTLE);
     sc.events.sort_by_key(|e| e.tick);
     sc.checkpoints.sort_unstable();
     sc.checkpoints.dedup();
