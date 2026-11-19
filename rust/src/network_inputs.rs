@@ -1368,6 +1368,59 @@ pub fn opposed_motors(seed: u64) -> Scenario {
     }
 }
 
+/// Wrench encased cogs on every axis twice from each face across it, so each turn
+/// swaps or keeps their shaft caps (EncasedCogwheelBlock.swapShaftsForRotation for
+/// every clockwise turn the wrench makes).
+pub fn encased_wrench(seed: u64) -> Scenario {
+    let size = ["cogwheel", "large_cogwheel"][((seed >> 6) & 1) as usize];
+    let casing = ["andesite", "brass"][((seed >> 7) & 1) as usize];
+    let axes = [
+        ("x", Face::Up, Face::North),
+        ("y", Face::East, Face::North),
+        ("z", Face::Up, Face::East),
+    ];
+    let mut blocks = Vec::new();
+    let mut events = Vec::new();
+    let mut checkpoints = Vec::new();
+    for (i, (axis, first, second)) in axes.into_iter().enumerate() {
+        let pos = [i as i32 * 5 - 5, 8, 0];
+        blocks.push(Placed {
+            pos,
+            state: format!(
+                "create:{casing}_encased_{size}[axis={axis},bottom_shaft=false,top_shaft=true]"
+            ),
+            motor: None,
+        });
+        let wrench = |tick, face: Face| {
+            use_item(
+                tick,
+                pos,
+                "create:wrench",
+                face,
+                face.point(0.5, 0.5),
+                false,
+            )
+        };
+        let base = 6 + 12 * i as u32;
+        events.extend([
+            wrench(base, first),
+            wrench(base + 2, first),
+            wrench(base + 4, second),
+            wrench(base + 6, second),
+        ]);
+        checkpoints.extend([base + 1, base + 3, base + 5, base + 7]);
+    }
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 115,
+        checkpoints,
+        blocks,
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
