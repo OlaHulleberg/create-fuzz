@@ -941,6 +941,86 @@ pub fn held_crank(seed: u64) -> Scenario {
     }
 }
 
+/// Two sequencers in one driven line, powered and unpowered in the same tick: the
+/// first one's state change reaches the second while its own scheduled tick is due.
+pub fn sequencer_pair(seed: u64) -> Scenario {
+    use crate::program::{Instruction, Kind, Modifier};
+    let shaft = [-1, 8, 0];
+    let crank = [-2, 8, 0];
+    let pair = [[0, 8, 0], [1, 8, 0]];
+    let above = |[x, y, z]: Pos| [x, y + 1, z];
+    let turn = |tick| {
+        use_item(
+            tick,
+            crank,
+            "minecraft:air",
+            Face::West,
+            Face::West.point(0.5, 0.5),
+            false,
+        )
+    };
+    let angle = [90, 360][((seed >> 6) & 1) as usize];
+    let program = || Action::Program {
+        instructions: vec![
+            Instruction {
+                instruction: Kind::TurnAngle,
+                modifier: Modifier::Forward,
+                value: angle,
+            },
+            Instruction {
+                instruction: Kind::End,
+                modifier: Modifier::Forward,
+                value: -1,
+            },
+        ],
+    };
+    let mut blocks = vec![Placed {
+        pos: shaft,
+        state: "create:shaft[axis=x]".into(),
+        motor: None,
+    }];
+    let mut events = vec![use_item(
+        4,
+        shaft,
+        "create:hand_crank",
+        Face::West,
+        Face::West.point(0.5, 0.5),
+        false,
+    )];
+    for p in pair {
+        blocks.push(Placed {
+            pos: p,
+            state: "create:sequenced_gearshift[axis=x,state=0,vertical=false]".into(),
+            motor: None,
+        });
+        events.push(action(7, p, program()));
+    }
+    let mut checkpoints = Vec::new();
+    for (tick, on) in [(10, true), (21, false), (24, true), (36, false), (37, true)] {
+        events.push(turn(tick - 2));
+        for p in pair {
+            events.push(if on {
+                action(tick, above(p), Action::Signal { strength: 15 })
+            } else {
+                action(tick, above(p), Action::Remove)
+            });
+        }
+        checkpoints.extend([tick, tick + 1, tick + 2, tick + 4]);
+    }
+    events.push(turn(44));
+    checkpoints.sort();
+    checkpoints.dedup();
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 120,
+        checkpoints,
+        blocks,
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

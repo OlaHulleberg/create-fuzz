@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 64 == 52 {
+        return crate::network_inputs::sequencer_pair(seed);
+    }
     if seed % 64 == 20 {
         return crate::network_inputs::held_crank(seed);
     }
