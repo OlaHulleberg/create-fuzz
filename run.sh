@@ -16,7 +16,7 @@ gradlew="${CREATE_DIR:-$here/../Create}/gradlew"
 run="${FUZZ_GAME_DIR:-$here/java/run}"
 export FUZZ_GAME_DIR="$run"
 export FUZZ_HARNESS_HASH="$(cd "$here/java/src/main/java"; sha256sum dev/createfuzz/*.java | sha256sum | cut -d ' ' -f1)"
-export FUZZ_COVERAGE_INCLUDES="${FUZZ_COVERAGE_INCLUDES:-com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.content.logistics.depot.*:com.simibubi.create.content.logistics.funnel.*:com.simibubi.create.content.logistics.tunnel.*:com.simibubi.create.content.logistics.box.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*}"
+export FUZZ_COVERAGE_INCLUDES="${FUZZ_COVERAGE_INCLUDES:-com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.content.logistics.depot.*:com.simibubi.create.content.logistics.funnel.*:com.simibubi.create.content.logistics.tunnel.*:com.simibubi.create.content.logistics.chute.*:com.simibubi.create.content.logistics.box.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*}"
 export FUZZ_COVERAGE_CACHE="${FUZZ_COVERAGE_CACHE:-$here/work/jacoco}"
 export FUZZ_CREATE_JAR="${FUZZ_CREATE_JAR:-$HOME/.m2/repository/com/simibubi/create/create-1.21.1/6.0.11/create-1.21.1-6.0.11.jar}"
 coverage_tools() {

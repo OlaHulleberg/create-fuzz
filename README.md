@@ -110,7 +110,7 @@ JaCoCo and ASM jars are checked against pinned Maven Central SHA-1 values on eve
 cached jars; mismatches are deleted and stop the command.
 `FUZZ_COVERAGE_INCLUDES` is a colon-separated JaCoCo include list; it defaults to
 `com.simibubi.create.content.kinetics.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*`,
-including the kinetic network, torque propagator, stress values and their registry helpers. Fluid, belt and depot classes are included by the default wrapper. `FUZZ_CREATE_JAR` selects the matching published Create binary.
+including the kinetic network, torque propagator, stress values and their registry helpers. Fluid, belt, depot, funnel, tunnel, chute and package classes are included by the default wrapper; the belts report counts chutes with them. `FUZZ_CREATE_JAR` selects the matching published Create binary.
 Each guided case resets the agent after area cleanup and dumps probes before publishing its snapshot.
 Offline analysis unions those probes before counting branches, so discoveries on opposite edges of the
 same line count separately. The agent dumps only included Create classes into `work/coverage-classes`: analysis uses these

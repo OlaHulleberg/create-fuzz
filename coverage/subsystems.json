@@ -8,6 +8,7 @@
     "com/simibubi/create/content/logistics/depot/",
     "com/simibubi/create/content/logistics/funnel/",
     "com/simibubi/create/content/logistics/tunnel/",
+    "com/simibubi/create/content/logistics/chute/",
     "com/simibubi/create/content/logistics/box/"
   ]
 }
