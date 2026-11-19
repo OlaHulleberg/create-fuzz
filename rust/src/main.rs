@@ -35,6 +35,7 @@ mod steam_engine;
 mod transmission;
 mod transport;
 mod trig;
+mod tunnels;
 mod waterwheel;
 
 use scenario::{Scenario, Snapshot};
