@@ -124,7 +124,8 @@ impl Run {
         let state = self.at(p);
         let own = self.w.table.get(state).map(|(b, i)| (b, *i));
         if let Some((block, info)) = own.filter(|(b, _)| create_engine::dye::is_valve_handle(*b)) {
-            // interaction/values.rs: a box takes the click only while its behaviour is active.
+            // ItemUseOverrides (glue/interaction/item_use_overrides), with the value box of
+            // interaction/values.rs taking a click first, only while its behaviour is active.
             if !sneaking
                 && self.w.value_box_active(0, p)
                 && let Some(slot) = info.facing.and_then(|f| board::valve_slot(f, face))
@@ -151,9 +152,11 @@ impl Run {
                 return;
             }
         }
-        // glue/interaction/crank.rs: the crank's own use turns it whatever is held. The port
-        // skips it for a sneaking player holding an item, who uses the item instead.
-        if (item == "minecraft:air" || !sneaking) && own.is_some_and(|(b, _)| b == Block::HandCrank)
+        // ItemUseOverrides (glue/interaction/item_use_overrides), then the game's own use of
+        // the block (glue/interaction/crank.rs): the crank's use takes the click whatever the
+        // hand holds but the wrench; a sneaking player holding the wrench uses it instead.
+        if !(sneaking && item == "create:wrench")
+            && own.is_some_and(|(b, _)| b == Block::HandCrank)
         {
             self.w.turn_crank(0, p, sneaking);
             self.publish_interaction();
@@ -652,7 +655,11 @@ impl Run {
             return;
         }
         let near = place::Nearby {
-            large_cog_above: self.w.large_cog_axis(0, add(p, [0, 1, 0])),
+            large_cog_above: self
+                .w
+                .cog_at(0, add(p, [0, 1, 0]))
+                .filter(|(large, _)| *large)
+                .map(|(_, a)| a),
             small_cog_clicked: self
                 .w
                 .cog_at(0, add(p, face.opposite().offset()))
