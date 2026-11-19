@@ -84,6 +84,11 @@ final class Observations {
                         }
                     }
                     if (be != null) {var transport=TransportObservations.observe(be);if(transport!=null) snap.add("transport",transport); }
+                    if (be != null) {
+                        var tunnel=TransportObservations.tunnel(be);if(tunnel!=null) snap.add("tunnel",tunnel);
+                        var funnel=TransportObservations.funnel(be);if(funnel!=null) snap.add("funnel",funnel);
+                        var chute=TransportObservations.chute(be);if(chute!=null) snap.add("chute",chute);
+                    }
                     if (be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity belt) {
                         JsonObject b = new JsonObject();
                         BlockPos controller = belt.getController().subtract(origin);
@@ -91,6 +96,8 @@ final class Observations {
                         b.addProperty("length",belt.beltLength);
                         b.addProperty("index",belt.index);
                         b.addProperty("casing",belt.casing.name().toLowerCase(java.util.Locale.ROOT));
+                        b.addProperty("covered",belt.covered);
+                        b.add("color",belt.color.map(dye->(com.google.gson.JsonElement)new com.google.gson.JsonPrimitive(dye.getSerializedName())).orElse(com.google.gson.JsonNull.INSTANCE));
                         snap.add("belt",b);
                     }
                     if (be instanceof com.simibubi.create.content.kinetics.chainConveyor.ChainConveyorBlockEntity conveyor) {

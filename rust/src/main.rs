@@ -21,6 +21,7 @@ mod geometry;
 mod guided;
 mod handles;
 mod java;
+mod logistics;
 mod mutate;
 mod observation;
 mod persistence;

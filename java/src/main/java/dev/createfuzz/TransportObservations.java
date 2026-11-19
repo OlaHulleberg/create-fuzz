@@ -10,6 +10,27 @@ import java.util.*;
 
 /** Read Create's live semantic state, including pending queues, without write()'s mutation. */
 final class TransportObservations {
+    static com.google.gson.JsonArray directions(java.util.Collection<net.minecraft.core.Direction> dirs) {
+        var names=new java.util.TreeSet<String>();for(var d:dirs) names.add(d.getSerializedName());
+        var out=new com.google.gson.JsonArray();for(var n:names) out.add(n);return out;
+    }
+    /** BeltTunnelBlockEntity.flaps keys and sides, as updateTunnelConnections left them. */
+    static JsonObject tunnel(BlockEntity be) {
+        if(!(be instanceof com.simibubi.create.content.logistics.tunnel.BeltTunnelBlockEntity t)) return null;
+        JsonObject o=new JsonObject();o.add("flaps",directions(t.flaps.keySet()));o.add("sides",directions(t.sides));return o;
+    }
+    /** FunnelBlockEntity.extractionCooldown, read without write()'s side effects. */
+    static JsonObject funnel(BlockEntity be) {
+        if(!(be instanceof com.simibubi.create.content.logistics.funnel.FunnelBlockEntity f)) return null;
+        JsonObject o=new JsonObject();o.addProperty("cooldown",(int)field(f,com.simibubi.create.content.logistics.funnel.FunnelBlockEntity.class,"extractionCooldown"));return o;
+    }
+    /** ChuteBlockEntity.item and its position along the chute. */
+    static JsonObject chute(BlockEntity be) {
+        if(!(be instanceof com.simibubi.create.content.logistics.chute.ChuteBlockEntity c)) return null;
+        JsonObject o=new JsonObject();o.add("item",ItemInputs.stack(c.getItem()));
+        net.createmod.catnip.animation.LerpedFloat position=field(c,com.simibubi.create.content.logistics.chute.ChuteBlockEntity.class,"itemPosition");
+        o.addProperty("position",position.getValue());return o;
+    }
     @SuppressWarnings("unchecked")
     static <T> T field(Object o,Class<?> owner,String name) {
         try {var f=owner.getDeclaredField(name);f.setAccessible(true);return (T)f.get(o);}

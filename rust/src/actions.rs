@@ -122,6 +122,8 @@ pub const ITEMS: &[&str] = &[
     "minecraft:stone",
     "create:blaze_cake",
     "create:creative_blaze_cake",
+    "create:andesite_tunnel",
+    "create:brass_tunnel",
 ];
 impl Action {
     pub fn validate(&self) {

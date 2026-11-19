@@ -152,6 +152,11 @@ impl Run {
         });
     }
     pub(super) fn tick_transport(&mut self) {
+        // The glue's logistics phase: tunnels, then covers, then transport.
+        self.tick_tunnels();
+        for p in std::mem::take(&mut self.cover_checks) {
+            self.update_cover(p);
+        }
         let changed = self.w.take_depot_changes(0);
         for p in changed {
             if self.w.dims[0].depots.get(&p) == Some(&None) && self.depot_stacks.contains_key(&p) {
@@ -240,7 +245,36 @@ impl Run {
             self.w.mark_unsaved(0, p);
         }
     }
+    /// `direct_input_at`: something at `p` takes items straight from a belt's end
+    /// (`DirectBeltInputBehaviour`): a depot, a belt or an item drain.
+    pub(super) fn direct_input_at(&self, p: Pos) -> bool {
+        let d = &self.w.dims[0];
+        d.depots.contains_key(&p) || d.belt_of.contains_key(&p) || d.drains.contains_key(&p)
+    }
+    /// `direct_input_accepts` (`canInsertFromSide`) for an item moving toward `side`: a running
+    /// belt that is not sideways or vertical and does not run toward the side; the others always.
+    pub(super) fn direct_input_accepts(&self, p: Pos, side: Dir) -> bool {
+        if let Some((c, _, seg)) = self.belt_location(p) {
+            let rpm = self.w.speed(0, c).unwrap_or(0.);
+            return rpm != 0.
+                && !matches!(seg.slope, belt::Slope::Sideways | belt::Slope::Vertical)
+                && belt::movement_facing(rpm, seg.facing) != side.opposite();
+        }
+        true
+    }
     pub(super) fn insert_transport(&mut self, p: Pos, side: Dir, item: &belt::Item) -> Option<u8> {
+        self.handle_insertion(p, side, item, true)
+    }
+    /// `handle_insertion`: what is left of `item` (moving toward `side`) after what takes items
+    /// at `p` takes it; None when nothing there takes items. `from_belt`: the smoother hand-over
+    /// from a belt behind (`insert_into_from`).
+    pub(super) fn handle_insertion(
+        &mut self,
+        p: Pos,
+        side: Dir,
+        item: &belt::Item,
+        from_belt: bool,
+    ) -> Option<u8> {
         if let Some(d) = self.w.dims[0].drains.get_mut(&p) {
             let got = create_engine::drain::insert(
                 d,
@@ -303,10 +337,11 @@ impl Run {
                     moved.side_offset = -moved.side_offset;
                 }
             } else {
+                let extra = if from_belt { 0.26 } else { 0. };
                 moved.position = if speed > 0. {
-                    index as f32 - 0.26
+                    index as f32 - extra
                 } else {
-                    index as f32 + 1.26
+                    index as f32 + 1. + extra
                 };
             }
         }
@@ -468,5 +503,17 @@ impl belt::Surroundings for Side<'_> {
     ) -> Option<belt::Process> {
         let p = belt::position_for_offset(self.controller, &self.segment, self.length, index);
         self.run.spout_on_belt(p, item, locked)
+    }
+    /// The glue's `BeltSide::tunnel`: the tunnel over `segment` may take some of `item`; the
+    /// flaps it sets are client animation and are not observed.
+    fn tunnel(&mut self, segment: i32, item: &mut belt::Item) -> bool {
+        self.run.tunnel_takes(
+            self.controller,
+            self.segment,
+            self.length,
+            self.movement,
+            segment,
+            item,
+        )
     }
 }

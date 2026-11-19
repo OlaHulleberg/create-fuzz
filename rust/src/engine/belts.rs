@@ -41,28 +41,32 @@ impl Run {
             {
                 return true;
             }
+            // `applyColor`: a dye colours the whole belt, a water bucket washes it; neither is
+            // used up. Unchanged, the click passes on.
+            let dye = create_engine::dye::DyeColor::of_item(item);
+            if (dye.is_some() || item == "minecraft:water_bucket")
+                && self.apply_belt_color(p, dye.map(|d| d.name()))
+            {
+                return true;
+            }
             if item == "create:shaft" && seg.part == belt::Part::Middle {
                 let s = with_prop(&self.name(self.at(p)), "part", "pulley");
                 self.switch(p, self.id(&s));
                 return true;
             }
             if item == "create:andesite_casing" || item == "create:brass_casing" {
-                self.belt_casing.insert(
+                self.set_belt_casing(
                     p,
-                    if item.contains("brass") {
+                    Some(if item.contains("brass") {
                         "brass"
                     } else {
                         "andesite"
-                    }
-                    .into(),
+                    }),
                 );
-                let s = with_prop(&self.name(self.at(p)), "casing", "true");
-                self.switch(p, self.id(&s));
                 return true;
             }
-            if item == "create:wrench" && face != Dir::Up && self.belt_casing.remove(&p).is_some() {
-                let s = with_prop(&self.name(self.at(p)), "casing", "false");
-                self.switch(p, self.id(&s));
+            if item == "create:wrench" && face != Dir::Up && self.belt_cased(p) {
+                self.set_belt_casing(p, None);
                 return true;
             }
             if item == "create:wrench" && seg.part == belt::Part::Pulley && face.axis() != Axis::Y {
@@ -110,6 +114,111 @@ impl Run {
     }
 }
 impl Run {
+    /// The segment at `p` is cased (its `casing` property).
+    pub(super) fn belt_cased(&self, p: Pos) -> bool {
+        self.w
+            .table
+            .get(self.at(p))
+            .is_some_and(|(b, _)| b == Block::Belt)
+            && parse_state(&self.name(self.at(p)))
+                .1
+                .iter()
+                .any(|(k, v)| k == "casing" && v == "true")
+    }
+    /// `set_casing`: the segment at `p` takes casing `kind` (None: its casing comes off), then
+    /// its cover is looked at (`updateCoverProperty`).
+    pub(super) fn set_belt_casing(&mut self, p: Pos, kind: Option<&str>) {
+        match kind {
+            Some(k) => {
+                self.belt_casing.insert(p, k.into());
+            }
+            None => {
+                self.belt_casing.remove(&p);
+            }
+        }
+        let s = with_prop(
+            &self.name(self.at(p)),
+            "casing",
+            if kind.is_some() { "true" } else { "false" },
+        );
+        self.switch(p, self.id(&s));
+        self.update_cover(p);
+    }
+    /// `update_cover` (`BeltBlock.updateCoverProperty`): a cased horizontal segment is covered
+    /// while a block whose collision box is at least half a block wide each way and starts at
+    /// its bottom stands on it, but for funnels not facing up and tunnels.
+    pub(super) fn update_cover(&mut self, p: Pos) {
+        let Some(seg) = self.segment(p) else {
+            return;
+        };
+        if !self.belt_cased(p) || seg.slope != belt::Slope::Horizontal {
+            return;
+        }
+        let above = [p[0], p[1] + 1, p[2]];
+        let (name, _) = parse_state(&self.name(self.at(above)));
+        let excluded = match self.w.table.get(self.at(above)) {
+            Some((b, i)) => {
+                matches!(b, Block::AndesiteTunnel | Block::BrassTunnel)
+                    || matches!(
+                        b,
+                        Block::AndesiteFunnel
+                            | Block::BrassFunnel
+                            | Block::AndesiteBeltFunnel
+                            | Block::BrassBeltFunnel
+                    ) && i.facing != Some(Dir::Up)
+            }
+            None => false,
+        };
+        // The covering blocks the grammar places: full cubes and depots cover; air, shafts and
+        // fluids do not.
+        let covers = match name.as_str() {
+            "minecraft:stone"
+            | "minecraft:redstone_block"
+            | "create:andesite_casing"
+            | "create:brass_casing"
+            | "create:depot" => true,
+            _ => self
+                .w
+                .table
+                .get(self.at(above))
+                .is_some_and(|(b, _)| matches!(b, Block::AndesiteFunnel | Block::BrassFunnel)),
+        };
+        let covered = !excluded && covers;
+        if covered {
+            self.belt_covered.insert(p);
+        } else {
+            self.belt_covered.remove(&p);
+        }
+    }
+    /// `apply_color`: every segment of the belt at `p` takes `color` (None: washed). False
+    /// when the clicked segment already has it.
+    pub(super) fn apply_belt_color(&mut self, p: Pos, color: Option<&str>) -> bool {
+        if self.belt_color.get(&p).map(String::as_str) == color {
+            return false;
+        }
+        let Some(chain) = self.w.dims[0]
+            .belt_of
+            .get(&p)
+            .and_then(|c| self.w.dims[0].belts.get(c))
+            .map(|b| b.chain.clone())
+        else {
+            return false;
+        };
+        for q in chain {
+            self.set_segment_color(q, color);
+        }
+        true
+    }
+    pub(super) fn set_segment_color(&mut self, p: Pos, color: Option<&str>) {
+        match color {
+            Some(c) => {
+                self.belt_color.insert(p, c.into());
+            }
+            None => {
+                self.belt_color.remove(&p);
+            }
+        }
+    }
     pub(super) fn belt_observation(&self, p: Pos) -> Option<crate::belts::Observation> {
         let seg = self.w.table.get(self.at(p))?.1.belt?;
         let _ = seg;
@@ -122,6 +231,8 @@ impl Run {
                 .unwrap_or(0) as i32,
             length: b.map_or(0, |b| b.chain.len() as i32),
             casing: self.belt_casing.get(&p).cloned().unwrap_or("none".into()),
+            covered: self.belt_covered.contains(&p),
+            color: self.belt_color.get(&p).cloned(),
         })
     }
 }
@@ -398,5 +509,7 @@ impl belt::BreakWorld for Run {
         });
         self.set(b.pos, s.map_or(AIR, |s| self.id(&s)));
         self.belt_casing.remove(&b.pos);
+        self.belt_covered.remove(&b.pos);
+        self.belt_color.remove(&b.pos);
     }
 }

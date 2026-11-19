@@ -432,8 +432,11 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                     "create:brass_casing",
                     "create:shaft",
                     "create:wrench",
+                    "create:andesite_tunnel",
+                    "create:brass_tunnel",
                 ]
                 .contains(&item.as_str())
+                    || create_engine::dye::DyeColor::of_item(item).is_some()
                     || crate::fluids::contract()
                         .blocks
                         .iter()

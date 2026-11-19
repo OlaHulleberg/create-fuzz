@@ -114,6 +114,21 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
                 if j.belt != r.belt {
                     out.push(format!("{k}: belt: java {:?} rust {:?}", j.belt, r.belt));
                 }
+                if j.tunnel != r.tunnel {
+                    out.push(format!(
+                        "{k}: tunnel: java {:?} rust {:?}",
+                        j.tunnel, r.tunnel
+                    ));
+                }
+                if j.funnel != r.funnel {
+                    out.push(format!(
+                        "{k}: funnel: java {:?} rust {:?}",
+                        j.funnel, r.funnel
+                    ));
+                }
+                if !crate::logistics::chute_equal(j.chute.as_ref(), r.chute.as_ref()) {
+                    out.push(format!("{k}: chute: java {:?} rust {:?}", j.chute, r.chute));
+                }
                 if j.bracket != r.bracket {
                     out.push(format!(
                         "{k}: bracket: java {:?} rust {:?}",

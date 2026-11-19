@@ -91,6 +91,9 @@ impl Run {
         if self.belt_use(p, item, face, hit, sneaking) {
             return;
         }
+        if self.tunnel_use(p, item, face, sneaking) {
+            return;
+        }
         if self.fluid_use(p, item, face, hit, sneaking) {
             return;
         }

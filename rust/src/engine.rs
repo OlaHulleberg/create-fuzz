@@ -18,6 +18,7 @@ mod pipes;
 mod pumps;
 mod sources;
 mod transport;
+mod tunnels;
 
 use crate::scenario::{
     BlockSnap, Kinetic, Placed, Pos, Scenario, Snapshot, key, parse_state, with_prop,
@@ -77,6 +78,14 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     }
     for water in ["false", "true"] {
         push(format!("create:depot[waterlogged={water}]"));
+    }
+    // Tunnels: the shapes `tick_tunnels` gives them.
+    for tunnel in ["andesite_tunnel", "brass_tunnel"] {
+        for axis in ["x", "z"] {
+            for shape in ["straight", "window", "closed", "t_left", "t_right", "cross"] {
+                push(format!("create:{tunnel}[axis={axis},shape={shape}]"));
+            }
+        }
     }
     push("create:brass_casing".into());
     push("create:andesite_casing".into());
@@ -150,6 +159,12 @@ pub struct Run {
     /// Ticks run so far: the tick whose actions run now.
     now: u32,
     belt_casing: HashMap<Pos, String>,
+    /// `BeltBlockEntity.covered` of each segment.
+    belt_covered: std::collections::HashSet<Pos>,
+    /// `BeltBlockEntity.color` of each segment.
+    belt_color: HashMap<Pos, String>,
+    /// Belt segments whose block above changed, their cover looked at in the logistics phase.
+    cover_checks: Vec<Pos>,
     handles: HashMap<Pos, crate::handles::Handle>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
@@ -210,6 +225,9 @@ impl Run {
             connector_ready: 0,
             now: 0,
             belt_casing: HashMap::new(),
+            belt_covered: Default::default(),
+            belt_color: HashMap::new(),
+            cover_checks: Vec::new(),
             handles: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
@@ -371,6 +389,18 @@ impl Run {
             .is_some_and(|(b, _)| b == create_engine::Block::Belt)
         {
             self.belt_casing.remove(&p);
+            self.belt_covered.remove(&p);
+            self.belt_color.remove(&p);
+        }
+        // `BeltBlock.updateShape` from above: the belt's cover is looked at after the tick.
+        let below = [p[0], p[1] - 1, p[2]];
+        if self
+            .w
+            .table
+            .get(self.at(below))
+            .is_some_and(|(b, _)| b == create_engine::Block::Belt)
+        {
+            self.cover_checks.push(below);
         }
         self.w.block_changed(0, p, old, new);
         self.break_wheels();
