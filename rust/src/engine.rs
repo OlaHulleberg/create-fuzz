@@ -6,8 +6,10 @@
 //! the scenarios use: adjacent redstone blocks or controlled 0..15 signal sources.
 
 mod belts;
+mod brass;
 mod chutes;
 mod conveyors;
+mod ejectors;
 mod fluid_machines;
 mod fluid_world;
 mod fluids;
@@ -209,6 +211,8 @@ pub struct Run {
     funnel_held: HashMap<Pos, std::collections::HashSet<u32>>,
     /// Each chute's stack (`ChuteBlockEntity.item`).
     chute_stacks: HashMap<Pos, crate::transport::Stack>,
+    /// Brass tunnels' side filters (`tunnel_filters`): plain item ids.
+    tunnel_filters: HashMap<(Pos, create_engine::kinetics::Dir), String>,
     handles: HashMap<Pos, crate::handles::Handle>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
@@ -274,6 +278,7 @@ impl Run {
             cover_checks: Vec::new(),
             funnel_held: HashMap::new(),
             chute_stacks: HashMap::new(),
+            tunnel_filters: HashMap::new(),
             handles: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),

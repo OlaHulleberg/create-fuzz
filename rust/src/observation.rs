@@ -57,6 +57,8 @@ pub struct BlockSnap {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chute: Option<crate::logistics::Chute>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ejector: Option<crate::logistics::Ejector>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub measured_trig: Option<crate::allow::MeasuredTrigState>,
     #[serde(default)]
     pub bracket: Option<String>,

@@ -647,3 +647,60 @@ mod belt_membership_tests {
         }
     }
 }
+
+/// glue/logistics/mod.rs `brass_to_nbt`: brass tunnels' stacks: x, y, z, mode, side it came in
+/// by (6: none), count, then the item ids.
+pub fn brass_to_nbt(brass: &[([i32; 3], create_engine::tunnel::Brass)]) -> Tag {
+    let mut nums = Vec::new();
+    let mut items = Vec::new();
+    for (p, b) in brass {
+        let (item, n) = b.stack.clone().unwrap_or_default();
+        nums.extend([
+            p[0],
+            p[1],
+            p[2],
+            b.mode.index() as i32,
+            b.entered_from.map_or(6, |d| d as i32),
+            i32::from(n),
+        ]);
+        items.push(Tag::String(item.as_str().into()));
+    }
+    let mut c = Compound::new();
+    c.insert("nums".into(), Tag::IntArray(nums));
+    c.insert("items".into(), Tag::List(items));
+    Tag::Compound(c)
+}
+
+/// What `brass_to_nbt` wrote (`brass_from_nbt`).
+pub fn brass_from_nbt(data: &Compound) -> Vec<([i32; 3], create_engine::tunnel::Brass)> {
+    let Some(Tag::Compound(c)) = data.get("brass") else {
+        return Vec::new();
+    };
+    let (Some(Tag::IntArray(nums)), Some(Tag::List(items))) = (c.get("nums"), c.get("items"))
+    else {
+        return Vec::new();
+    };
+    nums.as_chunks::<6>()
+        .0
+        .iter()
+        .zip(items)
+        .map(|(v, item)| {
+            let item = match item {
+                Tag::String(s) => s.to_string(),
+                _ => String::new(),
+            };
+            let n = v[5].clamp(0, 64) as u8;
+            (
+                [v[0], v[1], v[2]],
+                create_engine::tunnel::Brass {
+                    stack: (!item.is_empty() && n > 0).then_some((item, n)),
+                    entered_from: create_engine::kinetics::Dir::ALL
+                        .get(v[4].clamp(0, 6) as usize)
+                        .copied(),
+                    mode: create_engine::tunnel::Mode::ALL[v[3].clamp(0, 6) as usize],
+                    ..Default::default()
+                },
+            )
+        })
+        .collect()
+}

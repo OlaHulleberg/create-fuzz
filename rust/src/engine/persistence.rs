@@ -221,9 +221,14 @@ impl Run {
             .into_iter()
             .filter(|(p, _)| outside(*p))
             .collect::<Vec<_>>();
+        let mut brass = codec::brass_from_nbt(&self.persisted.columns)
+            .into_iter()
+            .filter(|(p, _)| outside(*p))
+            .collect::<Vec<_>>();
         for (cx, cz) in columns {
             motors.extend(self.w.column_settings(0, cx, cz));
             belts.extend(self.w.column_belts(0, cx, cz));
+            brass.extend(self.w.column_brass(0, cx, cz));
             let data = crate::persistence::fluids::save_column(&self.w, (cx, cz));
             if data.is_empty() {
                 self.persisted.fluid_columns.remove(&(cx, cz));
@@ -247,6 +252,11 @@ impl Run {
             self.persisted
                 .columns
                 .insert("belts".into(), codec::belts_to_nbt(&belts));
+        }
+        if !brass.is_empty() {
+            self.persisted
+                .columns
+                .insert("brass".into(), codec::brass_to_nbt(&brass));
         }
     }
     pub(super) fn reload(&mut self) {
@@ -402,6 +412,8 @@ impl Run {
         self.w.load_settings(0, motors.into_iter());
         self.w
             .load_belt_items(0, codec::belts_from_nbt(&data).into_iter());
+        self.w
+            .load_brass(0, codec::brass_from_nbt(&data).into_iter());
         // ensure_column runs every subsystem's chunk_load before the first entity callback.
         for (_, data) in &fluids.columns {
             crate::persistence::fluids::load_column(&mut self.w, data);

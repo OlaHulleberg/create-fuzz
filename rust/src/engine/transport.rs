@@ -57,6 +57,13 @@ impl Run {
                     if self.put_on_from_above(p, stack) == Some(0) {
                         remainder = None;
                     }
+                } else if self.is_ejector(p) {
+                    // `item_landed`: an ejector merges it onto what it holds.
+                    let left = self.ejector_insert(p, stack, false);
+                    remainder = (left > 0).then(|| Stack {
+                        item: stack.item.clone(),
+                        count: left,
+                    });
                 } else if self.w.dims[0].depots.contains_key(&p)
                     && !self.depot_stacks.contains_key(&p)
                 {
@@ -231,10 +238,16 @@ impl Run {
         };
         let block = self.w.table.get(self.at(p)).map(|(b, _)| b);
         match block {
-            Some(Block::Depot) => {
+            Some(Block::Depot | Block::WeightedEjector) => {
                 outcome.handler = Some(true);
                 if let Some(s) = insert {
-                    if slot == 0 {
+                    if slot == 0 && self.is_ejector(p) {
+                        let left = self.ejector_handler_insert(p, s, simulate);
+                        outcome.remainder = (left > 0).then(|| Stack {
+                            item: s.item.clone(),
+                            count: left,
+                        });
+                    } else if slot == 0 {
                         outcome.remainder = self.depot_insert(p, s, simulate);
                     }
                 } else if let Some(n) = extract {
@@ -261,6 +274,9 @@ impl Run {
                     }
                 }
             }
+            Some(Block::BrassTunnel) => {
+                self.brass_capability(p, slot, insert, simulate, &mut outcome)
+            }
             Some(Block::Belt | Block::AndesiteTunnel) | None => {}
             Some(b) => self.notes.push(format!(
                 "adapter gap: item handler of create:{} at {p:?}",
@@ -274,10 +290,19 @@ impl Run {
         self.tick_chutes();
         self.note_funnel_modes();
         self.tick_tunnels();
+        self.tick_brass();
         for p in std::mem::take(&mut self.cover_checks) {
             self.update_cover(p);
         }
         let changed = self.w.take_depot_changes(0);
+        // `send_changed_depots`/`contents_changed`: ejectors holding a new stack look again
+        // (`wake_ejectors`).
+        for p in &changed {
+            let d = &mut self.w.dims[0];
+            if d.ejectors.contains_key(p) && !d.ejecting.contains(p) {
+                d.ejecting.push(*p);
+            }
+        }
         for p in changed {
             if self.w.dims[0].depots.get(&p) == Some(&None) && self.depot_stacks.contains_key(&p) {
                 if let Some(h) = self.w.dims[0].depots.get_mut(&p) {
@@ -443,18 +468,29 @@ impl Run {
         true
     }
     pub(super) fn insert_transport(&mut self, p: Pos, side: Dir, item: &belt::Item) -> Option<u8> {
-        self.handle_insertion(p, side, item, true)
+        self.handle_insertion(p, side, item, true, false)
     }
     /// `handle_insertion`: what is left of `item` (moving toward `side`) after what takes items
-    /// at `p` takes it; None when nothing there takes items. `from_belt`: the smoother hand-over
-    /// from a belt behind (`insert_into_from`).
+    /// at `p` takes it (or would, `simulate`); None when nothing there takes items. `from_belt`:
+    /// the smoother hand-over from a belt behind (`insert_into_from`).
     pub(super) fn handle_insertion(
         &mut self,
         p: Pos,
         side: Dir,
         item: &belt::Item,
         from_belt: bool,
+        simulate: bool,
     ) -> Option<u8> {
+        if simulate
+            && (self.w.dims[0].drains.contains_key(&p)
+                || self.funnel_at(p).is_some()
+                || self.chute_at(p).is_some())
+        {
+            self.notes.push(format!(
+                "adapter gap: simulated belt input into the block at {p:?}"
+            ));
+            return Some(item.count);
+        }
         if let Some(d) = self.w.dims[0].drains.get_mut(&p) {
             let got = create_engine::drain::insert(
                 d,
@@ -475,8 +511,35 @@ impl Run {
             return Some(self.chute_direct_input(p, item));
         }
         if self.w.dims[0].depots.contains_key(&p) {
-            if self.depot_stacks.contains_key(&p) {
+            // An ejector merges onto what it holds, up to its stack size (`enableMerging`).
+            let mut item = item.clone();
+            let mut rest = 0;
+            if self.is_ejector(p) {
+                let s = Stack {
+                    item: item.item.clone(),
+                    count: item.count,
+                };
+                let left = self.ejector_insert(p, &s, true);
+                if left == item.count || simulate {
+                    return Some(left);
+                }
+                if self.depot_stacks.contains_key(&p) {
+                    return Some(self.ejector_insert(p, &s, false));
+                }
+                item.count -= left;
+                rest = left;
+            }
+            // `DepotBehaviour.tryInsertingFromSide`: only into an empty depot (an ejector's
+            // only while charged).
+            let charged = self.w.dims[0]
+                .ejectors
+                .get(&p)
+                .is_none_or(|e| e.state == create_engine::ejector::State::Charged);
+            if self.depot_stacks.contains_key(&p) || !charged {
                 return Some(item.count);
+            }
+            if simulate {
+                return Some(0);
             }
             self.depot_stacks.insert(
                 p,
@@ -497,11 +560,24 @@ impl Run {
                     fan: item.fan,
                 }),
             );
-            return Some(0);
+            return Some(rest);
         }
         let (c, index, seg) = self.belt_location(p)?;
         if !seg.transports() {
             return Some(item.count);
+        }
+        // A brass tunnel over it that distributes takes the whole stack while it holds none and
+        // its flap filter on that side passes it.
+        let above = [p[0], p[1] + 1, p[2]];
+        if self.has_distribution(above) {
+            let from = side.opposite();
+            if !self.brass_can_take(above) || !self.brass_filter_passes(above, from, &item.item) {
+                return Some(item.count);
+            }
+            if !simulate {
+                self.brass_set_stack(above, item, Some(from));
+            }
+            return Some(0);
         }
         let rpm = self.w.speed(0, c).unwrap_or(0.);
         let speed = belt::direction_aware_speed(rpm, seg.facing);
@@ -512,6 +588,9 @@ impl Run {
             || !b.items.can_insert_at_from_side(index, side, movement)
         {
             return Some(item.count);
+        }
+        if simulate {
+            return Some(0);
         }
         let mut moved = item.clone();
         moved.locked = false;
@@ -538,7 +617,10 @@ impl Run {
         Some(0)
     }
     pub(super) fn transport_observation(&self, p: Pos) -> Option<Contents> {
-        if self.w.block_at(0, p) == Some(Block::Depot) {
+        if matches!(
+            self.w.block_at(0, p),
+            Some(Block::Depot | Block::WeightedEjector)
+        ) {
             let items = self
                 .depot_stacks
                 .get(&p)
@@ -578,8 +660,13 @@ impl Run {
                 true
             };
             items.push(ObservedItem {
+                // An emptied stack is `ItemStack.EMPTY`, air.
                 stack: Stack {
-                    item: i.item,
+                    item: if i.count == 0 {
+                        "minecraft:air".into()
+                    } else {
+                        i.item
+                    },
                     count: i.count,
                 },
                 position: i.position,

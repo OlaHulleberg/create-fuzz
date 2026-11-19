@@ -25,6 +25,18 @@ impl Run {
                 );
                 self.publish_interaction();
             }
+            Action::ScrollSetting { row, value } => {
+                let pick = create_engine::board::Settings {
+                    row: *row,
+                    value: *value,
+                };
+                match self.w.block_at(0, p) {
+                    Some(create_engine::Block::BrassTunnel) => self.brass_option(p, pick),
+                    Some(create_engine::Block::WeightedEjector) => self.ejector_stack_size(p, pick),
+                    _ => {}
+                }
+                self.publish_interaction();
+            }
             Action::ValveSetting { row, value } => {
                 if let Some(h) = self.handles.get_mut(&p) {
                     h.selected = create_engine::board::kinetic_value(
@@ -98,7 +110,7 @@ impl Run {
         if self.belt_use(p, item, face, hit, sneaking) {
             return;
         }
-        if self.tunnel_use(p, item, face, sneaking) {
+        if self.tunnel_use(p, item, face, hit, sneaking) {
             return;
         }
         if self.fluid_use(p, item, face, hit, sneaking) {

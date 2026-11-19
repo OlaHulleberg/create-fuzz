@@ -88,6 +88,7 @@ final class Observations {
                         var tunnel=TransportObservations.tunnel(be);if(tunnel!=null) snap.add("tunnel",tunnel);
                         var funnel=TransportObservations.funnel(be);if(funnel!=null) snap.add("funnel",funnel);
                         var chute=TransportObservations.chute(be);if(chute!=null) snap.add("chute",chute);
+                        var ejector=TransportObservations.ejector(be);if(ejector!=null) snap.add("ejector",ejector);
                     }
                     if (be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity belt) {
                         JsonObject b = new JsonObject();

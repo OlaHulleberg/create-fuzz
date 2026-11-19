@@ -61,6 +61,8 @@ impl Run {
         self.tick_boilers();
         self.tick_burners();
         self.tick_transport();
+        // The arms subsystem after logistics: weighted ejectors.
+        self.tick_ejectors();
         self.save_fluid_entities();
         self.w.settle_belts(0);
         // CreateWorld::tick: the solve, then sequencer instructions (committed after it).

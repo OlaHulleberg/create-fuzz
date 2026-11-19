@@ -17,7 +17,36 @@ final class TransportObservations {
     /** BeltTunnelBlockEntity.flaps keys and sides, as updateTunnelConnections left them. */
     static JsonObject tunnel(BlockEntity be) {
         if(!(be instanceof com.simibubi.create.content.logistics.tunnel.BeltTunnelBlockEntity t)) return null;
-        JsonObject o=new JsonObject();o.add("flaps",directions(t.flaps.keySet()));o.add("sides",directions(t.sides));return o;
+        JsonObject o=new JsonObject();o.add("flaps",directions(t.flaps.keySet()));o.add("sides",directions(t.sides));
+        if(t instanceof com.simibubi.create.content.logistics.tunnel.BrassTunnelBlockEntity b) o.add("brass",brass(b));
+        return o;
+    }
+    /** BrassTunnelBlockEntity's distribution state: the stack it holds and the side it came in by,
+     * distributionProgress, previousOutputIndex, syncedOutputActive, connectedLeft/Right, the
+     * selection mode and the sided filters. */
+    static JsonObject brass(com.simibubi.create.content.logistics.tunnel.BrassTunnelBlockEntity b) {
+        var owner=com.simibubi.create.content.logistics.tunnel.BrassTunnelBlockEntity.class;
+        JsonObject o=new JsonObject();
+        o.add("stack",ItemInputs.stack(b.getStackToDistribute()));
+        net.minecraft.core.Direction from=field(b,owner,"stackEnteredFrom");
+        o.add("entered_from",from==null?JsonNull.INSTANCE:new JsonPrimitive(from.getSerializedName()));
+        // tick reads distributionProgress only while it holds a stack or hands out with its
+        // group (a tunnel that never held one starts at 0, a later empty one at -1).
+        boolean synced=field(b,owner,"syncedOutputActive");
+        if(b.getStackToDistribute().isEmpty() && !synced) o.add("progress",JsonNull.INSTANCE);
+        else o.addProperty("progress",(float)field(b,owner,"distributionProgress"));
+        o.addProperty("previous",(int)field(b,owner,"previousOutputIndex"));
+        o.addProperty("synced",(boolean)field(b,owner,"syncedOutputActive"));
+        o.addProperty("connected_left",b.isConnected(true));o.addProperty("connected_right",b.isConnected(false));
+        com.simibubi.create.foundation.blockEntity.behaviour.scrollValue.ScrollOptionBehaviour<?> mode=field(b,owner,"selectionMode");
+        o.addProperty("mode",mode.get().name().toLowerCase(java.util.Locale.ROOT));
+        com.simibubi.create.foundation.blockEntity.behaviour.filtering.SidedFilteringBehaviour filtering=field(b,owner,"filtering");
+        JsonObject filters=new JsonObject();
+        if(filtering!=null) for(var d:net.minecraft.core.Direction.values()) {
+            var f=filtering.get(d);if(f==null||f.getFilter().isEmpty()) continue;
+            filters.addProperty(d.getSerializedName(),net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(f.getFilter().getItem()).toString());
+        }
+        o.add("filters",filters);return o;
     }
     /** FunnelBlockEntity.extractionCooldown, read without write()'s side effects. */
     static JsonObject funnel(BlockEntity be) {
@@ -31,6 +60,27 @@ final class TransportObservations {
         net.createmod.catnip.animation.LerpedFloat position=field(c,com.simibubi.create.content.logistics.chute.ChuteBlockEntity.class,"itemPosition");
         // The position is only meaningful while it holds a stack.
         o.addProperty("position",c.getItem().isEmpty()?0f:position.getValue());return o;
+    }
+    /** EjectorBlockEntity: its state, power, plate (lidProgress), launcher distances, stack size,
+     * the stacks in flight (ticks flown, stack) and where an obstacle stops them. */
+    static JsonObject ejector(BlockEntity be) {
+        if(!(be instanceof com.simibubi.create.content.logistics.depot.EjectorBlockEntity e)) return null;
+        var owner=com.simibubi.create.content.logistics.depot.EjectorBlockEntity.class;
+        JsonObject o=new JsonObject();
+        Enum<?> state=field(e,owner,"state");o.addProperty("state",state.name().toLowerCase(java.util.Locale.ROOT));
+        o.addProperty("powered",(boolean)field(e,owner,"powered"));
+        net.createmod.catnip.animation.LerpedFloat lid=field(e,owner,"lidProgress");o.addProperty("lid",lid.getValue());
+        com.simibubi.create.content.logistics.depot.EntityLauncher launcher=field(e,owner,"launcher");
+        o.addProperty("h",launcher.getHorizontalDistance());o.addProperty("v",launcher.getVerticalDistance());
+        com.simibubi.create.foundation.blockEntity.behaviour.scrollValue.ScrollValueBehaviour max=field(e,owner,"maxStackSize");
+        o.addProperty("max_stack",max.getValue());
+        JsonArray flying=new JsonArray();
+        java.util.List<net.createmod.catnip.data.IntAttached<net.minecraft.world.item.ItemStack>> launched=field(e,owner,"launchedItems");
+        for(var f:launched) {JsonObject i=new JsonObject();i.addProperty("time",f.getFirst());i.add("stack",ItemInputs.stack(f.getSecond()));flying.add(i);}
+        o.add("flying",flying);
+        Object early=field(e,owner,"earlyTarget");
+        o.add("early_time",early==null?JsonNull.INSTANCE:new JsonPrimitive((float)field(e,owner,"earlyTargetTime")));
+        return o;
     }
     @SuppressWarnings("unchecked")
     static <T> T field(Object o,Class<?> owner,String name) {
@@ -56,12 +106,16 @@ final class TransportObservations {
             List<TransportedItemStack> pending=field(inv,BeltInventory.class,"toInsert");
             for(var s:pending) items.add(item(s,true,null));
         } else {
-            if(!(be instanceof com.simibubi.create.content.logistics.depot.DepotBlockEntity)) return null;
+            if(!(be instanceof com.simibubi.create.content.logistics.depot.DepotBlockEntity)
+                && !(be instanceof com.simibubi.create.content.logistics.depot.EjectorBlockEntity)) return null;
             var depot=BlockEntityBehaviour.get(be,DepotBehaviour.TYPE);
             if(depot==null) return null;
             out.addProperty("kind","depot");
             TransportedItemStack held=field(depot,DepotBehaviour.class,"heldItem");
             if(held!=null) items.add(item(held,false,null));
+            // An ejector's merging stacks slide in (`incoming`) before they join the held one.
+            List<TransportedItemStack> incoming=field(depot,DepotBehaviour.class,"incoming");
+            for(var s:incoming) items.add(item(s,true,null));
             net.neoforged.neoforge.items.IItemHandler buffer=field(depot,DepotBehaviour.class,"processingOutputBuffer");
             for(int i=0;i<buffer.getSlots();i++)if(!buffer.getStackInSlot(i).isEmpty())outputs.add(ItemInputs.stack(buffer.getStackInSlot(i)).getAsJsonObject());
         }

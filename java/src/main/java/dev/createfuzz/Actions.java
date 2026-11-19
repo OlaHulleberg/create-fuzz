@@ -79,6 +79,17 @@ final class Actions {
                     player.gameMode.useItem(player,level,stack,InteractionHand.MAIN_HAND);
                 }
             }
+            case "scroll_setting" -> {
+                // ValueSettingsPacket.applySettings on the block's ScrollValueBehaviour (a brass
+                // tunnel's selection mode, an ejector's stack size): setValueSettings.
+                int row=action.get("row").getAsInt(), value=action.get("value").getAsInt();
+                if (row<0 || row>1 || value<0 || value>64) throw new IllegalArgumentException("scroll board coordinates");
+                var be=level.getBlockEntity(pos);
+                var scroll=be==null?null:com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour.get(be,
+                        com.simibubi.create.foundation.blockEntity.behaviour.scrollValue.ScrollValueBehaviour.TYPE);
+                if (scroll!=null)
+                    scroll.setValueSettings(player,new com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBehaviour.ValueSettings(row,value),false);
+            }
             case "valve_setting" -> {
                 int row=action.get("row").getAsInt(), value=action.get("value").getAsInt();
                 if (row<0 || row>1 || value<0 || value>180) throw new IllegalArgumentException("valve board coordinates");

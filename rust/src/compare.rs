@@ -129,6 +129,12 @@ pub fn diff(java: &Snapshot, rust: &Snapshot) -> Vec<String> {
                 if !crate::logistics::chute_equal(j.chute.as_ref(), r.chute.as_ref()) {
                     out.push(format!("{k}: chute: java {:?} rust {:?}", j.chute, r.chute));
                 }
+                if !crate::logistics::ejector_equal(j.ejector.as_ref(), r.ejector.as_ref()) {
+                    out.push(format!(
+                        "{k}: ejector: java {:?} rust {:?}",
+                        j.ejector, r.ejector
+                    ));
+                }
                 if j.bracket != r.bracket {
                     out.push(format!(
                         "{k}: bracket: java {:?} rust {:?}",

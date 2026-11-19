@@ -45,6 +45,7 @@ impl Run {
         Some(crate::logistics::Tunnel {
             flaps: crate::logistics::names(self.tunnel_flaps(p, axis, shape)),
             sides: crate::logistics::names(tunnel::sides(axis, shape)),
+            brass: self.brass_observation(p),
         })
     }
     fn belt_below(&self, p: Pos) -> Option<belt::Segment> {
@@ -144,7 +145,29 @@ impl Run {
     }
     /// A tunnel item or a wrench on a tunnel (`BeltTunnelBlock.onWrenched`, the wrench's
     /// `onSneakWrenched`); true when the use was the tunnel's.
-    pub(super) fn tunnel_use(&mut self, p: Pos, item: &str, face: Dir, sneaking: bool) -> bool {
+    pub(super) fn tunnel_use(
+        &mut self,
+        p: Pos,
+        item: &str,
+        face: Dir,
+        hit: [f64; 3],
+        sneaking: bool,
+    ) -> bool {
+        // interaction/values.rs before the block: a brass tunnel's filter slots, and its mode
+        // slot on top while it distributes (the board opens on the client only).
+        if self.brass_filter_use(p, item, face, hit, sneaking) {
+            return true;
+        }
+        if !sneaking
+            && self.has_distribution(p)
+            && let Some(slot) = create_engine::board::tunnel_mode_slot(face)
+            && create_engine::board::hits_box(slot, hit)
+        {
+            return true;
+        }
+        if item == "minecraft:air" && !sneaking && self.brass_grab(p) {
+            return true;
+        }
         if item == "create:wrench"
             && let Some((_, shape)) = self.tunnel_state(p)
         {
@@ -204,14 +227,21 @@ impl Run {
             .get(self.at(t))
             .is_some_and(|(b, _)| b == Block::BrassTunnel)
         {
-            // Brass distribution needs its group, filters and modes: a brass tunnel without
-            // `hasDistributionBehaviour` lets items through.
-            if self.brass_distributes(t, axis, shape) {
-                self.notes.push(format!(
-                    "adapter gap: brass tunnel distribution at {t:?} is outside the supported subset"
-                ));
+            // `stuckAtTunnel` (`canInsert`): its own filter on the side the item comes in by
+            // must pass it; a distributing tunnel takes the whole stack while it holds none.
+            let from = movement.opposite();
+            if !self.brass_filter_passes(t, from, &item.item) {
+                return true;
             }
-            return false;
+            if !self.has_distribution(t) {
+                return false;
+            }
+            if !self.brass_can_take(t) {
+                return true;
+            }
+            self.brass_set_stack(t, item, Some(from));
+            item.count = 0;
+            return true;
         }
         if !tunnel::splits(axis, shape, movement, item.count) {
             return false;
@@ -231,7 +261,7 @@ impl Run {
                 count: 1,
                 ..item.clone()
             };
-            match self.handle_insertion(out, d, &one, true) {
+            match self.handle_insertion(out, d, &one, true, false) {
                 None => continue,
                 Some(0) => {}
                 Some(_) => return true,
@@ -242,35 +272,6 @@ impl Run {
             }
         }
         false
-    }
-    /// `has_distribution`: flaps, and connected with a brass tunnel beside it
-    /// (`brass_connected`) or a flap across its axis.
-    pub(super) fn brass_distributes(&self, p: Pos, axis: Axis, shape: tunnel::Shape) -> bool {
-        let f = self.tunnel_flaps(p, axis, shape);
-        !f.is_empty() && (self.brass_connected(p, axis) || f.iter().any(|d| d.axis() != axis))
-    }
-    /// `brass_connected`: it has flaps and so does a brass tunnel of its axis beside it.
-    fn brass_connected(&self, p: Pos, axis: Axis) -> bool {
-        let has_flaps = |q: Pos| {
-            self.tunnel_state(q)
-                .is_some_and(|(a, s)| !self.tunnel_flaps(q, a, s).is_empty())
-        };
-        let brass = |q: Pos| {
-            self.w
-                .table
-                .get(self.at(q))
-                .is_some_and(|(b, i)| b == Block::BrassTunnel && i.axis == Some(axis))
-        };
-        let sides = if axis == Axis::X {
-            [Dir::North, Dir::South]
-        } else {
-            [Dir::East, Dir::West]
-        };
-        has_flaps(p)
-            && sides.into_iter().any(|d| {
-                let q = add(p, d.offset());
-                brass(q) && has_flaps(q)
-            })
     }
 }
 

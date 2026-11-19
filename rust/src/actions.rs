@@ -39,6 +39,12 @@ pub enum Action {
         row: i32,
         value: i32,
     },
+    /// A value board pick on the block's `ScrollValueBehaviour` (`ValueSettingsPacket`): a
+    /// brass tunnel's selection mode (row 0, the option's ordinal), an ejector's stack size.
+    ScrollSetting {
+        row: i32,
+        value: i32,
+    },
     Program {
         instructions: Vec<crate::program::Instruction>,
     },
@@ -133,6 +139,10 @@ pub const ITEMS: &[&str] = &[
     "create:creative_blaze_cake",
     "create:andesite_tunnel",
     "create:brass_tunnel",
+    // Held on a filter slot.
+    "minecraft:iron_ingot",
+    "minecraft:gold_ingot",
+    "minecraft:diamond",
 ];
 impl Action {
     pub fn validate(&self) {
@@ -155,6 +165,9 @@ impl Action {
             }
             Self::ValveSetting { row, value } => {
                 assert!((0..=1).contains(row) && (0..=180).contains(value));
+            }
+            Self::ScrollSetting { row, value } => {
+                assert!((0..=1).contains(row) && (0..=64).contains(value));
             }
             Self::SpeedSetting { row, value } => {
                 assert!((0..=1).contains(row) && (0..=256).contains(value));
