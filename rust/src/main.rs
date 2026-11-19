@@ -32,6 +32,7 @@ mod shrink;
 mod transmission;
 mod transport;
 mod trig;
+mod waterwheel;
 
 use scenario::{Scenario, Snapshot};
 use std::path::{Path, PathBuf};
