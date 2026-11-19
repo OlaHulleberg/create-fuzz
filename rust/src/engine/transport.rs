@@ -803,6 +803,10 @@ impl belt::Surroundings for Side<'_> {
         locked: bool,
     ) -> Option<belt::Process> {
         let p = belt::position_for_offset(self.controller, &self.segment, self.length, index);
+        // `belt_process` in subsystem order: processing (presses) before fluids (spouts).
+        if let Some(r) = self.run.press_on_belt(p, item, locked) {
+            return Some(r);
+        }
         self.run.spout_on_belt(p, item, locked)
     }
     /// The glue's `BeltSide::funnel`: the belt funnel over `segment`, with the belt's way.

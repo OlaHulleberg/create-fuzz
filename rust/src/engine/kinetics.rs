@@ -61,6 +61,8 @@ impl Run {
         self.tick_boilers();
         self.tick_burners();
         self.tick_transport();
+        // `processing::Tools`: presses on what the depots and belts did this tick.
+        self.tick_presses();
         // The arms subsystem after logistics: weighted ejectors.
         self.tick_ejectors();
         self.save_fluid_entities();

@@ -21,6 +21,7 @@ mod observation;
 mod outputs;
 mod persistence;
 mod pipes;
+mod presses;
 mod pumps;
 mod sources;
 mod transport;

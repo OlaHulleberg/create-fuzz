@@ -207,6 +207,14 @@
     {
       "id": "create:chocolate_glazed_berries",
       "max_stack": 64
+    },
+    {
+      "id": "create:iron_sheet",
+      "max_stack": 64
+    },
+    {
+      "id": "create:golden_sheet",
+      "max_stack": 64
     }
   ]
 }

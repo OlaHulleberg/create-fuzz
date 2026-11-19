@@ -427,7 +427,9 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                 "create:chute",
                 "create:smart_chute",
                 // Only blowing into chutes: its current meets no item outside them.
-                "create:encased_fan"
+                "create:encased_fan",
+                // Pressing the contract's ingots (`press_processing`).
+                "create:mechanical_press"
             ]
             .contains(&id.as_str())
                 || crate::fluids::contract()
