@@ -111,87 +111,19 @@ impl Run {
         }
     }
 
-    /// `WaterWheelStructuralBlock.updateShape`: a cell whose neighbour changed has the wheel
-    /// look at its frame again, or goes itself (`tick`) when the frame no longer holds it.
+    /// `WaterWheelStructuralBlock.tick`: a cell whose scheduled tick came and whose frame no
+    /// longer holds it goes. The shape update decided that a tick earlier (`updateShape`; the
+    /// engine keeps the cells a frame holds again).
     pub(super) fn tick_structures(&mut self) {
-        let checks = std::mem::take(&mut self.structure_checks);
-        for p in checks {
-            let state = self.at(p);
-            if self.w.block_at(0, p) != Some(create_engine::Block::WaterWheelStructure) {
-                continue;
-            }
-            if self.structure_valid(p, state) {
-                if let Some(master) = self.structure_master(p, state) {
-                    self.apply_flow(master);
-                }
-            } else {
-                self.set(p, AIR);
-            }
+        for p in self.w.take_frame_ticks(0) {
+            self.set(p, AIR);
         }
-    }
-
-    /// `WaterWheelStructuralBlock.stillValid(level, pos, state, false)`.
-    pub(super) fn structure_valid(&self, p: Pos, state: u32) -> bool {
-        let Some((create_engine::Block::WaterWheelStructure, info)) = self.w.table.get(state)
-        else {
-            return false;
-        };
-        let Some(facing) = info.facing else {
-            return false;
-        };
-        let target = add(p, facing.offset());
-        let target_state = self.at(target);
-        // A corner points at a side cell; that cell must reach the wheel directly.
-        if let Some((create_engine::Block::WaterWheelStructure, inner)) =
-            self.w.table.get(target_state)
-            && let Some(inner_facing) = inner.facing
-        {
-            let wheel = add(target, inner_facing.offset());
-            if let Some((create_engine::Block::LargeWaterWheel, wheel_info)) =
-                self.w.table.get(self.at(wheel))
-                && wheel_info
-                    .axis
-                    .is_some_and(|axis| axis != inner_facing.axis())
-            {
-                return true;
-            }
-        }
-        if let Some((create_engine::Block::LargeWaterWheel, wheel)) = self.w.table.get(target_state)
-        {
-            return wheel.axis.is_some_and(|axis| axis != facing.axis());
-        }
-        false
-    }
-
-    /// `WaterWheelStructuralBlock.getMaster`: follow the cells' facings to the wheel.
-    pub(super) fn structure_master(&self, p: Pos, state: u32) -> Option<Pos> {
-        let (mut at, mut state) = (p, state);
-        for _ in 0..2 {
-            let (block, info) = self.w.table.get(state)?;
-            if block != create_engine::Block::WaterWheelStructure {
-                return None;
-            }
-            let o = info.facing?.offset();
-            at = [at[0] + o[0], at[1] + o[1], at[2] + o[2]];
-            state = self.at(at);
-            if self.w.block_at(0, at) == Some(create_engine::Block::LargeWaterWheel) {
-                return Some(at);
-            }
-        }
-        None
     }
 
     /// `WaterWheelStructuralBlock.onRemove`: a cell removed while its frame holds removes the
-    /// wheel too (`destroyBlock(master, true)`).
-    pub(super) fn structure_removed(&mut self, p: Pos, old: u32) {
-        if self.w.table.get(old).map(|(b, _)| b) != Some(create_engine::Block::WaterWheelStructure)
-        {
-            return;
-        }
-        if !self.structure_valid(p, old) {
-            return;
-        }
-        if let Some(master) = self.structure_master(p, old) {
+    /// wheel too (`destroyBlock(master, true)`); the engine recorded the wheels it broke.
+    pub(super) fn break_wheels(&mut self) {
+        for master in self.w.take_broken_wheels(0) {
             self.set(master, AIR);
         }
     }

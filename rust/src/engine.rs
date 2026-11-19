@@ -163,9 +163,6 @@ pub struct Run {
     wheel_fluid_flow: HashMap<Pos, [f64; 3]>,
     /// Each wheel's flow score (`WaterWheelBlockEntity.flowScore`), for observations.
     wheel_scores: HashMap<Pos, i8>,
-    /// Frame cells whose neighbour changed (`WaterWheelStructuralBlock.updateShape`), ticked
-    /// next level tick.
-    structure_checks: Vec<Pos>,
     _guard: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -222,7 +219,6 @@ impl Run {
             fluid_domain: sc.region().into_iter().collect(),
             wheel_fluid_flow: HashMap::new(),
             wheel_scores: HashMap::new(),
-            structure_checks: Vec::new(),
             _guard: guard,
         }
     }
@@ -369,7 +365,7 @@ impl Run {
             self.belt_casing.remove(&p);
         }
         self.w.block_changed(0, p, old, new);
-        self.structure_removed(p, old);
+        self.break_wheels();
         if self.w.table.get(new).map(|(b, _)| b)
             == Some(create_engine::Block::AdjustableChainGearshift)
             && self.w.table.get(old).map(|(b, _)| b)
@@ -389,12 +385,9 @@ impl Run {
             let q = add(p, d);
             let s = self.at(q);
             if s != AIR {
+                // `updateShape` of each neighbour; a frame cell's is the engine's
+                // (`WaterWheelStructuralBlock.updateShape`), which schedules its tick.
                 self.w.neighbor_changed(0, q, s);
-                if self.w.block_at(0, q) == Some(create_engine::Block::WaterWheelStructure)
-                    && !self.structure_checks.contains(&q)
-                {
-                    self.structure_checks.push(q);
-                }
                 if new == AIR && self.hangs_on(q, s, p) {
                     fallen.push(q);
                 }

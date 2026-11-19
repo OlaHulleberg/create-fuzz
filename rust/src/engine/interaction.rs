@@ -291,7 +291,7 @@ impl Run {
             if name == "create:water_wheel_structure" {
                 if sneaking {
                     // `onSneakWrenched` redirects the click at the wheel itself.
-                    if let Some(master) = self.structure_master(p, state) {
+                    if let Some(master) = self.w.wheel_master(0, p, state) {
                         self.set(master, AIR);
                     }
                 }
