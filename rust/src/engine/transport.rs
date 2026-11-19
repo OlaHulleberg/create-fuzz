@@ -53,24 +53,9 @@ impl Run {
         let mut remainder = offered.clone();
         match input {
             Input::DropOn { stack } => {
-                if let Some((c, index, seg)) = self.belt_location(p) {
-                    if seg.transports() {
-                        let rpm = self.w.speed(0, c).unwrap_or(0.);
-                        let b = self.w.dims[0].belts.get_mut(&c).unwrap();
-                        if b.items.can_insert_at_from_side(
-                            index,
-                            Dir::Up,
-                            belt::movement_facing(rpm, b.segment.facing),
-                        ) {
-                            let mut i = belt::Item::new(&stack.item, stack.count, 180, false);
-                            i.inserted_at = index;
-                            i.inserted_from = Some(Dir::Up);
-                            i.position =
-                                index as f32 + 0.5 + if b.items.positive { -1. } else { 1. } / 16.;
-                            b.items.add(i);
-                            self.w.belt_inventory_changed(0, c);
-                            remainder = None;
-                        }
+                if self.belt_location(p).is_some() {
+                    if self.put_on_from_above(p, stack) == Some(0) {
+                        remainder = None;
                     }
                 } else if self.w.dims[0].depots.contains_key(&p)
                     && !self.depot_stacks.contains_key(&p)
@@ -152,6 +137,47 @@ impl Run {
                 .collect(),
             handler: None,
         });
+    }
+    /// `funnel_direct_input`: only an inserting, unpowered funnel facing up takes the stack, into
+    /// the inventory under it (`handleDirectBeltInput`); the count left.
+    fn funnel_direct_input(
+        &mut self,
+        p: Pos,
+        block: Block,
+        info: create_engine::parts::StateInfo,
+        item: &belt::Item,
+    ) -> u8 {
+        if !matches!(block, Block::AndesiteFunnel | Block::BrassFunnel)
+            || info.extracting
+            || info.facing != Some(Dir::Up)
+            || info.powered
+        {
+            return item.count;
+        }
+        if block == Block::BrassFunnel {
+            self.notes
+                .push(format!("adapter gap: brass funnel filter at {p:?}"));
+            return item.count;
+        }
+        let behind = create_engine::funnel::behind(p, Dir::Up);
+        let stack = Stack {
+            item: item.item.clone(),
+            count: item.count,
+        };
+        match self.w.table.get(self.at(behind)).map(|(b, _)| b) {
+            Some(Block::Depot) => self
+                .depot_insert(behind, &stack, false)
+                .map_or(0, |s| s.count),
+            Some(b) => {
+                self.notes.push(format!(
+                    "adapter gap: funnel insertion into create:{} at {behind:?}",
+                    b.name()
+                ));
+                item.count
+            }
+            // `InvManipulationBehaviour` without a target inserts nothing.
+            None => item.count,
+        }
     }
     /// `DepotItems.insert` into the held slot of the depot at `p`: only while every slot is
     /// empty, up to the stack limit; the held stack arrives at the edge
@@ -244,7 +270,8 @@ impl Run {
         self.item_outcomes.push(outcome);
     }
     pub(super) fn tick_transport(&mut self) {
-        // The glue's logistics phase: funnels, tunnels, then covers, then transport.
+        // The glue's logistics phase: chutes, funnels, tunnels, then covers, then transport.
+        self.tick_chutes();
         self.note_funnel_modes();
         self.tick_tunnels();
         for p in std::mem::take(&mut self.cover_checks) {
@@ -348,15 +375,65 @@ impl Run {
             self.w.mark_unsaved(0, p);
         }
     }
+    /// `put_on_from_above`: the whole stack onto the belt segment at `p` from above, at the
+    /// segment's middle, when the segment has room; the count left, None without a belt that
+    /// carries items there.
+    pub(super) fn put_on_from_above(&mut self, p: Pos, stack: &Stack) -> Option<u8> {
+        let (c, index, seg) = self.belt_location(p)?;
+        if !seg.transports() {
+            return None;
+        }
+        let rpm = self.w.speed(0, c).unwrap_or(0.);
+        let b = self.w.dims[0].belts.get_mut(&c).unwrap();
+        if !b.items.can_insert_at_from_side(
+            index,
+            Dir::Up,
+            belt::movement_facing(rpm, b.segment.facing),
+        ) {
+            return Some(stack.count);
+        }
+        let mut i = belt::Item::new(&stack.item, stack.count, 180, false);
+        i.inserted_at = index;
+        i.inserted_from = Some(Dir::Up);
+        i.position = index as f32 + 0.5 + if b.items.positive { -1. } else { 1. } / 16.;
+        b.items.add(i);
+        self.w.dims[0].belt_changes.push(c);
+        self.w.belt_inventory_changed(0, c);
+        Some(0)
+    }
     /// `direct_input_at`: something at `p` takes items straight from a belt's end
     /// (`DirectBeltInputBehaviour`): a depot, a belt or an item drain.
     pub(super) fn direct_input_at(&self, p: Pos) -> bool {
         let d = &self.w.dims[0];
-        d.depots.contains_key(&p) || d.belt_of.contains_key(&p) || d.drains.contains_key(&p)
+        d.depots.contains_key(&p)
+            || d.belt_of.contains_key(&p)
+            || d.drains.contains_key(&p)
+            || self.funnel_at(p).is_some()
+            || self.chute_at(p).is_some()
+    }
+    /// `funnel_at`: a funnel (belt funnel or not) at `p`: its block, facing and state facts.
+    pub(super) fn funnel_at(&self, p: Pos) -> Option<(Block, create_engine::parts::StateInfo)> {
+        let (block, info) = self.w.table.get(self.at(p))?;
+        matches!(
+            block,
+            Block::AndesiteFunnel
+                | Block::BrassFunnel
+                | Block::AndesiteBeltFunnel
+                | Block::BrassBeltFunnel
+        )
+        .then_some((block, *info))
     }
     /// `direct_input_accepts` (`canInsertFromSide`) for an item moving toward `side`: a running
     /// belt that is not sideways or vertical and does not run toward the side; the others always.
     pub(super) fn direct_input_accepts(&self, p: Pos, side: Dir) -> bool {
+        if let Some((block, info)) = self.funnel_at(p) {
+            return matches!(block, Block::AndesiteFunnel | Block::BrassFunnel)
+                && !info.extracting
+                && info.facing == Some(Dir::Up);
+        }
+        if self.chute_at(p).is_some() {
+            return self.chute_takes_from_side(p);
+        }
         if let Some((c, _, seg)) = self.belt_location(p) {
             let rpm = self.w.speed(0, c).unwrap_or(0.);
             return rpm != 0.
@@ -390,6 +467,12 @@ impl Run {
                 self.mark_column(p);
             }
             return Some(item.count - got);
+        }
+        if let Some((block, info)) = self.funnel_at(p) {
+            return Some(self.funnel_direct_input(p, block, info, item));
+        }
+        if self.chute_at(p).is_some() {
+            return Some(self.chute_direct_input(p, item));
         }
         if self.w.dims[0].depots.contains_key(&p) {
             if self.depot_stacks.contains_key(&p) {
@@ -593,10 +676,7 @@ struct Side<'a> {
 }
 impl belt::Surroundings for Side<'_> {
     fn ending(&mut self) -> belt::Ending {
-        if self.run.w.dims[0].depots.contains_key(&self.past)
-            || self.run.belt_location(self.past).is_some()
-            || self.run.w.dims[0].drains.contains_key(&self.past)
-        {
+        if self.run.direct_input_at(self.past) || self.run.belt_location(self.past).is_some() {
             belt::Ending::Insert
         } else if self.run.sturdy(self.past, self.movement.opposite()) {
             belt::Ending::Blocked

@@ -138,6 +138,33 @@ pub fn generate(seed: u64) -> Scenario {
         });
         depots.push(behind);
     }
+    // A funnel at the belt's end: facing up it takes what reaches it into the depot under it
+    // (`supportsDirectBeltInput`); facing elsewhere, or extracting, it holds the items there.
+    if r.chance(0.5) {
+        let end = if movement == Dir::South {
+            [0, 8, length]
+        } else {
+            [0, 8, -1]
+        };
+        let facing = *r.pick(&["up", "up", "up", "north", "south", "east"]);
+        // An extracting funnel would pull from the inventory behind it, the belt's end
+        // segment for one facing along the belt: outside this family.
+        let extracting = false;
+        sc.events.push(state(
+            36,
+            end,
+            &format!(
+                "create:andesite_funnel[extracting={extracting},facing={facing},powered=false,waterlogged=false]"
+            ),
+        ));
+        if facing == "up" {
+            sc.blocks.push(Placed {
+                pos: [end[0], end[1] - 1, end[2]],
+                state: "create:depot[waterlogged=false]".into(),
+                motor: None,
+            });
+        }
+    }
     sc.checkpoints.extend([31, 33, 35]);
     let behind = if speed > 0 { 0 } else { length - 1 };
     let items = [

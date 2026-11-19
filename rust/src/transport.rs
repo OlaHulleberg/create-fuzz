@@ -417,7 +417,10 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                 "create:belt",
                 "create:depot",
                 "create:andesite_belt_funnel",
-                "create:brass_belt_funnel"
+                "create:brass_belt_funnel",
+                "create:andesite_funnel",
+                "create:brass_funnel",
+                "create:chute"
             ]
             .contains(&id.as_str())
                 || crate::fluids::contract()

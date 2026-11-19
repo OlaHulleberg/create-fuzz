@@ -29,7 +29,8 @@ final class TransportObservations {
         if(!(be instanceof com.simibubi.create.content.logistics.chute.ChuteBlockEntity c)) return null;
         JsonObject o=new JsonObject();o.add("item",ItemInputs.stack(c.getItem()));
         net.createmod.catnip.animation.LerpedFloat position=field(c,com.simibubi.create.content.logistics.chute.ChuteBlockEntity.class,"itemPosition");
-        o.addProperty("position",position.getValue());return o;
+        // The position is only meaningful while it holds a stack.
+        o.addProperty("position",c.getItem().isEmpty()?0f:position.getValue());return o;
     }
     @SuppressWarnings("unchecked")
     static <T> T field(Object o,Class<?> owner,String name) {

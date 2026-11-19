@@ -3,6 +3,7 @@ mod allow;
 mod belt_surface;
 mod belts;
 mod catalogue;
+mod chutes;
 mod compare;
 mod corpus;
 mod coverage;

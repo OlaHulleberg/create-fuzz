@@ -6,6 +6,7 @@
 //! the scenarios use: adjacent redstone blocks or controlled 0..15 signal sources.
 
 mod belts;
+mod chutes;
 mod conveyors;
 mod fluid_machines;
 mod fluid_world;
@@ -84,6 +85,26 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     for axis in ["x", "y", "z"] {
         for water in ["true", "false"] {
             push(format!("create:shaft[axis={axis},waterlogged={water}]"));
+        }
+    }
+    // Vertical chutes beside belts.
+    for shape in ["normal", "window"] {
+        for water in ["false", "true"] {
+            push(format!(
+                "create:chute[facing=down,shape={shape},waterlogged={water}]"
+            ));
+        }
+    }
+    // Funnels at a belt's end.
+    for funnel in ["andesite_funnel", "brass_funnel"] {
+        for facing in ["up", "down", "north", "south", "west", "east"] {
+            for extracting in ["false", "true"] {
+                for powered in ["false", "true"] {
+                    push(format!(
+                        "create:{funnel}[extracting={extracting},facing={facing},powered={powered},waterlogged=false]"
+                    ));
+                }
+            }
         }
     }
     // Belt funnels, as a state event places them on a belt.
@@ -186,6 +207,8 @@ pub struct Run {
     cover_checks: Vec<Pos>,
     /// Per belt, the positions of items a funnel held in place over the last tick.
     funnel_held: HashMap<Pos, std::collections::HashSet<u32>>,
+    /// Each chute's stack (`ChuteBlockEntity.item`).
+    chute_stacks: HashMap<Pos, crate::transport::Stack>,
     handles: HashMap<Pos, crate::handles::Handle>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
@@ -250,6 +273,7 @@ impl Run {
             belt_color: HashMap::new(),
             cover_checks: Vec::new(),
             funnel_held: HashMap::new(),
+            chute_stacks: HashMap::new(),
             handles: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
@@ -413,6 +437,16 @@ impl Run {
             self.belt_casing.remove(&p);
             self.belt_covered.remove(&p);
             self.belt_color.remove(&p);
+        }
+        if !self
+            .w
+            .table
+            .get(new)
+            .is_some_and(|(b, _)| b == create_engine::Block::Chute)
+        {
+            // The chute's block entity, and its stack, go with it.
+            self.chute_stacks.remove(&p);
+            self.w.dims[0].chutes.remove(&p);
         }
         // `BeltBlock.updateShape` from above: the belt's cover is looked at after the tick.
         let below = [p[0], p[1] - 1, p[2]];

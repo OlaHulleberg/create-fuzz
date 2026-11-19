@@ -61,6 +61,75 @@
         ]
       },
       "source": "BeltFunnelBlock.createBlockStateDefinition/getStateForPlacement"
+    },
+    {
+      "id": "create:andesite_funnel",
+      "properties": {
+        "extracting": [
+          "false",
+          "true"
+        ],
+        "facing": [
+          "down",
+          "up",
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "powered": [
+          "false",
+          "true"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "FunnelBlock.createBlockStateDefinition/getStateForPlacement"
+    },
+    {
+      "id": "create:brass_funnel",
+      "properties": {
+        "extracting": [
+          "false",
+          "true"
+        ],
+        "facing": [
+          "down",
+          "up",
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "powered": [
+          "false",
+          "true"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "FunnelBlock.createBlockStateDefinition/getStateForPlacement"
+    },
+    {
+      "id": "create:chute",
+      "properties": {
+        "facing": [
+          "down"
+        ],
+        "shape": [
+          "normal",
+          "window"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "ChuteBlock.createBlockStateDefinition (vertical chutes only)"
     }
   ],
   "items": [

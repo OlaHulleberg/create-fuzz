@@ -328,7 +328,4 @@ impl Run {
             }
         }
     }
-    pub(super) fn chute_observation(&self, _: Pos) -> Option<crate::logistics::Chute> {
-        None
-    }
 }
