@@ -1008,6 +1008,23 @@ pub fn sequencer_pair(seed: u64) -> Scenario {
         checkpoints.extend([tick, tick + 1, tick + 2, tick + 4]);
     }
     events.push(turn(44));
+    // Off-shaft clicks with a plain item, a kinetic block item and another block item
+    // open the program screen (SequencedGearshiftBlock.useItemOn): nothing is placed.
+    for (tick, item) in [
+        (46, "minecraft:stick"),
+        (47, "create:cogwheel"),
+        (48, "create:andesite_casing"),
+    ] {
+        events.push(use_item(
+            tick,
+            pair[0],
+            item,
+            Face::Up,
+            Face::Up.point(0.5, 0.5),
+            false,
+        ));
+        checkpoints.push(tick + 1);
+    }
     checkpoints.sort();
     checkpoints.dedup();
     Scenario {
