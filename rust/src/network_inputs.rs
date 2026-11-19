@@ -763,6 +763,115 @@ pub fn chain_wrench(seed: u64) -> Scenario {
     }
 }
 
+/// Every block item a player places into a kinetic network.
+const PLACEABLE: [&str; 15] = [
+    "create:shaft",
+    "create:cogwheel",
+    "create:large_cogwheel",
+    "create:gearbox",
+    "create:vertical_gearbox",
+    "create:clutch",
+    "create:gearshift",
+    "create:encased_chain_drive",
+    "create:adjustable_chain_gearshift",
+    "create:sequenced_gearshift",
+    "create:rotation_speed_controller",
+    "create:creative_motor",
+    "create:hand_crank",
+    "create:speedometer",
+    "create:stressometer",
+];
+
+/// Place one block item as a player into seven neighbourhoods: no shaft, one or two
+/// shafts on one axis, competing horizontal or vertical shafts, a shaft facing away
+/// beside one facing in, and a small cog. The clicked face, sneaking and the look
+/// direction vary, so the preferred-axis and preferred-facing searches take every outcome.
+pub fn contested_placement(seed: u64) -> Scenario {
+    let n = seed / 64;
+    let item = PLACEABLE[(n % 15) as usize];
+    let sneaking = n / 15 % 2 == 1;
+    let faces = [
+        Face::Up,
+        Face::North,
+        Face::East,
+        Face::Down,
+        Face::South,
+        Face::West,
+    ];
+    let yaws = [10., 100., 190., 280.];
+    let pitches = [0., 70., -70.];
+    let patterns: [&[(Pos, &str)]; 7] = [
+        &[],
+        &[([1, 0, 0], "create:shaft[axis=x]")],
+        &[
+            ([1, 0, 0], "create:shaft[axis=x]"),
+            ([-1, 0, 0], "create:shaft[axis=x]"),
+        ],
+        &[
+            ([1, 0, 0], "create:shaft[axis=x]"),
+            ([0, 0, 1], "create:shaft[axis=z]"),
+        ],
+        &[
+            ([0, 1, 0], "create:shaft[axis=y]"),
+            ([1, 0, 0], "create:shaft[axis=x]"),
+        ],
+        &[
+            ([1, 0, 0], "create:shaft[axis=z]"),
+            ([0, 0, -1], "create:shaft[axis=z]"),
+        ],
+        &[([0, -1, 0], "create:cogwheel[axis=x]")],
+    ];
+    let mut blocks = Vec::new();
+    let mut events = Vec::new();
+    if item == "create:creative_motor" {
+        events.push(action(2, [0, 8, 0], Action::GameMode { creative: true }));
+    }
+    for (i, pattern) in patterns.iter().enumerate() {
+        let i = i as u64;
+        let cell = [i as i32 * 4 - 12, 8, 0];
+        let at = |[dx, dy, dz]: Pos| [cell[0] + dx, cell[1] + dy, cell[2] + dz];
+        for (offset, state) in pattern.iter() {
+            blocks.push(Placed {
+                pos: at(*offset),
+                state: (*state).into(),
+                motor: None,
+            });
+        }
+        let face = faces[((n / 30 + i) % 6) as usize];
+        let back = face.dir().offset().map(|v| -v);
+        let clicked = at(back);
+        if !pattern.iter().any(|(offset, _)| *offset == back) {
+            blocks.push(Placed {
+                pos: clicked,
+                state: "minecraft:stone".into(),
+                motor: None,
+            });
+        }
+        let mut place = use_item(
+            5 + 2 * i as u32,
+            clicked,
+            item,
+            face,
+            face.point(0.5, 0.5),
+            sneaking,
+        );
+        if let Some(Action::Use { yaw, pitch, .. }) = &mut place.action {
+            *yaw = yaws[((n / 180 + i) % 4) as usize];
+            *pitch = pitches[((n / 720 + i) % 3) as usize];
+        }
+        events.push(place);
+    }
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 90,
+        checkpoints: vec![20],
+        blocks,
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

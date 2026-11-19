@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 64 == 4 {
+        return crate::network_inputs::contested_placement(seed);
+    }
     if seed % 64 == 36 {
         return crate::network_inputs::chain_wrench(seed);
     }
