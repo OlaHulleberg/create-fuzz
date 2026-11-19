@@ -450,3 +450,68 @@ pub fn gauge_thresholds(seed: u64) -> Scenario {
         events,
     }
 }
+
+/// Try to branch a running chain across two connection axes, then remove
+/// both ends of the first run and rebuild the connection along the other axis.
+pub fn chain_junction(seed: u64) -> Scenario {
+    let center = [0, 8, 0];
+    let crank = [-2, 8, 0];
+    let shaft = [-1, 8, 0];
+    let side = [0, 8, 1];
+    let rear = [0, 8, -1];
+    let top = [0, 9, 0];
+    let hanger = [0, 9, -1];
+    let place = |tick, pos, item, face: Face, sneaking| {
+        let mut change = use_item(tick, pos, item, face, face.point(0.5, 0.5), sneaking);
+        if let Some(Action::Use { yaw, .. }) = &mut change.action {
+            *yaw = 90.;
+        }
+        change
+    };
+    let gearshift = "create:adjustable_chain_gearshift";
+    let chain = "create:encased_chain_drive";
+    let (first, second) = if seed & 64 == 0 {
+        (chain, gearshift)
+    } else {
+        (gearshift, chain)
+    };
+    let base = [0, 7, 0];
+    let mut blocks = [base, [0, 7, 1], [0, 7, -1], hanger]
+        .map(|pos| Placed {
+            pos,
+            state: "minecraft:stone".into(),
+            motor: None,
+        })
+        .to_vec();
+    blocks.push(Placed {
+        pos: shaft,
+        state: "create:shaft[axis=x]".into(),
+        motor: None,
+    });
+    let events = vec![
+        place(6, base, first, Face::Up, false),
+        place(8, [0, 7, 1], second, Face::Up, true),
+        place(10, [0, 7, -1], second, Face::Up, true),
+        place(12, shaft, "create:hand_crank", Face::West, false),
+        place(17, crank, "minecraft:air", Face::West, false),
+        place(20, hanger, second, Face::South, true),
+        action(24, [0, 9, 1], Action::Signal { strength: 15 }),
+        action(29, side, Action::Remove),
+        action(31, rear, Action::Remove),
+        place(33, crank, "minecraft:air", Face::West, false),
+        action(36, top, Action::Remove),
+        place(40, hanger, second, Face::South, true),
+        action(44, [0, 9, 1], Action::Remove),
+        action(46, center, Action::Remove),
+        place(50, base, first, Face::Up, true),
+    ];
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 125,
+        checkpoints: vec![16, 18, 22, 27, 30, 32, 35, 42, 47, 52],
+        blocks,
+        events,
+    }
+}

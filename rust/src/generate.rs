@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 64 == 38 {
+        return crate::network_inputs::chain_junction(seed);
+    }
     if seed % 64 == 22 {
         return crate::network_inputs::gauge_thresholds(seed);
     }
