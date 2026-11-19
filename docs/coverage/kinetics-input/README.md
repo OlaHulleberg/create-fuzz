@@ -1,6 +1,6 @@
 # Kinetics campaign inputs
 
-These archived inputs reproduce the generated report independently of a running server:
+These archived inputs reproduce the earlier kinetics report (fuzzer `3b9a805`) independently of a running server; the current report comes from `../network-input/`:
 
 ```
 ./run.sh fuzz gaps kinetics --input docs/coverage/kinetics-input/never-reached.tsv --provenance docs/coverage/kinetics-input/campaign.json

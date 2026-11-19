@@ -39,11 +39,65 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
-    if seed % 32 == 20 {
-        return crate::waterwheel::generate(seed);
+    if seed % 64 == 32 {
+        return crate::network_inputs::stacked_chains(seed);
     }
-    if seed % 32 == 21 {
-        return crate::steam_engine::generate(seed);
+    if seed % 64 == 24 {
+        return crate::network_inputs::encased_wrench(seed);
+    }
+    if seed % 64 == 56 {
+        return crate::network_inputs::opposed_motors(seed);
+    }
+    if seed % 64 == 33 {
+        return crate::network_inputs::controller_axes(seed);
+    }
+    if seed % 64 == 57 {
+        return crate::network_inputs::wrench_pickup(seed);
+    }
+    if seed % 64 == 25 {
+        return crate::network_inputs::valve_rim(seed);
+    }
+    if seed % 64 == 1 {
+        return crate::network_inputs::girder_shaft(seed);
+    }
+    if seed % 64 == 52 {
+        return crate::network_inputs::sequencer_pair(seed);
+    }
+    if seed % 64 == 20 {
+        return crate::network_inputs::held_crank(seed);
+    }
+    if seed % 64 == 4 {
+        return crate::network_inputs::contested_placement(seed);
+    }
+    if seed % 64 == 36 {
+        return crate::network_inputs::chain_wrench(seed);
+    }
+    if seed % 64 == 7 {
+        return crate::network_inputs::vertical_sequencer(seed);
+    }
+    if seed % 64 == 54 {
+        return crate::network_inputs::shaft_extension(seed);
+    }
+    if seed % 64 == 38 {
+        return crate::network_inputs::chain_junction(seed);
+    }
+    if seed % 64 == 22 {
+        return crate::network_inputs::gauge_thresholds(seed);
+    }
+    if seed % 64 == 6 {
+        return crate::network_inputs::controller_cog(seed);
+    }
+    if seed % 64 == 53 {
+        return crate::network_inputs::switched_shaft(seed);
+    }
+    if seed % 64 == 37 {
+        return crate::network_inputs::competing_sources(seed);
+    }
+    if seed % 64 == 21 {
+        return crate::network_inputs::instruments(seed);
+    }
+    if seed % 64 == 5 {
+        return crate::network_inputs::relays(seed);
     }
     if seed % 32 == 19 {
         return crate::fluid_inputs::generate(seed);

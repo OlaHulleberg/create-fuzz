@@ -263,3 +263,14 @@ Found records are written as compact `.json.gz` files (with fluid lanes a raw re
 The default remains plain JSON for existing coverage tools. `rust`, `java`, `check`,
 `shrink`, `repeat-java`, `compare-records` and `diff-files` accept gzip inputs by suffix.
 Compression preserves both complete snapshots and every difference for triage.
+
+Kinetic network histories (`rust/src/network_inputs.rs`) take one residue of the seed modulo 64
+each and drive the network and transmission blocks the way a player builds them: cogs, gauges,
+gearboxes, chain drives, controllers, sequencers, cranks and valve handles placed with `use`
+against competing shaft neighbours, clicked faces, sneaking and look directions; casings,
+girders, brackets and wrench turns or pickups on relays, encased cogs and chain drives in and out
+of a chain; competing and opposed sources joined, retargeted and removed while running; cranks
+turned holding items; valve rims clicked through their cooldown; sequencers powered in the same
+tick. The driver mirrors the port's glue for these inputs (chain wrench turns, value boxes, the
+crank's use, unbracketable targets). Each history's doc comment names its Create inputs;
+`docs/coverage/kinetics-core.md` lists what remains.

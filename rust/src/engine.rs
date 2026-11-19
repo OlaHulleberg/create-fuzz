@@ -80,11 +80,6 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     }
     push("create:brass_casing".into());
     push("create:andesite_casing".into());
-    for axis in ["x", "y", "z"] {
-        for material in ["brass", "andesite"] {
-            push(format!("create:{material}_encased_shaft[axis={axis}]"));
-        }
-    }
     for face in ["up", "down", "north", "south", "east", "west"] {
         push(format!("create:creative_motor[facing={face}]"));
     }
@@ -100,6 +95,9 @@ fn create_states(sc: &Scenario) -> Vec<String> {
         e.id == "create:belt"
             || e.id == "create:fluid_valve"
             || e.id == "create:sequenced_gearshift"
+            || e.id.ends_with("_encased_shaft")
+            || e.id.ends_with("_encased_cogwheel")
+            || e.id.ends_with("_encased_large_cogwheel")
             || e.id.ends_with("_valve_handle")
     }) {
         for spec in entry.specifications() {
@@ -265,6 +263,17 @@ impl Run {
 
     /// UPDATE_CLIENTS changes the state without notifying neighbours; UPDATE_ALL does both.
     fn commit(&mut self, p: Pos, new: u32, notify: bool) {
+        self.commit_with(p, new, notify, false);
+    }
+
+    /// A write applied with `UPDATE_KNOWN_SHAPE` (`ChainGearshiftBlock.neighborChanged`):
+    /// `updateIndirectNeighbourShapes` does not run, so the retained block entity keeps its
+    /// kinetic information though the states are not equivalent.
+    fn commit_known_shape(&mut self, p: Pos, new: u32) {
+        self.commit_with(p, new, false, true);
+    }
+
+    fn commit_with(&mut self, p: Pos, new: u32, notify: bool, skip_shape_updates: bool) {
         let old = self.at(p);
         if self.w.table.get(old).map(|(b, _)| b) != self.w.table.get(new).map(|(b, _)| b) {
             self.persisted.kinetics.remove(&(p, 0));
@@ -364,7 +373,8 @@ impl Run {
         {
             self.belt_casing.remove(&p);
         }
-        self.w.block_changed(0, p, old, new);
+        self.w
+            .apply_block_change(0, p, old, new, skip_shape_updates);
         self.break_wheels();
         if self.w.table.get(new).map(|(b, _)| b)
             == Some(create_engine::Block::AdjustableChainGearshift)
