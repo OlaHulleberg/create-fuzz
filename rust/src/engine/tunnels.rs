@@ -275,10 +275,58 @@ impl Run {
 }
 
 impl Run {
-    /// Funnels and chutes are not modelled by the driver yet: their observation is absent,
-    /// and any scenario holding one differs on it rather than passing silently.
-    pub(super) fn funnel_observation(&self, _: Pos) -> Option<crate::logistics::Funnel> {
-        None
+    /// `FunnelBlockEntity.extractionCooldown`: only extracting and pushing funnels count it
+    /// down (`tick`, `startCooldown`); the driver takes items from belts, so a funnel in either
+    /// mode is an adapter gap and the others hold 0.
+    pub(super) fn funnel_observation(&self, p: Pos) -> Option<crate::logistics::Funnel> {
+        let (block, info) = self.w.table.get(self.at(p))?;
+        match block {
+            Block::AndesiteBeltFunnel | Block::BrassBeltFunnel => {
+                Some(crate::logistics::Funnel { cooldown: 0 })
+            }
+            Block::AndesiteFunnel | Block::BrassFunnel if !info.extracting => {
+                Some(crate::logistics::Funnel { cooldown: 0 })
+            }
+            _ => None,
+        }
+    }
+    /// The funnels in a mode the driver does not run (`determineCurrentMode`): a belt funnel
+    /// pushing onto its belt, an extracting funnel.
+    pub(super) fn note_funnel_modes(&mut self) {
+        let mut gaps = Vec::new();
+        for (&p, &id) in &self.world {
+            let Some((block, info)) = self.w.table.get(id) else {
+                continue;
+            };
+            let pushing = match block {
+                Block::AndesiteBeltFunnel | Block::BrassBeltFunnel if !info.powered => {
+                    match info.belt_funnel.unwrap_or_default() {
+                        create_engine::funnel::BeltShape::Pushing => true,
+                        create_engine::funnel::BeltShape::Pulling => false,
+                        _ => {
+                            let below = [p[0], p[1] - 1, p[2]];
+                            self.belt_location(below).is_some_and(|(c, _, seg)| {
+                                let rpm = self.w.speed(0, c).unwrap_or(0.);
+                                belt::movement_facing(rpm, seg.facing)
+                                    == info.facing.unwrap_or(Dir::Up)
+                            })
+                        }
+                    }
+                }
+                Block::AndesiteFunnel | Block::BrassFunnel => info.extracting && !info.powered,
+                _ => false,
+            };
+            if pushing {
+                gaps.push(p);
+            }
+        }
+        gaps.sort();
+        for p in gaps {
+            let note = format!("adapter gap: funnel extraction at {p:?}");
+            if !self.notes.contains(&note) {
+                self.notes.push(note);
+            }
+        }
     }
     pub(super) fn chute_observation(&self, _: Pos) -> Option<crate::logistics::Chute> {
         None

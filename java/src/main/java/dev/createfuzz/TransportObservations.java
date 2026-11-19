@@ -37,7 +37,10 @@ final class TransportObservations {
         catch(ReflectiveOperationException e) {throw new IllegalStateException(e);}
     }
     static JsonObject item(TransportedItemStack s,boolean pending,Boolean stalled) {
-        JsonObject o=new JsonObject();o.add("stack",ItemInputs.stack(s.stack));
+        // A stack a funnel or crusher emptied stays in the list until the next tick's loop top.
+        JsonElement stack=ItemInputs.stack(s.stack);
+        if(stack.isJsonNull()) {JsonObject empty=new JsonObject();empty.addProperty("item","minecraft:air");empty.addProperty("count",0);stack=empty;}
+        JsonObject o=new JsonObject();o.add("stack",stack);
         o.addProperty("position",s.beltPosition);o.addProperty("locked",s.locked);o.addProperty("pending",pending);
         o.add("stalled",stalled==null?JsonNull.INSTANCE:new JsonPrimitive(stalled));return o;
     }

@@ -9,6 +9,58 @@
         ]
       },
       "source": "DepotBlock.createBlockStateDefinition/getStateForPlacement"
+    },
+    {
+      "id": "create:andesite_belt_funnel",
+      "properties": {
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "powered": [
+          "false",
+          "true"
+        ],
+        "shape": [
+          "retracted",
+          "extended",
+          "pushing",
+          "pulling"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "BeltFunnelBlock.createBlockStateDefinition/getStateForPlacement"
+    },
+    {
+      "id": "create:brass_belt_funnel",
+      "properties": {
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "powered": [
+          "false",
+          "true"
+        ],
+        "shape": [
+          "retracted",
+          "extended",
+          "pushing",
+          "pulling"
+        ],
+        "waterlogged": [
+          "false",
+          "true"
+        ]
+      },
+      "source": "BeltFunnelBlock.createBlockStateDefinition/getStateForPlacement"
     }
   ],
   "items": [

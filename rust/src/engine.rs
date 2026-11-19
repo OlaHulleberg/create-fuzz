@@ -86,6 +86,18 @@ fn create_states(sc: &Scenario) -> Vec<String> {
             push(format!("create:shaft[axis={axis},waterlogged={water}]"));
         }
     }
+    // Belt funnels, as a state event places them on a belt.
+    for funnel in ["andesite_belt_funnel", "brass_belt_funnel"] {
+        for facing in ["north", "south", "west", "east"] {
+            for shape in ["retracted", "extended", "pushing", "pulling"] {
+                for powered in ["false", "true"] {
+                    push(format!(
+                        "create:{funnel}[facing={facing},powered={powered},shape={shape},waterlogged=false]"
+                    ));
+                }
+            }
+        }
+    }
     // Tunnels: the shapes `tick_tunnels` gives them.
     for tunnel in ["andesite_tunnel", "brass_tunnel"] {
         for axis in ["x", "z"] {
@@ -172,6 +184,8 @@ pub struct Run {
     belt_color: HashMap<Pos, String>,
     /// Belt segments whose block above changed, their cover looked at in the logistics phase.
     cover_checks: Vec<Pos>,
+    /// Per belt, the positions of items a funnel held in place over the last tick.
+    funnel_held: HashMap<Pos, std::collections::HashSet<u32>>,
     handles: HashMap<Pos, crate::handles::Handle>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
@@ -235,6 +249,7 @@ impl Run {
             belt_covered: Default::default(),
             belt_color: HashMap::new(),
             cover_checks: Vec::new(),
+            funnel_held: HashMap::new(),
             handles: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),

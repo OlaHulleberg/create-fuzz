@@ -6,7 +6,7 @@ use create_engine::{
     kinetics::{Axis, Dir},
 };
 impl Run {
-    fn belt_location(&self, p: Pos) -> Option<(Pos, i32, belt::Segment)> {
+    pub(super) fn belt_location(&self, p: Pos) -> Option<(Pos, i32, belt::Segment)> {
         let seg = self.w.table.get(self.at(p))?.1.belt?;
         let c = *self.w.dims[0].belt_of.get(&p)?;
         let index = self.w.dims[0]
@@ -153,6 +153,38 @@ impl Run {
             handler: None,
         });
     }
+    /// `DepotItems.insert` into the held slot of the depot at `p`: only while every slot is
+    /// empty, up to the stack limit; the held stack arrives at the edge
+    /// (`depot_contents_changed`). What is left of `s`.
+    pub(super) fn depot_insert(&mut self, p: Pos, s: &Stack, simulate: bool) -> Option<Stack> {
+        let empty = !self.depot_stacks.contains_key(&p)
+            && self.depot_outputs.get(&p).is_none_or(|o| o.is_empty());
+        if !empty {
+            return Some(s.clone());
+        }
+        let n = s.count.min(s.limit());
+        if !simulate {
+            self.depot_stacks.insert(
+                p,
+                Stack {
+                    item: s.item.clone(),
+                    count: n,
+                },
+            );
+            self.w.depot_put(
+                0,
+                p,
+                Some(depot::Held {
+                    position: 0.,
+                    ..depot::Held::new(180, false)
+                }),
+            );
+        }
+        (s.count > n).then(|| Stack {
+            item: s.item.clone(),
+            count: s.count - n,
+        })
+    }
     /// `handlers::provide` for an item access at `p`, then one insert or extract: a depot's
     /// `DepotItems` takes into its held slot only while it holds nothing, gives from any slot.
     /// The port provides no handler for belts or andesite tunnels.
@@ -176,32 +208,8 @@ impl Run {
             Some(Block::Depot) => {
                 outcome.handler = Some(true);
                 if let Some(s) = insert {
-                    let empty = !self.depot_stacks.contains_key(&p)
-                        && self.depot_outputs.get(&p).is_none_or(|o| o.is_empty());
-                    if slot == 0 && empty {
-                        let n = s.count.min(s.limit());
-                        outcome.remainder = (s.count > n).then(|| Stack {
-                            item: s.item.clone(),
-                            count: s.count - n,
-                        });
-                        if !simulate {
-                            self.depot_stacks.insert(
-                                p,
-                                Stack {
-                                    item: s.item.clone(),
-                                    count: n,
-                                },
-                            );
-                            // `depot_contents_changed`: it arrives from above, at the edge.
-                            self.w.depot_put(
-                                0,
-                                p,
-                                Some(depot::Held {
-                                    position: 0.,
-                                    ..depot::Held::new(180, false)
-                                }),
-                            );
-                        }
+                    if slot == 0 {
+                        outcome.remainder = self.depot_insert(p, s, simulate);
                     }
                 } else if let Some(n) = extract {
                     if slot == 0 {
@@ -236,7 +244,8 @@ impl Run {
         self.item_outcomes.push(outcome);
     }
     pub(super) fn tick_transport(&mut self) {
-        // The glue's logistics phase: tunnels, then covers, then transport.
+        // The glue's logistics phase: funnels, tunnels, then covers, then transport.
+        self.note_funnel_modes();
         self.tick_tunnels();
         for p in std::mem::take(&mut self.cover_checks) {
             self.update_cover(p);
@@ -293,6 +302,9 @@ impl Run {
             let speed = belt::direction_aware_speed(rpm, seg.facing);
             let past =
                 belt::position_for_offset(c, &seg, length, if speed > 0. { length } else { -1 });
+            // Funnel-held items stay at their funnel's entry; the engine marks them `at_funnel`
+            // rather than `stalled`: they are still where an item was before the tick.
+            let held: Vec<f32> = items.items.iter().map(|i| i.position).collect();
             let ticked = items.tick(
                 length,
                 speed,
@@ -306,6 +318,13 @@ impl Run {
                     length,
                 },
             );
+            let still: std::collections::HashSet<u32> = items
+                .items
+                .iter()
+                .filter(|i| i.at_funnel && held.contains(&i.position))
+                .map(|i| i.position.to_bits())
+                .collect();
+            self.funnel_held.insert(c, still);
             if let Some(b) = self.w.dims[0].belts.get_mut(&c) {
                 let added = std::mem::replace(&mut b.items, items);
                 for i in added.items {
@@ -486,7 +505,16 @@ impl Run {
                 stalled: if pending {
                     None
                 } else {
-                    Some(self.w.speed(0, p).unwrap_or(0.) == 0. || i.stalled)
+                    // Java: `beltPosition == prevBeltPosition`, a funnel-held item included
+                    // from its second tick at the entry.
+                    Some(
+                        self.w.speed(0, p).unwrap_or(0.) == 0.
+                            || i.stalled
+                            || self
+                                .funnel_held
+                                .get(&p)
+                                .is_some_and(|s| s.contains(&i.position.to_bits())),
+                    )
                 },
             });
         }
@@ -587,6 +615,65 @@ impl belt::Surroundings for Side<'_> {
     ) -> Option<belt::Process> {
         let p = belt::position_for_offset(self.controller, &self.segment, self.length, index);
         self.run.spout_on_belt(p, item, locked)
+    }
+    /// The glue's `BeltSide::funnel`: the belt funnel over `segment`, with the belt's way.
+    fn funnel(&mut self, segment: i32) -> Option<(create_engine::funnel::OnBelt, Dir)> {
+        let at = belt::position_for_offset(self.controller, &self.segment, self.length, segment);
+        let pos = [at[0], at[1] + 1, at[2]];
+        let (facing, shape) = self.run.belt_funnel_at(pos)?;
+        let powered = self
+            .run
+            .w
+            .table
+            .get(self.run.at(pos))
+            .is_some_and(|(_, i)| i.powered);
+        Some((
+            create_engine::funnel::OnBelt {
+                facing,
+                shape,
+                powered,
+            },
+            self.movement,
+        ))
+    }
+    /// The glue's `BeltSide::funnel_insert`: an andesite belt funnel puts the whole stack into
+    /// the inventory behind it (`InvManipulationBehaviour.insert`); the count left.
+    fn funnel_insert(&mut self, segment: i32, item: &belt::Item) -> Option<u8> {
+        let at = belt::position_for_offset(self.controller, &self.segment, self.length, segment);
+        let pos = [at[0], at[1] + 1, at[2]];
+        let (facing, _) = self.run.belt_funnel_at(pos)?;
+        if self
+            .run
+            .w
+            .table
+            .get(self.run.at(pos))
+            .is_some_and(|(b, _)| b == Block::BrassBeltFunnel)
+        {
+            self.run.notes.push(format!(
+                "adapter gap: brass funnel filter and amount at {pos:?}"
+            ));
+            return None;
+        }
+        let behind = create_engine::funnel::behind(pos, facing);
+        let stack = Stack {
+            item: item.item.clone(),
+            count: item.count,
+        };
+        match self.run.w.table.get(self.run.at(behind)).map(|(b, _)| b) {
+            Some(Block::Depot) => Some(
+                self.run
+                    .depot_insert(behind, &stack, false)
+                    .map_or(0, |s| s.count),
+            ),
+            Some(b) => {
+                self.run.notes.push(format!(
+                    "adapter gap: funnel insertion into create:{} at {behind:?}",
+                    b.name()
+                ));
+                None
+            }
+            None => None,
+        }
     }
     /// The glue's `BeltSide::tunnel`: the tunnel over `segment` may take some of `item`; the
     /// flaps it sets are client animation and are not observed.
