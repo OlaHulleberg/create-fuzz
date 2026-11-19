@@ -363,7 +363,10 @@ impl Run {
                 ctx,
                 shaft,
                 create_engine::place::Nearby {
-                    large_cog_above: self.w.large_cog_axis(0, add(p, [0, 1, 0])),
+                    large_cog_above: self
+                        .w
+                        .cog_at(0, add(p, [0, 1, 0]))
+                        .and_then(|(large, axis)| large.then_some(axis)),
                     ..Default::default()
                 },
             )
@@ -397,7 +400,10 @@ impl Run {
             }
         }
         let near = create_engine::place::Nearby {
-            large_cog_above: self.w.large_cog_axis(0, add(p, [0, 1, 0])),
+            large_cog_above: self
+                .w
+                .cog_at(0, add(p, [0, 1, 0]))
+                .and_then(|(large, axis)| large.then_some(axis)),
             ..Default::default()
         };
         let measured = crate::trig::exact_tie(yaw, pitch)
