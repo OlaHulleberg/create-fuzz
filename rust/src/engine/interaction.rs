@@ -176,6 +176,10 @@ impl Run {
                 && name != "create:brass_encased_shaft"
                 && !name.ends_with("_encased_cogwheel")
                 && !name.ends_with("_encased_large_cogwheel")
+                // A sneaking wrench picks a valve handle up as any wrenchable block.
+                && !(create_engine::dye::is_valve_handle(block)
+                    && sneaking
+                    && item == "create:wrench")
                 && name != "create:brass_casing"
                 && name != "create:andesite_casing"
                 && !(name == "create:belt"

@@ -1091,6 +1091,56 @@ pub fn girder_shaft(seed: u64) -> Scenario {
     }
 }
 
+/// Click a valve handle's rim through its turn and the cooldown after it, with a
+/// wrench, with the dye it already has, sneaking, and finally pick it up with a
+/// sneaking wrench. Rim hits miss the value box, so each click reaches `activate`.
+pub fn valve_rim(seed: u64) -> Scenario {
+    let valve = [0, 8, 0];
+    let rim =
+        |tick, item, sneaking| use_item(tick, valve, item, Face::Up, [0.1, 0.5, 0.1], sneaking);
+    let dye = ["minecraft:white_dye", "minecraft:blue_dye"][((seed >> 6) & 1) as usize];
+    let mut events = vec![action(
+        4,
+        valve,
+        Action::ValveSetting {
+            row: ((seed >> 7) & 1) as i32,
+            value: 1,
+        },
+    )];
+    events.extend((6..20).map(|tick| rim(tick, "minecraft:air", false)));
+    events.extend([
+        rim(24, dye, false),
+        rim(30, dye, false),
+        rim(32, dye, true),
+        rim(40, "create:wrench", false),
+        rim(42, "create:wrench", false),
+        rim(50, "minecraft:air", true),
+        rim(60, "create:wrench", true),
+    ]);
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 135,
+        checkpoints: (5..62).collect(),
+        blocks: [
+            ([0, 7, 0], "create:shaft[axis=y,waterlogged=false]"),
+            (
+                valve,
+                "create:copper_valve_handle[facing=up,waterlogged=false]",
+            ),
+            ([0, 6, 0], "create:shaft[axis=y,waterlogged=false]"),
+        ]
+        .map(|(pos, state)| Placed {
+            pos,
+            state: state.into(),
+            motor: None,
+        })
+        .to_vec(),
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
