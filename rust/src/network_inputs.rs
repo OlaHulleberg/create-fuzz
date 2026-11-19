@@ -1292,7 +1292,17 @@ pub fn controller_axes(seed: u64) -> Scenario {
             Face::South.point(0.5, 0.5),
             false,
         ),
-        up(30, [4, 7, 0], "create:rotation_speed_controller", yaw),
+        // A wrench there is not a block item: the helper's large-cog predicate refuses it
+        // and the wrench turns the controller.
+        use_item(
+            30,
+            controller,
+            "create:wrench",
+            along,
+            along.point(0.5, 0.5),
+            false,
+        ),
+        up(31, [4, 7, 0], "create:rotation_speed_controller", yaw),
         setting(32, vertical, 32),
         up(34, [8, 7, 0], "create:rotation_speed_controller", yaw),
         setting(36, small, 32),
@@ -1302,7 +1312,7 @@ pub fn controller_axes(seed: u64) -> Scenario {
         seed,
         day_time: 0,
         ticks: 110,
-        checkpoints: vec![5, 7, 9, 13, 15, 17, 21, 23, 27, 29, 31, 33, 35, 37],
+        checkpoints: vec![5, 7, 9, 13, 15, 17, 21, 23, 27, 29, 31, 32, 33, 35, 37],
         blocks,
         events,
     }
