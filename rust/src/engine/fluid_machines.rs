@@ -97,6 +97,11 @@ impl Run {
         let Some(mut h) = self.w.dims[0].depots.get(&depot).copied().flatten() else {
             return;
         };
+        // `lv.blocked`: anything with a collision shape over the depot (a funnel too) stops an
+        // unlocked stack.
+        if !h.locked && self.host_collision(add(depot, [0, 1, 0])) {
+            return;
+        }
         {
             let depot = add(p, [0, -2, 0]);
             let held = self.depot_stacks.get(&depot).cloned();

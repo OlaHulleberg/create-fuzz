@@ -457,12 +457,12 @@ impl Run {
             self.belt_covered.remove(&p);
             self.belt_color.remove(&p);
         }
-        if !self
-            .w
-            .table
-            .get(new)
-            .is_some_and(|(b, _)| b == create_engine::Block::Chute)
-        {
+        if !self.w.table.get(new).is_some_and(|(b, _)| {
+            matches!(
+                b,
+                create_engine::Block::Chute | create_engine::Block::SmartChute
+            )
+        }) {
             // The chute's block entity, and its stack, go with it.
             self.chute_stacks.remove(&p);
             self.w.dims[0].chutes.remove(&p);
