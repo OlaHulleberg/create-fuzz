@@ -398,3 +398,55 @@ pub fn controller_cog(seed: u64) -> Scenario {
         events,
     }
 }
+
+/// Creative-mode fixture for the motor board and the speed gauge's dial
+/// breakpoints. The gauge and the relay placements use ordinary block items.
+pub fn gauge_thresholds(seed: u64) -> Scenario {
+    let motor = [-1, 8, 0];
+    let shaft = [0, 8, 0];
+    let gauge = [1, 8, 0];
+    let side_use = |tick, p, item, face: Face, sneak| {
+        use_item(tick, p, item, face, face.point(0.5, 0.5), sneak)
+    };
+    let item = if seed & 64 == 0 {
+        "create:speedometer"
+    } else {
+        "create:stressometer"
+    };
+    let mut events = vec![
+        side_use(5, shaft, "create:creative_motor", Face::West, false),
+        side_use(8, shaft, item, Face::East, false),
+    ];
+    let mut checkpoints = vec![9];
+    for (index, value) in [1, 29, 30, 31, 99, 100, 101, 256].into_iter().enumerate() {
+        let tick = 12 + index as u32 * 5;
+        events.push(action(
+            tick,
+            motor,
+            Action::SpeedSetting {
+                row: ((seed >> 7) & 1) as i32,
+                value,
+            },
+        ));
+        checkpoints.push(tick + 3);
+    }
+    events.extend([
+        action(55, motor, Action::Remove),
+        side_use(60, shaft, "create:creative_motor", Face::West, true),
+        action(68, gauge, Action::Remove),
+    ]);
+    checkpoints.extend([57, 63, 69]);
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 145,
+        checkpoints,
+        blocks: vec![Placed {
+            pos: shaft,
+            state: "create:shaft[axis=x]".into(),
+            motor: None,
+        }],
+        events,
+    }
+}
