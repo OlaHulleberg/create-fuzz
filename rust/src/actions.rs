@@ -45,6 +45,15 @@ pub enum Action {
         row: i32,
         value: i32,
     },
+    /// The client's `ValueSettingsPacket` for the block's `FilteringBehaviour` while its amount
+    /// board shows: the release of a short click on the filter slot holding `interact`'s item
+    /// (`onShortInteract`), or a board pick (row 0 "up to", row 1 exactly; the count).
+    FilterSetting {
+        row: i32,
+        value: i32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        interact: Option<FilterInteract>,
+    },
     Program {
         instructions: Vec<crate::program::Instruction>,
     },
@@ -56,6 +65,14 @@ pub enum Action {
     Signal {
         strength: u8,
     },
+}
+
+/// The held item and clicked face of a short click's release on a filter slot.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FilterInteract {
+    pub item: String,
+    pub face: Face,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
@@ -168,6 +185,20 @@ impl Action {
             }
             Self::ScrollSetting { row, value } => {
                 assert!((0..=1).contains(row) && (0..=64).contains(value));
+            }
+            Self::FilterSetting {
+                row,
+                value,
+                interact,
+            } => {
+                assert!((0..=1).contains(row) && (0..=64).contains(value));
+                if let Some(i) = interact {
+                    assert!(
+                        ITEMS.contains(&i.item.as_str()) || i.item == "minecraft:air",
+                        "unsupported filter item {}",
+                        i.item
+                    );
+                }
             }
             Self::SpeedSetting { row, value } => {
                 assert!((0..=1).contains(row) && (0..=256).contains(value));

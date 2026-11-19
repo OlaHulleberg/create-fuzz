@@ -35,6 +35,15 @@ pub struct Brass {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Funnel {
     pub cooldown: i32,
+    /// A brass funnel's filter (an item id, None for an empty slot).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<String>,
+    /// A brass funnel's amount (`FilteringBehaviour.count` within the filter's stack size) and
+    /// mode (`upTo`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amount: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub up_to: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

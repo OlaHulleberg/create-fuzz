@@ -262,7 +262,7 @@ impl Run {
     pub(super) fn reload(&mut self) {
         let outputs = serde_json::to_vec(&self.depot_outputs.iter().collect::<Vec<_>>()).unwrap();
         self.depot_outputs =
-            serde_json::from_slice::<Vec<(Pos, Vec<crate::transport::Stack>)>>(&outputs)
+            serde_json::from_slice::<Vec<(Pos, super::outputs::Outputs)>>(&outputs)
                 .unwrap()
                 .into_iter()
                 .collect();

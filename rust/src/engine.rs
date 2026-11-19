@@ -13,10 +13,12 @@ mod ejectors;
 mod fluid_machines;
 mod fluid_world;
 mod fluids;
+mod funnel_filters;
 mod funnels;
 mod interaction;
 mod kinetics;
 mod observation;
+mod outputs;
 mod persistence;
 mod pipes;
 mod pumps;
@@ -191,7 +193,7 @@ pub struct Run {
     entity_order: Vec<Pos>,
     notes: Vec<String>,
     depot_stacks: HashMap<Pos, crate::transport::Stack>,
-    depot_outputs: HashMap<Pos, Vec<crate::transport::Stack>>,
+    depot_outputs: HashMap<Pos, outputs::Outputs>,
     item_outcomes: Vec<crate::transport::Outcome>,
     chains: create_engine::chain_conveyor::Chains<()>,
     connector: Option<Pos>,
@@ -214,6 +216,10 @@ pub struct Run {
     chute_stacks: HashMap<Pos, crate::transport::Stack>,
     /// Brass tunnels' side filters (`tunnel_filters`): plain item ids.
     tunnel_filters: HashMap<(Pos, create_engine::kinetics::Dir), String>,
+    /// Brass funnels' filters (plain item ids) and amount boards (`chute_filters`,
+    /// `filter_amounts`).
+    funnel_filters: HashMap<Pos, String>,
+    filter_amounts: HashMap<Pos, create_engine::board::FilterAmount>,
     handles: HashMap<Pos, crate::handles::Handle>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
@@ -280,6 +286,8 @@ impl Run {
             funnel_held: HashMap::new(),
             chute_stacks: HashMap::new(),
             tunnel_filters: HashMap::new(),
+            funnel_filters: HashMap::new(),
+            filter_amounts: HashMap::new(),
             handles: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),

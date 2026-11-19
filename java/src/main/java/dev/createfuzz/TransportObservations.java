@@ -51,7 +51,16 @@ final class TransportObservations {
     /** FunnelBlockEntity.extractionCooldown, read without write()'s side effects. */
     static JsonObject funnel(BlockEntity be) {
         if(!(be instanceof com.simibubi.create.content.logistics.funnel.FunnelBlockEntity f)) return null;
-        JsonObject o=new JsonObject();o.addProperty("cooldown",(int)field(f,com.simibubi.create.content.logistics.funnel.FunnelBlockEntity.class,"extractionCooldown"));return o;
+        JsonObject o=new JsonObject();o.addProperty("cooldown",(int)field(f,com.simibubi.create.content.logistics.funnel.FunnelBlockEntity.class,"extractionCooldown"));
+        // A brass funnel's filter (its item id) and amount board: its count as far as the filter's
+        // stack size takes it (a count above it moves no more), "up to" or exactly.
+        var filtering=BlockEntityBehaviour.get(f,com.simibubi.create.foundation.blockEntity.behaviour.filtering.FilteringBehaviour.TYPE);
+        if(filtering!=null && filtering.isActive()) {
+            var filter=filtering.getFilter();
+            o.add("filter",filter.isEmpty()?JsonNull.INSTANCE:new JsonPrimitive(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(filter.getItem()).toString()));
+            o.addProperty("amount",Math.min(filtering.count,filtering.getMaxStackSize()));o.addProperty("up_to",filtering.upTo);
+        }
+        return o;
     }
     /** ChuteBlockEntity.item and its position along the chute. */
     static JsonObject chute(BlockEntity be) {

@@ -69,6 +69,16 @@ impl Run {
                     self.mark_column(p);
                 }
             }
+            Action::FilterSetting {
+                row,
+                value,
+                interact,
+            } => self.funnel_value_settings(
+                p,
+                *row,
+                *value,
+                interact.as_ref().map(|i| i.item.as_str()),
+            ),
             Action::ChainLink { target, connect } => self.chain_link(p, *target, *connect),
             Action::Remove => self.set(p, AIR),
             Action::Signal { strength } => self.set(p, 3 + u32::from(*strength)),
@@ -111,6 +121,9 @@ impl Run {
             return;
         }
         if self.tunnel_use(p, item, face, hit, sneaking) {
+            return;
+        }
+        if self.funnel_filter_use(p, item, face, hit, sneaking) {
             return;
         }
         if self.fluid_use(p, item, face, hit, sneaking) {

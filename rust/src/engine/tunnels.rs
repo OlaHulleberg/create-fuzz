@@ -280,16 +280,23 @@ impl Run {
     /// adapter gap (its stacks fly off as item entities).
     pub(super) fn funnel_observation(&self, p: Pos) -> Option<crate::logistics::Funnel> {
         let (block, info) = self.w.table.get(self.at(p))?;
-        match block {
-            Block::AndesiteBeltFunnel | Block::BrassBeltFunnel => Some(crate::logistics::Funnel {
-                cooldown: self.funnel_cooldown(p),
-            }),
-            Block::AndesiteFunnel | Block::BrassFunnel if !info.extracting => {
-                Some(crate::logistics::Funnel {
-                    cooldown: self.funnel_cooldown(p),
-                })
-            }
-            _ => None,
+        let shown = match block {
+            Block::AndesiteBeltFunnel | Block::BrassBeltFunnel => true,
+            Block::AndesiteFunnel | Block::BrassFunnel => !info.extracting,
+            _ => false,
+        };
+        if !shown {
+            return None;
         }
+        let (filter, amount, up_to) = match self.funnel_filter_observation(p) {
+            Some((f, a, u)) => (f, Some(a), Some(u)),
+            None => (None, None, None),
+        };
+        Some(crate::logistics::Funnel {
+            cooldown: self.funnel_cooldown(p),
+            filter,
+            amount,
+            up_to,
+        })
     }
 }

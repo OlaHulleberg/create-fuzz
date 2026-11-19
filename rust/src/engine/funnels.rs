@@ -8,7 +8,7 @@ use super::*;
 use crate::transport::Stack;
 use create_engine::{
     Block, belt, depot,
-    funnel::{BeltShape, EXTRACTION_COOLDOWN, Mode, belt_mode},
+    funnel::{EXTRACTION_COOLDOWN, Mode, belt_mode},
     kinetics::Dir,
 };
 
@@ -52,32 +52,48 @@ impl Run {
         };
         Some((block, info, mode))
     }
-    /// `take_filtered` from a depot behind (`DepotItems.extract`, slot by slot): up to `amount`.
-    fn take_from_depot(&mut self, behind: Pos, amount: u8) -> Option<Stack> {
-        if let Some(held) = self.depot_stacks.get(&behind).cloned() {
-            let n = amount.min(held.count);
-            if n == held.count {
-                self.depot_stacks.remove(&behind);
-                self.w.depot_put(0, behind, None);
-            } else if let Some(h) = self.depot_stacks.get_mut(&behind) {
-                h.count -= n;
+    /// `take_filtered` from the depot behind (`DepotItems`, its held slot then its outputs):
+    /// what the funnel at `pos` lets through, up to `amount` of the first item found gathered
+    /// over the slots, or exactly `amount` of one item (`extract_matching`, `chute::extract`).
+    fn take_from_depot(
+        &mut self,
+        pos: Pos,
+        behind: Pos,
+        (amount, exact): (u32, bool),
+    ) -> Option<Stack> {
+        let outputs = self.depot_outputs.get(&behind).cloned().unwrap_or_default();
+        let slots: Vec<Option<Stack>> = std::iter::once(self.depot_stacks.get(&behind).cloned())
+            .chain((0..super::outputs::SLOTS).map(|i| outputs.slot(i).cloned()))
+            .collect();
+        let keys: Vec<Option<(String, u32, u32)>> = slots
+            .iter()
+            .map(|s| {
+                let s = s.as_ref().filter(|s| self.funnel_passes(pos, &s.item))?;
+                Some((s.item.clone(), u32::from(s.count), u32::from(s.limit())))
+            })
+            .collect();
+        let plan = create_engine::chute::extract(&keys, |_| true, exact, amount);
+        let &(first, _) = plan.first()?;
+        let item = keys[first].as_ref()?.0.clone();
+        let mut taken = 0u8;
+        for (slot, n) in plan {
+            let n = n.min(255) as u8;
+            taken += n;
+            if slot == 0 {
+                let held = self.depot_stacks.get_mut(&behind)?;
+                held.count -= n;
+                if held.count == 0 {
+                    self.depot_stacks.remove(&behind);
+                    self.w.depot_put(0, behind, None);
+                } else {
+                    self.w.depot_changed(0, behind);
+                }
+            } else if let Some(o) = self.depot_outputs.get_mut(&behind) {
+                o.take(slot - 1, n, false);
                 self.w.depot_changed(0, behind);
             }
-            return Some(Stack {
-                item: held.item,
-                count: n,
-            });
         }
-        let outputs = self.depot_outputs.get_mut(&behind)?;
-        let first = outputs.first_mut()?;
-        let n = amount.min(first.count);
-        let taken = Stack {
-            item: first.item.clone(),
-            count: n,
-        };
-        first.count -= n;
-        outputs.retain(|s| s.count > 0);
-        Some(taken)
+        (taken > 0).then_some(Stack { item, count: taken })
     }
     /// The inventory behind the funnel at `p` facing `facing`, when the driver models it.
     fn funnel_inventory(&mut self, p: Pos, facing: Dir) -> Option<Pos> {
@@ -113,7 +129,6 @@ impl Run {
             };
             let facing = info.facing.unwrap_or(Dir::Up);
             let belt_funnel = matches!(block, Block::AndesiteBeltFunnel | Block::BrassBeltFunnel);
-            let brass = matches!(block, Block::BrassFunnel | Block::BrassBeltFunnel);
             let below = [pos[0], pos[1] - 1, pos[2]];
             let depot_below = matches!(
                 self.w.table.get(self.at(below)).map(|(b, _)| b),
@@ -126,18 +141,14 @@ impl Run {
                     ));
                     None
                 }
-                Mode::PushingToBelt | Mode::TakingFromBelt if brass => {
-                    self.note_once(format!(
-                        "adapter gap: brass funnel filter and amount at {pos:?}"
-                    ));
-                    None
-                }
                 Mode::PushingToBelt if depot_below => {
-                    // `funnel_extraction`: a stack unless it pushes or a belt is below.
-                    let one = info.belt_funnel == Some(BeltShape::Pushing);
-                    self.push_onto_depot(pos, facing, if one { 1 } else { 64 })
+                    let max = self.funnel_extraction(pos);
+                    self.push_onto_depot(pos, facing, max)
                 }
-                Mode::PushingToBelt => self.push_onto_belt(pos, facing),
+                Mode::PushingToBelt => {
+                    let max = self.funnel_extraction(pos);
+                    self.push_onto_belt(pos, facing, max)
+                }
                 Mode::TakingFromBelt if depot_below => {
                     self.pull_from_depot(pos, facing);
                     Some(Turn::Blocked)
@@ -164,7 +175,7 @@ impl Run {
     }
     /// `push_onto_belt` (`activateExtractingBeltFunnel`): one item of the inventory behind onto
     /// the belt below from the funnel's side while the belt takes items there.
-    fn push_onto_belt(&mut self, pos: Pos, facing: Dir) -> Option<Turn> {
+    fn push_onto_belt(&mut self, pos: Pos, facing: Dir, max: (u32, bool)) -> Option<Turn> {
         let below = [pos[0], pos[1] - 1, pos[2]];
         let (c, index, _) = self.belt_location(below)?;
         let rpm = self.w.speed(0, c).unwrap_or(0.);
@@ -177,8 +188,7 @@ impl Run {
             return Some(Turn::Blocked);
         }
         let behind = self.funnel_inventory(pos, facing)?;
-        let Some(stack) = self.take_from_depot(behind, create_engine::funnel::amount(false) as u8)
-        else {
+        let Some(stack) = self.take_from_depot(pos, behind, max) else {
             return Some(Turn::Empty);
         };
         let item = belt::Item::new(&stack.item, stack.count, 180, false);
@@ -194,7 +204,7 @@ impl Run {
     }
     /// `push_onto_depot`: the inventory behind onto the depot below while it holds nothing,
     /// sliding in from the funnel's side.
-    fn push_onto_depot(&mut self, pos: Pos, facing: Dir, amount: u8) -> Option<Turn> {
+    fn push_onto_depot(&mut self, pos: Pos, facing: Dir, max: (u32, bool)) -> Option<Turn> {
         let below = [pos[0], pos[1] - 1, pos[2]];
         if self.is_ejector(below) {
             self.note_once(format!("adapter gap: funnel onto the ejector at {below:?}"));
@@ -209,7 +219,7 @@ impl Run {
             return Some(Turn::Blocked);
         }
         let behind = self.funnel_inventory(pos, facing)?;
-        let Some(stack) = self.take_from_depot(behind, amount) else {
+        let Some(stack) = self.take_from_depot(pos, behind, max) else {
             return Some(Turn::Empty);
         };
         self.depot_stacks.insert(below, stack);
@@ -236,21 +246,41 @@ impl Run {
             .depots
             .get(&below)
             .is_some_and(|h| h.is_none_or(|h| !h.sliding()));
-        if self
-            .depot_outputs
-            .get(&below)
-            .is_some_and(|o| !o.is_empty())
-        {
-            self.note_once(format!(
-                "adapter gap: depot outputs under the funnel at {pos:?}"
-            ));
-            return None;
+        let behind = self.funnel_inventory(pos, facing)?;
+        // The output slots in order, then the held one once it rests; the first that moves.
+        for slot in 0..super::outputs::SLOTS {
+            let Some(out) = self
+                .depot_outputs
+                .get(&below)
+                .and_then(|o| o.slot(slot))
+                .cloned()
+            else {
+                continue;
+            };
+            if !self.funnel_passes(pos, &out.item) {
+                continue;
+            }
+            let left = self.depot_insert(behind, &out, false);
+            if left.as_ref().is_some_and(|l| l.count == out.count) {
+                continue;
+            }
+            if let Some(o) = self.depot_outputs.get_mut(&below) {
+                o.set(slot, left);
+            }
+            self.w.depot_changed(0, below);
+            return Some(Turn::Moved);
         }
         if !resting {
             return Some(Turn::Empty);
         }
-        let held = self.depot_stacks.get(&below).cloned()?;
-        let behind = self.funnel_inventory(pos, facing)?;
+        let Some(held) = self
+            .depot_stacks
+            .get(&below)
+            .filter(|h| self.funnel_passes(pos, &h.item))
+            .cloned()
+        else {
+            return Some(Turn::Empty);
+        };
         let left = self.depot_insert(behind, &held, false);
         if left.as_ref().is_some_and(|l| l.count == held.count) {
             return Some(Turn::Empty);

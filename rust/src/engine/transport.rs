@@ -66,6 +66,8 @@ impl Run {
                     });
                 } else if self.w.dims[0].depots.contains_key(&p)
                     && !self.depot_stacks.contains_key(&p)
+                    // `item_landed`: only into a depot whose slots are all empty.
+                    && self.depot_outputs.get(&p).is_none_or(|o| o.is_empty())
                 {
                     self.depot_stacks.insert(p, stack.clone());
                     self.w.depot_put(0, p, Some(depot::Held::new(180, false)));
@@ -161,9 +163,8 @@ impl Run {
         {
             return item.count;
         }
-        if block == Block::BrassFunnel {
-            self.notes
-                .push(format!("adapter gap: brass funnel filter at {p:?}"));
+        // `filtering.test`: a brass funnel takes only what its filter passes.
+        if !self.funnel_passes(p, &item.item) {
             return item.count;
         }
         let behind = create_engine::funnel::behind(p, Dir::Up);
@@ -267,10 +268,14 @@ impl Run {
                                 }
                             }
                         }
-                    } else if self.depot_outputs.get(&p).is_some_and(|o| !o.is_empty()) {
-                        self.notes.push(format!(
-                            "adapter gap: depot output slot {slot} access at {p:?}"
-                        ));
+                    } else if let Some(out) = self.depot_outputs.get_mut(&p) {
+                        // `take` out of the block entity's slot: the buffer's slot `slot - 1`.
+                        if let Some(s) = out.take(usize::from(slot) - 1, n, simulate) {
+                            outcome.taken.push(s);
+                        }
+                        if !simulate {
+                            self.w.depot_changed(0, p);
+                        }
                     }
                 }
             }
@@ -641,7 +646,11 @@ impl Run {
                 })
                 .into_iter()
                 .collect();
-            let mut outputs = self.depot_outputs.get(&p).cloned().unwrap_or_default();
+            let mut outputs: Vec<Stack> = self
+                .depot_outputs
+                .get(&p)
+                .map(|o| o.iter().cloned().collect())
+                .unwrap_or_default();
             outputs.sort_by(|a, b| (&a.item, a.count).cmp(&(&b.item, b.count)));
             // glue/redstone/analog.rs: a depot's items over its held stack's max stack size (64
             // when it holds none), an ejector's over its stack size.
@@ -822,29 +831,43 @@ impl belt::Surroundings for Side<'_> {
         let at = belt::position_for_offset(self.controller, &self.segment, self.length, segment);
         let pos = [at[0], at[1] + 1, at[2]];
         let (facing, _) = self.run.belt_funnel_at(pos)?;
-        if self
-            .run
-            .w
-            .table
-            .get(self.run.at(pos))
-            .is_some_and(|(b, _)| b == Block::BrassBeltFunnel)
-        {
-            self.run.notes.push(format!(
-                "adapter gap: brass funnel filter and amount at {pos:?}"
-            ));
-            return None;
+        // `filtering.test`: a brass funnel lets only what its filter passes in.
+        if !self.run.funnel_passes(pos, &item.item) {
+            return Some(item.count);
         }
         let behind = create_engine::funnel::behind(pos, facing);
-        let stack = Stack {
+        let mut stack = Stack {
             item: item.item.clone(),
             count: item.count,
         };
         match self.run.w.table.get(self.run.at(behind)).map(|(b, _)| b) {
-            Some(Block::Depot) => Some(
-                self.run
-                    .depot_insert(behind, &stack, false)
-                    .map_or(0, |s| s.count),
-            ),
+            Some(Block::Depot) => {
+                // A brass funnel set to exactly N: only a stack of at least N, and only when
+                // all N fit; then N of it.
+                let (amount, exact) = self.run.funnel_extraction(pos);
+                let mut kept = 0;
+                if exact {
+                    let n = amount.min(255) as u8;
+                    if n > item.count {
+                        return Some(item.count);
+                    }
+                    stack.count = n;
+                    let left = self
+                        .run
+                        .depot_insert(behind, &stack, true)
+                        .map_or(0, |s| s.count);
+                    if left > 0 {
+                        return Some(item.count);
+                    }
+                    kept = item.count - n;
+                }
+                Some(
+                    self.run
+                        .depot_insert(behind, &stack, false)
+                        .map_or(0, |s| s.count)
+                        + kept,
+                )
+            }
             Some(b) => {
                 self.run.notes.push(format!(
                     "adapter gap: funnel insertion into create:{} at {behind:?}",
