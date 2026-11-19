@@ -416,6 +416,7 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                 "create:gearshift",
                 "create:belt",
                 "create:depot",
+                "create:weighted_ejector",
                 "create:andesite_belt_funnel",
                 "create:brass_belt_funnel",
                 "create:andesite_funnel",
@@ -450,6 +451,9 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                         .iter()
                         .any(|block| block.id == *item)
                     || item == "create:depot"
+                    // A plain transport item held on a filter slot.
+                    || ["minecraft:iron_ingot", "minecraft:gold_ingot", "minecraft:diamond"]
+                        .contains(&item.as_str())
                     || crate::fluid_recipes::contents(item).is_some()
                     || item == "minecraft:bucket",
                 "item override requires a separate transport adapter"

@@ -72,6 +72,12 @@ fn generate_base(seed: u64) -> Scenario {
     if seed % 32 == 25 {
         return crate::belt_surface::generate(seed);
     }
+    if seed % 32 == 6 {
+        return crate::brass::generate(seed);
+    }
+    if seed.is_multiple_of(32) {
+        return crate::ejectors::generate(seed);
+    }
     if seed % 32 == 1 {
         return crate::depots::generate(seed);
     }
