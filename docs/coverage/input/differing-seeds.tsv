@@ -1,48 +1,123 @@
-seed
-20
-21
-84
-85
-148
-149
-212
-213
-276
-277
-340
-341
-372
-404
-405
-436
-468
-469
-500
-501
-532
-533
-564
-565
-596
-597
-629
-660
-661
-693
-724
-725
-757
-788
-789
-821
-852
-853
-885
-916
-917
-949
-980
-981
-1013
-1044
-1045
+seed	kind
+4	differed
+22	differed
+36	differed
+68	differed
+69	differed
+86	differed
+100	differed
+120	differed
+132	differed
+133	differed
+150	differed
+164	differed
+196	differed
+278	differed
+292	differed
+293	differed
+310	differed
+324	differed
+342	differed
+356	differed
+388	differed
+420	differed
+449	differed
+452	differed
+484	differed
+516	differed
+534	differed
+566	differed
+568	differed
+580	differed
+598	differed
+600	differed
+612	differed
+613	differed
+644	differed
+673	differed
+676	differed
+696	differed
+708	differed
+726	differed
+729	differed
+772	differed
+790	differed
+804	differed
+805	differed
+822	differed
+836	differed
+868	differed
+869	differed
+900	differed
+921	differed
+932	differed
+933	differed
+952	differed
+964	differed
+965	differed
+982	differed
+996	differed
+1028	differed
+1029	differed
+1046	differed
+1078	differed
+1092	differed
+1124	differed
+1156	differed
+1157	differed
+1174	differed
+1188	differed
+1220	differed
+1238	differed
+1249	differed
+1252	differed
+1273	differed
+1284	differed
+1316	differed
+1317	differed
+1349	differed
+1366	java-unstable
+1380	differed
+1409	differed
+1412	differed
+1413	differed
+1430	differed
+1444	differed
+1462	differed
+1476	differed
+1494	differed
+1508	differed
+1509	differed
+1528	differed
+1540	differed
+1572	differed
+1605	differed
+1622	differed
+1636	differed
+1637	differed
+1657	differed
+1668	differed
+1669	differed
+1700	differed
+1701	differed
+1720	differed
+1721	driver-unsupported
+1729	differed
+1732	differed
+1733	differed
+1752	differed
+1764	differed
+1796	differed
+1797	differed
+1828	differed
+1846	differed
+1860	differed
+1861	differed
+1878	differed
+1892	differed
+1924	differed
+1942	differed
+1956	differed
+1974	differed
+1988	differed
+1989	differed

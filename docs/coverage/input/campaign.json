@@ -1,13 +1,17 @@
 {
-  "command": "./run.sh fuzz cover 120 and ./run.sh fuzz cover 1 (union of both exec sets)",
+  "command": "./run.sh fuzz cover 100 (stopped in round 2), ./run.sh fuzz cover 0 and ./run.sh fuzz cover 0 (union of the three exec sets)",
   "complete": true,
-  "corpus_scenarios": 63,
-  "corpus_sha256": "1e5f4ba6fe451edf41ddf66994d988f7d66012f898a0858c794e725d715ec281",
+  "corpus_scenarios": 488,
+  "corpus_sha256": [
+    "ec8f12cb5ff4e44b9ffb6c6c2ec35a36790707426607dbe5d591e89f680ed198",
+    "b9c28533a59677fadaf57913313f9ec7aaf074441d468be7ec9b227c475333bc",
+    "94f5763829ef68fc0b84b8e00151dc787867522e34a85048aeef0d366177bbc2"
+  ],
   "create": "b62e837acab5e2ceeb7bfd0c9fd551c64b52dd18",
-  "engine": "857e70a65cf97d7dcf0a0e97a0e793236f57b224",
-  "fuzzer": "e9cc479f762b8c92e7f365d8cf318b9d3a634faa",
-  "includes": "com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.content.logistics.depot.*:com.simibubi.create.content.logistics.funnel.*:com.simibubi.create.content.logistics.tunnel.*:com.simibubi.create.content.logistics.box.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*",
-  "never_reached_sha256": "99ec0cbc3f1a2af46fc2c4c832c081ba68b865d35c4f76a77f3124b9ee70cf0f",
-  "port": "25610",
-  "union": "campaign 1 (shared corpus, 120 rounds) plus campaign 2 (62 wheel/engine cases, 1 mutation round)"
+  "engine": "4625fb5df47366236e5951edd045369a4ae0752a",
+  "fuzzer": "0beb7d49220642f5f9041968fecd86beabeabbeb",
+  "includes": "com.simibubi.create.content.fluids.*:com.simibubi.create.content.kinetics.*:com.simibubi.create.content.logistics.depot.*:com.simibubi.create.content.logistics.funnel.*:com.simibubi.create.content.logistics.tunnel.*:com.simibubi.create.content.logistics.chute.*:com.simibubi.create.content.logistics.box.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*",
+  "never_reached_sha256": "a37cbd3421b94d27fdba85cf7a63cda676d120dc2094ad729da26b886b04e7d3",
+  "port": "25630",
+  "union": "campaign 1: replay of a 292-scenario belt-family corpus (fuzzer ff1f75d561218ba5b574f3849b3a23575831a989; seeds congruent to 1, 4, 9, 22, 24, 25 mod 32 and 15 mod 16, and the manual belt/depot cases) plus one guided round; round 2 stopped on a Java fluid-boundary error from a mutated water-bucket use. campaign 2: replay of an 80-scenario funnel and chute corpus (seeds congruent to 4 and 5 mod 32, fuzzer 0beb7d49220642f5f9041968fecd86beabeabbeb). campaign 3: replay of the previous campaign's committed corpus docs/coverage/replay-corpus (116 scenarios, fuzzer 0beb7d49220642f5f9041968fecd86beabeabbeb)"
 }
