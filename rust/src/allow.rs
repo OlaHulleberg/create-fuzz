@@ -6,6 +6,15 @@
 /// Java 1.21.1: yaw 45, pitch 0, radians -0.7853982, sin bits 3207922931,
 /// cos bits 1060439283 (equal magnitudes), nearest SOUTH. Port cosine bits
 /// 1060438146 select WEST. No approximate angles or horizontal-direction APIs qualify.
+///
+/// Not a port bug: the tie is decided by vanilla's `Mth` sine table, not by Create's code. The
+/// port's `place::mth_sin`/`mth_cos` (create-horizon `engine/src/place.rs`) use the same table
+/// and indexing as the game it runs in: Sunrise's `sunrise-core/src/geometry/trig.rs`
+/// (`SCALE = 10430.378350470453`, entries `(i / SCALE).sin() as f32`, double-to-long index,
+/// "generated from the 26.3 table formula"), and Sunrise's own `level/place.rs`
+/// `ordered_by_nearest` reads it. The Java host runs Minecraft 1.21.1, whose table ties at
+/// this angle (bits measured above). Matching 1.21.1 here would make the port disagree with
+/// the game it ships in, so the difference is between vanilla versions, not a port bug.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum NearestTie {
