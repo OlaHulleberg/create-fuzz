@@ -111,6 +111,7 @@ impl Run {
                             offered: offered.clone(),
                             remainder: offered,
                             taken: vec![],
+                            handler: None,
                         });
                         return;
                     }
@@ -149,7 +150,90 @@ impl Run {
                 .into_iter()
                 .map(|(item, count)| Stack { item, count })
                 .collect(),
+            handler: None,
         });
+    }
+    /// `handlers::provide` for an item access at `p`, then one insert or extract: a depot's
+    /// `DepotItems` takes into its held slot only while it holds nothing, gives from any slot.
+    /// The port provides no handler for belts or andesite tunnels.
+    pub(super) fn capability(
+        &mut self,
+        p: Pos,
+        slot: u8,
+        insert: Option<&Stack>,
+        extract: Option<u8>,
+        simulate: bool,
+    ) {
+        let mut outcome = Outcome {
+            pos: p,
+            offered: insert.cloned(),
+            remainder: insert.cloned(),
+            taken: Vec::new(),
+            handler: Some(false),
+        };
+        let block = self.w.table.get(self.at(p)).map(|(b, _)| b);
+        match block {
+            Some(Block::Depot) => {
+                outcome.handler = Some(true);
+                if let Some(s) = insert {
+                    let empty = !self.depot_stacks.contains_key(&p)
+                        && self.depot_outputs.get(&p).is_none_or(|o| o.is_empty());
+                    if slot == 0 && empty {
+                        let n = s.count.min(s.limit());
+                        outcome.remainder = (s.count > n).then(|| Stack {
+                            item: s.item.clone(),
+                            count: s.count - n,
+                        });
+                        if !simulate {
+                            self.depot_stacks.insert(
+                                p,
+                                Stack {
+                                    item: s.item.clone(),
+                                    count: n,
+                                },
+                            );
+                            // `depot_contents_changed`: it arrives from above, at the edge.
+                            self.w.depot_put(
+                                0,
+                                p,
+                                Some(depot::Held {
+                                    position: 0.,
+                                    ..depot::Held::new(180, false)
+                                }),
+                            );
+                        }
+                    }
+                } else if let Some(n) = extract {
+                    if slot == 0 {
+                        if let Some(held) = self.depot_stacks.get(&p).cloned() {
+                            let k = n.min(held.count);
+                            outcome.taken.push(Stack {
+                                item: held.item.clone(),
+                                count: k,
+                            });
+                            if !simulate {
+                                if k == held.count {
+                                    self.depot_stacks.remove(&p);
+                                    self.w.depot_put(0, p, None);
+                                } else if let Some(h) = self.depot_stacks.get_mut(&p) {
+                                    h.count -= k;
+                                }
+                            }
+                        }
+                    } else if self.depot_outputs.get(&p).is_some_and(|o| !o.is_empty()) {
+                        self.notes.push(format!(
+                            "adapter gap: depot output slot {slot} access at {p:?}"
+                        ));
+                    }
+                }
+            }
+            Some(Block::Belt | Block::AndesiteTunnel) | None => {}
+            Some(b) => self.notes.push(format!(
+                "adapter gap: item handler of create:{} at {p:?}",
+                b.name()
+            )),
+        }
+        self.item_outcomes.push(outcome);
     }
     pub(super) fn tick_transport(&mut self) {
         // The glue's logistics phase: tunnels, then covers, then transport.

@@ -68,6 +68,9 @@ pub struct Outcome {
     pub offered: Option<Stack>,
     pub remainder: Option<Stack>,
     pub taken: Vec<Stack>,
+    /// A capability access: whether the block gave an item handler on that side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub handler: Option<bool>,
 }
 
 /// Controlled item histories on player-connected belts.

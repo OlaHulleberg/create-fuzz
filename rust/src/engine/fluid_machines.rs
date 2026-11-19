@@ -24,6 +24,7 @@ impl Run {
                 offered: offered.clone(),
                 remainder: offered,
                 taken: Vec::new(),
+                handler: None,
             });
         }
         let mut remainder = offered.clone();
@@ -84,6 +85,7 @@ impl Run {
             offered,
             remainder,
             taken,
+            handler: None,
         })
     }
     pub(super) fn spout_on_depot(&mut self, depot: Pos) {

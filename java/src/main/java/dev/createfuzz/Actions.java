@@ -42,6 +42,7 @@ final class Actions {
         switch (action.get("kind").getAsString()) {
             case "game_mode" -> player.gameMode.changeGameModeForPlayer(action.get("creative").getAsBoolean()?net.minecraft.world.level.GameType.CREATIVE:net.minecraft.world.level.GameType.SURVIVAL);
             case "item" -> ItemInputs.apply(level,player,pos,origin,action.getAsJsonObject("input"));
+            case "capability" -> ItemInputs.capability(level,player,pos,origin,action);
             case "use" -> {
                 Direction face = Direction.byName(action.get("face").getAsString());
                 var local = action.getAsJsonArray("hit");

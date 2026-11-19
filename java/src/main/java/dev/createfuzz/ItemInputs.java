@@ -55,6 +55,25 @@ final class ItemInputs {
         }
         return totals;
     }
+    /** Another block's item access (a hopper's, a pipe's): the block's ItemHandler capability on
+     * `side`, one insertItem or extractItem call on `slot`, simulated or not. Not a player input. */
+    static void capability(ServerLevel level,ServerPlayer p,BlockPos pos,BlockPos origin,JsonObject a) {
+        Direction side=a.get("side")==null||a.get("side").isJsonNull()?null:Direction.byName(a.get("side").getAsString());
+        int slot=a.get("slot").getAsInt();boolean simulate=a.get("simulate").getAsBoolean();
+        ItemStack offered=stack(a.get("insert"));ItemStack remainder=offered.copy();
+        int extract=a.get("extract")==null||a.get("extract").isJsonNull()?0:a.get("extract").getAsInt();
+        var handler=level.getCapability(net.neoforged.neoforge.capabilities.Capabilities.ItemHandler.BLOCK,pos,side);
+        JsonArray taken=new JsonArray();
+        if(handler!=null && slot>=0 && slot<handler.getSlots()) {
+            if(!offered.isEmpty()) remainder=handler.insertItem(slot,offered.copy(),simulate).copy();
+            else if(extract>0) {var out=handler.extractItem(slot,extract,simulate);if(!out.isEmpty()) taken.add(stack(out));}
+        }
+        JsonObject out=new JsonObject();BlockPos rel=pos.subtract(origin);
+        out.add("pos",CreateFuzz.GSON.toJsonTree(new int[]{rel.getX(),rel.getY(),rel.getZ()}));
+        out.add("offered",stack(offered));out.add("remainder",offered.isEmpty()?JsonNull.INSTANCE:stack(remainder));
+        out.add("taken",taken);out.addProperty("handler",handler!=null);
+        outcomes.computeIfAbsent(p,k->new JsonArray()).add(out);
+    }
     static void apply(ServerLevel level,ServerPlayer p,BlockPos pos,BlockPos origin,JsonObject input) {
         ItemStack offered=stack(input.get("stack"));
         ItemStack saved=offered.copy();

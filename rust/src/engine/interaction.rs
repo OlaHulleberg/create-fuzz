@@ -7,6 +7,13 @@ impl Run {
             Action::GameMode { creative } => self.creative = *creative,
             Action::Reload => self.reload(),
             Action::Item { input } => self.item_input(p, input),
+            Action::Capability {
+                slot,
+                insert,
+                extract,
+                simulate,
+                ..
+            } => self.capability(p, *slot, insert.as_ref(), *extract, *simulate),
             Action::SpeedSetting { row, value } => {
                 self.w.board_motor(
                     0,

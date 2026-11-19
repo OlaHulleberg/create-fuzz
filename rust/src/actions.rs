@@ -12,6 +12,15 @@ pub enum Action {
     Item {
         input: crate::transport::Input,
     },
+    /// Another block's item access through the block's item handler on `side` (None: the
+    /// unsided one): one insert of `insert`, or one extract of up to `extract` from `slot`.
+    Capability {
+        side: Option<Face>,
+        slot: u8,
+        insert: Option<crate::transport::Stack>,
+        extract: Option<u8>,
+        simulate: bool,
+    },
     Use {
         item: String,
         face: Face,
@@ -129,6 +138,21 @@ impl Action {
     pub fn validate(&self) {
         match self {
             Self::Item { input } => input.validate(),
+            Self::Capability {
+                slot,
+                insert,
+                extract,
+                ..
+            } => {
+                assert!(*slot < 9, "capability slot outside a depot's");
+                assert!(
+                    insert.is_some() != extract.is_some_and(|n| n > 0),
+                    "a capability access inserts or extracts"
+                );
+                if let Some(s) = insert {
+                    s.validate();
+                }
+            }
             Self::ValveSetting { row, value } => {
                 assert!((0..=1).contains(row) && (0..=180).contains(value));
             }
