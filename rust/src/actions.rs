@@ -90,6 +90,7 @@ pub const BLOCKS: &[&str] = &[
     "create:encased_chain_drive",
     "create:adjustable_chain_gearshift",
     "create:shaft",
+    "create:hand_crank",
     "create:cogwheel",
     "create:large_cogwheel",
     "create:creative_motor",

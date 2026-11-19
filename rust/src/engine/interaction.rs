@@ -618,6 +618,12 @@ impl Run {
         {
             next = crate::trig::java_choice(&next, property);
         }
+        if b == Block::HandCrank {
+            let facing = place::facing(b, ctx, shaft).expect("crank facing");
+            if self.replaceable(add(p, facing.opposite().offset())) {
+                return;
+            }
+        }
         self.set(p, self.id(&next));
         if let Some(property) = measured {
             self.measured_trig.insert(p, property.into());

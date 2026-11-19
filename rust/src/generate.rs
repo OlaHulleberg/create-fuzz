@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 64 == 37 {
+        return crate::network_inputs::competing_sources(seed);
+    }
     if seed % 64 == 21 {
         return crate::network_inputs::instruments(seed);
     }

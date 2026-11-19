@@ -178,3 +178,59 @@ pub fn instruments(seed: u64) -> Scenario {
         ],
     }
 }
+
+/// Close a four-cog mesh with the sources already turning, separate it again,
+/// and restore it after a source has expired. A source at the opposite corner of
+/// the square conveys the same sign, while one next to it conveys the reverse.
+pub fn competing_sources(seed: u64) -> Scenario {
+    let left = [0, 8, 0];
+    let opposite = [1, 8, 1];
+    let right = [1, 8, 0];
+    let join = [0, 8, 1];
+    let second = if seed & 64 == 0 { opposite } else { right };
+    let above = |[x, y, z]| [x, y + 1, z];
+    let below = |[x, y, z]| [x, y - 1, z];
+    let up = |tick, pos, item, sneaking| {
+        use_item(
+            tick,
+            pos,
+            item,
+            Face::Up,
+            Face::Up.point(0.5, 0.5),
+            sneaking,
+        )
+    };
+    let blocks = [left, opposite, right, join]
+        .map(|p| crate::scenario::Placed {
+            pos: below(p),
+            state: "minecraft:stone".into(),
+            motor: None,
+        })
+        .to_vec();
+    let mut events = [left, opposite, right]
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| up(5 + i as u32, below(p), "create:cogwheel", true))
+        .collect::<Vec<_>>();
+    events.extend([
+        up(10, left, "create:hand_crank", false),
+        up(11, second, "create:hand_crank", false),
+        up(20, above(left), "minecraft:air", false),
+        up(23, above(second), "minecraft:air", seed & 128 != 0),
+        up(25, below(join), "create:cogwheel", true),
+        action(29, right, Action::Remove),
+        up(31, above(second), "minecraft:air", seed & 256 != 0),
+        up(34, below(right), "create:cogwheel", true),
+        action(38, above(left), Action::Remove),
+        up(45, above(second), "minecraft:air", false),
+    ]);
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 120,
+        checkpoints: vec![19, 21, 24, 26, 30, 32, 35, 39, 46, 70],
+        blocks,
+        events,
+    }
+}
