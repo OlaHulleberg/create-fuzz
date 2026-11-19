@@ -137,8 +137,12 @@ impl Run {
         }
         // WrenchItem.useOn dispatches a sneaking belt use to
         // IWrenchable.onSneakWrenched (destroyBlock), handled below like the glue.
-        if let Some((block, _)) = own {
+        if let Some((block, info)) = own {
             let name = format!("create:{}", block.name());
+            if block == Block::BlazeBurner && self.use_burner(p, item) {
+                return;
+            }
+            let _ = info;
             if !crate::fluids::contract()
                 .blocks
                 .iter()

@@ -55,6 +55,8 @@ impl Run {
         }
         let mut events = Vec::new();
         self.tick_fluids();
+        self.tick_boilers();
+        self.tick_burners();
         self.tick_transport();
         self.save_fluid_entities();
         self.w.settle_belts(0);

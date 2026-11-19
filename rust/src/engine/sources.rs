@@ -1,5 +1,6 @@
-//! Generating kinetic sources' environment: water wheels' flow. The native fluid host supplies
-//! the fluid states and the flow vectors they carry.
+//! Generating kinetic sources' environment: water wheels' flow and the boilers that drive
+//! steam engines. The native fluid host supplies the fluid states and their flow; boilers read
+//! the heat under their tank from the world's block states.
 use super::*;
 use create_engine::kinetics::Axis;
 
@@ -59,6 +60,126 @@ impl Run {
         }
         // No native peer: every cell the scenario placed is air or a non-fluid host state.
         [0.0; 3]
+    }
+
+    /// `BlazeBurnerBlock.useItemOn` on a lit burner: a creative blaze cake sets the next heat,
+    /// a blaze cake burns special fuel for 3200 ticks (`BoilerHeaters.blazeBurner` reads the
+    /// resulting `blaze` property). Other fuels are outside this adapter.
+    pub(super) fn use_burner(&mut self, p: Pos, item: &str) -> bool {
+        use create_engine::burner::{self, Fuel};
+        let Some((block, info)) = self.w.table.get(self.at(p)).map(|(b, i)| (b, *i)) else {
+            return false;
+        };
+        if block != create_engine::Block::BlazeBurner
+            || info
+                .heat
+                .is_none_or(|h| h == create_engine::fan::Heat::None)
+            || !self.w.dims[0].burners.contains_key(&p)
+        {
+            return false;
+        }
+        let heat = if item == "create:creative_blaze_cake" {
+            let shown = info.heat.unwrap_or(create_engine::fan::Heat::Smouldering);
+            let Some(next) = self.w.dims[0]
+                .burners
+                .get_mut(&p)
+                .map(|b| b.creative_fuel(shown))
+            else {
+                return false;
+            };
+            next
+        } else if item == "create:blaze_cake" {
+            if !self.w.fuel_burner(0, p, Fuel::Special, 3200, true) {
+                return false;
+            }
+            self.w.dims[0].burners[&p].heat()
+        } else {
+            return false;
+        };
+        let next = with_prop(&self.name(self.at(p)), "blaze", burner::heat_name(heat));
+        self.set(p, self.id(&next));
+        self.mark_column(p);
+        true
+    }
+
+    /// `BlazeBurnerBlockEntity.tick` on the server: each burning burner's heat sets its block.
+    pub(super) fn tick_burners(&mut self) {
+        for (p, heat) in self.w.tick_burners(0) {
+            let next = with_prop(
+                &self.name(self.at(p)),
+                "blaze",
+                create_engine::burner::heat_name(heat),
+            );
+            self.set(p, self.id(&next));
+        }
+    }
+
+    /// The glue's `tick_boilers`: engines counted, shafts in front of them powered or plain, heat
+    /// read under the boiler, water supply sampled.
+    pub(super) fn tick_boilers(&mut self) {
+        self.w.evaluate_boilers(0);
+        for (p, powered) in self.w.shaft_changes(0) {
+            let (_, props) = parse_state(&self.name(self.at(p)));
+            let get = |k: &str| {
+                props
+                    .iter()
+                    .find(|(key, _)| key == k)
+                    .map(|(_, v)| v.as_str())
+            };
+            let shaft = format!(
+                "create:{}[axis={},waterlogged={}]",
+                if powered { "powered_shaft" } else { "shaft" },
+                get("axis").unwrap_or("x"),
+                get("waterlogged").unwrap_or("false"),
+            );
+            self.set(p, self.id(&shaft));
+        }
+        for (tank, width) in self.w.take_heat_checks(0) {
+            // `updateTemperature`: every block under the tank's bottom layer.
+            let w = i32::from(width);
+            let heats: Vec<i32> = (0..w)
+                .flat_map(|x| (0..w).map(move |z| [tank[0] + x, tank[1] - 1, tank[2] + z]))
+                .map(|p| self.boiler_heater(p))
+                .collect();
+            self.w.set_boiler_heat(0, tank, &heats);
+        }
+        self.w.tick_boilers(0);
+    }
+
+    /// `BoilerHeater.findHeat` under a boiler: a blaze burner by its heat level, another block in
+    /// `create:passive_boiler_heaters` passive unless it is out (an unlit campfire), anything else
+    /// none. Lava and fire are not representable as scenario host states.
+    fn boiler_heater(&self, p: Pos) -> i32 {
+        use create_engine::fan::Heat;
+        use create_engine::steam::{NO_HEAT, PASSIVE_HEAT, blaze_burner_heat};
+        let (name, props) = parse_state(&self.name(self.at(p)));
+        let get = |k: &str| {
+            props
+                .iter()
+                .find(|(key, _)| key == k)
+                .map(|(_, v)| v.as_str())
+        };
+        match name.as_str() {
+            "create:blaze_burner" => {
+                let heat = match get("blaze") {
+                    Some("smouldering") => Heat::Smouldering,
+                    Some("fading") => Heat::Fading,
+                    Some("kindled") => Heat::Kindled,
+                    Some("seething") => Heat::Seething,
+                    _ => Heat::None,
+                };
+                blaze_burner_heat(heat)
+            }
+            "create:lit_blaze_burner" | "minecraft:magma_block" => PASSIVE_HEAT,
+            "minecraft:campfire" | "minecraft:soul_campfire" => {
+                if get("lit") == Some("true") {
+                    PASSIVE_HEAT
+                } else {
+                    NO_HEAT
+                }
+            }
+            _ => NO_HEAT,
+        }
     }
 }
 
