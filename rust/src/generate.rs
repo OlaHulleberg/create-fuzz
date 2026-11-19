@@ -72,11 +72,16 @@ fn generate_base(seed: u64) -> Scenario {
     if seed % 32 == 25 {
         return crate::belt_surface::generate(seed);
     }
-    if seed % 32 == 6 {
+    // Half of the two lanes the geometry family had: the halves that reload (`seed & 32`).
+    if seed % 64 == 38 {
         return crate::brass::generate(seed);
     }
-    if seed.is_multiple_of(32) {
+    if seed % 64 == 32 {
         return crate::ejectors::generate(seed);
+    }
+    // Half of the actions lane 23.
+    if seed % 64 == 23 {
+        return crate::funnel_push::generate(seed);
     }
     if seed % 32 == 1 {
         return crate::depots::generate(seed);
