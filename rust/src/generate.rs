@@ -69,6 +69,9 @@ fn generate_base(seed: u64) -> Scenario {
     if seed % 32 == 24 {
         return crate::tunnels::generate(seed);
     }
+    if seed % 32 == 25 {
+        return crate::belt_surface::generate(seed);
+    }
     if seed % 16 == 15 {
         return crate::belts::generate(seed);
     }

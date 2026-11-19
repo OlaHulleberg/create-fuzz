@@ -398,6 +398,7 @@ impl Run {
     /// the glue passes the click on to the connector item (a block there that is no belt).
     fn slice_connector(&mut self, p: Pos, seg: belt::Segment, length: i32) -> bool {
         let v = seg.vector();
+        let color = self.belt_color.get(&p).cloned();
         let next = add(
             p,
             if seg.part == belt::Part::Start {
@@ -467,6 +468,9 @@ impl Run {
                 (chain, all)
             };
             all.sort_by(|a, b| b.position.total_cmp(&a.position));
+            for q in &chain {
+                self.set_segment_color(*q, color.as_deref());
+            }
             self.w
                 .reform_belt(0, chain[0], &chain, belt::Inventory::from_saved(all, true));
             return true;
@@ -481,6 +485,7 @@ impl Run {
             self.belt_casing.contains_key(&p),
         );
         self.set_segment_direct(next, seg, false);
+        self.set_segment_color(next, color.as_deref());
         let mut items = taken.items.to_save();
         let mut chain = taken.chain;
         if seg.part == belt::Part::Start {

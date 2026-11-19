@@ -1,5 +1,6 @@
 mod actions;
 mod allow;
+mod belt_surface;
 mod belts;
 mod catalogue;
 mod compare;

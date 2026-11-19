@@ -79,6 +79,13 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     for water in ["false", "true"] {
         push(format!("create:depot[waterlogged={water}]"));
     }
+    // Shafts placed against a belt (a shaft item on a segment that is no middle one) may
+    // stand in water a bucket left.
+    for axis in ["x", "y", "z"] {
+        for water in ["true", "false"] {
+            push(format!("create:shaft[axis={axis},waterlogged={water}]"));
+        }
+    }
     // Tunnels: the shapes `tick_tunnels` gives them.
     for tunnel in ["andesite_tunnel", "brass_tunnel"] {
         for axis in ["x", "z"] {

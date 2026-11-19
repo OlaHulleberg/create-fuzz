@@ -171,6 +171,12 @@ impl Run {
                         "create:wrench",
                     ]
                     .contains(&item))
+                // `use_belt_with` passed: a dye it did not change, or a shaft on a segment that
+                // is no middle one, goes on to the item (`DyeItem` does nothing to a block, the
+                // shaft is placed against the clicked face).
+                && !(name == "create:belt"
+                    && (item == "create:shaft"
+                        || create_engine::dye::DyeColor::of_item(item).is_some()))
             {
                 self.notes.push(format!("adapter gap: RightClickBlock/value-box and block-use handlers for {name} at {p:?} are outside the supported subset; input retained"));
                 return;
