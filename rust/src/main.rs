@@ -7,6 +7,7 @@ mod compare;
 mod corpus;
 mod coverage;
 mod defaults;
+mod depots;
 mod engine;
 mod fluid_host;
 mod fluid_inputs;
