@@ -80,11 +80,6 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     }
     push("create:brass_casing".into());
     push("create:andesite_casing".into());
-    for axis in ["x", "y", "z"] {
-        for material in ["brass", "andesite"] {
-            push(format!("create:{material}_encased_shaft[axis={axis}]"));
-        }
-    }
     for face in ["up", "down", "north", "south", "east", "west"] {
         push(format!("create:creative_motor[facing={face}]"));
     }
@@ -100,6 +95,9 @@ fn create_states(sc: &Scenario) -> Vec<String> {
         e.id == "create:belt"
             || e.id == "create:fluid_valve"
             || e.id == "create:sequenced_gearshift"
+            || e.id.ends_with("_encased_shaft")
+            || e.id.ends_with("_encased_cogwheel")
+            || e.id.ends_with("_encased_large_cogwheel")
             || e.id.ends_with("_valve_handle")
     }) {
         for spec in entry.specifications() {
