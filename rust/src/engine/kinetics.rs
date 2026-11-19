@@ -34,9 +34,10 @@ impl Run {
                 self.w.transmission_power_changing(0, p);
                 // ChainGearshiftBlock.neighborChanged sets with UPDATE_KNOWN_SHAPE.
                 if self.w.reads_signal(state) {
-                    self.w.setting_known_shape(0, p, id);
+                    self.commit_known_shape(p, id);
+                } else {
+                    self.commit(p, id, false);
                 }
-                self.commit(p, id, false);
             }
             if self.w.reads_signal(state) {
                 let signal = i32::from(self.signal(p));

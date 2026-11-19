@@ -263,6 +263,17 @@ impl Run {
 
     /// UPDATE_CLIENTS changes the state without notifying neighbours; UPDATE_ALL does both.
     fn commit(&mut self, p: Pos, new: u32, notify: bool) {
+        self.commit_with(p, new, notify, false);
+    }
+
+    /// A write applied with `UPDATE_KNOWN_SHAPE` (`ChainGearshiftBlock.neighborChanged`):
+    /// `updateIndirectNeighbourShapes` does not run, so the retained block entity keeps its
+    /// kinetic information though the states are not equivalent.
+    fn commit_known_shape(&mut self, p: Pos, new: u32) {
+        self.commit_with(p, new, false, true);
+    }
+
+    fn commit_with(&mut self, p: Pos, new: u32, notify: bool, skip_shape_updates: bool) {
         let old = self.at(p);
         if self.w.table.get(old).map(|(b, _)| b) != self.w.table.get(new).map(|(b, _)| b) {
             self.persisted.kinetics.remove(&(p, 0));
@@ -362,7 +373,8 @@ impl Run {
         {
             self.belt_casing.remove(&p);
         }
-        self.w.block_changed(0, p, old, new);
+        self.w
+            .apply_block_change(0, p, old, new, skip_shape_updates);
         self.break_wheels();
         if self.w.table.get(new).map(|(b, _)| b)
             == Some(create_engine::Block::AdjustableChainGearshift)
