@@ -606,7 +606,7 @@ impl Run {
                 next = with_prop(&next, &k, &v);
             }
         }
-        if block == "create:shaft" {
+        if matches!(b, Block::Shaft | Block::HandCrank) {
             next = with_prop(&next, "waterlogged", "false");
         }
         if block == "create:clutch" || block == "create:gearshift" {
