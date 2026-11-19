@@ -114,8 +114,13 @@ All are after a reload, and all are Java-versus-port:
 - A large wheel whose frame is rebuilt around a reload: one frame cell differs for a tick
   (seed 436 is a record of this).
 
-These are the only seeds that differ in the 0..700 seed sweep run against the private
-server: every seed congruent to 20 or 21 modulo 64 (the families' reload variants).
+A partial sweep (`fuzz 0 1050`) against the private server differed on 47 seeds, and every
+one of them is a wheel or boiler case that sees a reload: seeds congruent to 20 or 21
+modulo 64 (the families' reload variants) or to 52 or 53 modulo 64 (the shared
+`persistence::schedule` reload). No seed in the range differs for any other input the new
+generators produce. `input/differing-seeds.tsv` lists them; the committed baseline listed
+185 differing seeds for 0..2000 on the older driver, and those that fall in this range now
+match.
 
 ## Open work items
 

@@ -6,7 +6,7 @@ cases/actions-clutch.json	match
 cases/actions-gearshift.json	match
 cases/actions-motor-centre.json	match
 cases/actions-motor-edge.json	match
-cases/actions-placement-power-gap.json	4 differences
+cases/actions-placement-power-gap.json	match
 cases/actions-shaft.json	match
 cases/actions-trig-chain-156.json	match
 cases/actions-trig-chain-77.json	match
@@ -14,10 +14,30 @@ cases/actions-wrench-network.json	match
 cases/belts-connector.json	match
 cases/belts-conveyor-loop.json	match
 cases/belts-pulley-slicer.json	match
+cases/belts-sneak-wrench.json	match
 cases/crank-alone.json	match
+cases/fluid-buckets.json	match
+cases/fluid-casing-secondary-use.json	match
+cases/fluid-chocolate-berries.json	match
+cases/fluid-creative-buckets.json	match
+cases/fluid-honey-bottles.json	match
+cases/fluid-item-drain.json	match
+cases/fluid-pipes.json	match
+cases/fluid-pump-transfer.json	match
+cases/fluid-smart-filter.json	match
+cases/fluid-spout-belt.json	match
+cases/fluid-spout-depot.json	match
 cases/fluid-tank-reload-tall.json	match
 cases/fluid-tank-reload.json	match
 cases/fluid-tank-split.json	match
+cases/fluid-tea-bottles.json	match
+cases/fluid-valve-drive.json	match
+cases/fluid-valve-pointer-reload.json	match
+cases/fluid-world-falling.json	match
+cases/fluid-world-renewal.json	match
+cases/fluid-world-secondary-use.json	match
+cases/fluid-world-waterlogging.json	match
+cases/fluid-world.json	match
 cases/gearbox-x-down.json	match
 cases/gearbox-x-north.json	match
 cases/gearbox-x-south.json	match
@@ -46,6 +66,7 @@ cases/items-belt-x.json	match
 cases/items-depot-landing.json	match
 cases/items-depot-swap.json	match
 cases/items-depot-use.json	match
+cases/large-water-wheel-frame.json	match
 cases/observation-checkpoints.json	match
 cases/opposing-motors.json	match
 cases/persistence-chain-break-shape.json	match
@@ -56,11 +77,12 @@ cases/reload-belt-items.json	match
 cases/reload-cascade.json	match
 cases/reload-crank.json	match
 cases/reload-depot-items.json	match
-cases/reload-kinetic.json	264 differences
+cases/reload-kinetic.json	match
 cases/reload-sequencer.json	match
 cases/reload-valve.json	match
 cases/reload-wrench.json	match
-cases/scope-outputs.json	1 differences
+cases/scope-outputs.json	match
+cases/steam-engine-boiler.json	match
 cases/transmission-chain-ends.json	match
 cases/transmission-chain-y.json	match
 cases/transmission-chain-z.json	match
@@ -74,3 +96,4 @@ cases/transmission-sequencer-replaced.json	match
 cases/transmission-sequencer.json	match
 cases/transmission-valve-sneak.json	match
 cases/transmission-valve.json	match
+cases/waterwheel-flow.json	match
