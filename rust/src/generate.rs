@@ -83,6 +83,14 @@ fn generate_base(seed: u64) -> Scenario {
     if seed % 64 == 23 {
         return crate::funnel_push::generate(seed);
     }
+    // The actions lane's 39 mod 64: brass funnels' filters and amounts.
+    if seed % 64 == 39 {
+        return crate::brass_funnels::generate(seed);
+    }
+    // The actions lane's 55 mod 64: depot output buffers.
+    if seed % 64 == 55 {
+        return crate::depot_outputs::generate(seed);
+    }
     if seed % 32 == 1 {
         return crate::depots::generate(seed);
     }
