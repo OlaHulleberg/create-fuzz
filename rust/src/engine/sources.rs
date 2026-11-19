@@ -2,7 +2,7 @@
 //! steam engines. The native fluid host supplies the fluid states and their flow; boilers read
 //! the heat under their tank from the world's block states.
 use super::*;
-use create_engine::kinetics::Axis;
+use create_engine::kinetics::{Axis, Dir};
 
 impl Run {
     /// The cells every existing wheel samples for its flow, sorted and deduplicated, so the
@@ -36,15 +36,34 @@ impl Run {
     /// `WaterWheelBlockEntity.determineAndApplyFlowScore` when a wheel's surroundings changed or
     /// its lazy tick came.
     pub(super) fn apply_wheel_flow(&mut self) {
-        for (p, axis, large) in self.w.take_wheel_checks(0, self.persisted.clock as u64) {
-            let samples: Vec<([i32; 3], [f64; 3])> = offsets(axis, large)
-                .into_iter()
-                .map(|o| (o, self.flow_at(add(p, o))))
-                .collect();
-            let score = create_engine::waterwheel::flow_score(axis, &samples);
-            self.w.set_wheel_flow(0, p, score);
-            self.wheel_scores.insert(p, score.clamp(-1, 1) as i8);
+        for (p, _, _) in self.w.take_wheel_checks(0, self.persisted.clock as u64) {
+            self.apply_flow(p);
         }
+    }
+
+    /// One wheel's flow score, from its axis and the flow at its sample cells.
+    fn apply_flow(&mut self, p: Pos) {
+        let Some((block, info)) = self.w.table.get(self.at(p)) else {
+            return;
+        };
+        let (axis, large) = match block {
+            create_engine::Block::WaterWheel => match info.facing {
+                Some(f) => (f.axis(), false),
+                None => return,
+            },
+            create_engine::Block::LargeWaterWheel => match info.axis {
+                Some(a) => (a, true),
+                None => return,
+            },
+            _ => return,
+        };
+        let samples: Vec<([i32; 3], [f64; 3])> = offsets(axis, large)
+            .into_iter()
+            .map(|o| (o, self.flow_at(add(p, o))))
+            .collect();
+        let score = create_engine::waterwheel::flow_score(axis, &samples);
+        self.w.set_wheel_flow(0, p, score);
+        self.wheel_scores.insert(p, score.clamp(-1, 1) as i8);
     }
 
     /// `WaterWheelBlockEntity.getFlowVectorAtPosition`: a bubble column reads its drag, anything
@@ -62,12 +81,127 @@ impl Run {
         [0.0; 3]
     }
 
+    /// `LargeWaterWheelBlock.tick`: every structural cell around the wheel, and the flow after.
+    /// A cell that cannot be replaced takes the wheel with it (`destroyBlock(pos, false)`).
+    pub(super) fn tick_large_wheels(&mut self) {
+        let checks = std::mem::take(&mut self.w.dims[0].large_wheel_checks);
+        for p in checks {
+            let Some((create_engine::Block::LargeWaterWheel, info)) = self.w.table.get(self.at(p))
+            else {
+                continue;
+            };
+            let Some(axis) = info.axis else { continue };
+            let mut destroyed = false;
+            for (o, facing) in create_engine::waterwheel::structure(axis) {
+                let q = add(p, o);
+                let required = structure_state(facing);
+                if self.name(self.at(q)) == required {
+                    continue;
+                }
+                if !self.replaceable(q) {
+                    self.set(p, AIR);
+                    destroyed = true;
+                    break;
+                }
+                self.set(q, self.id(&required));
+            }
+            if !destroyed {
+                self.apply_flow(p);
+            }
+        }
+    }
+
+    /// `WaterWheelStructuralBlock.updateShape`: a cell whose neighbour changed has the wheel
+    /// look at its frame again, or goes itself (`tick`) when the frame no longer holds it.
+    pub(super) fn tick_structures(&mut self) {
+        let checks = std::mem::take(&mut self.structure_checks);
+        for p in checks {
+            let state = self.at(p);
+            if self.w.block_at(0, p) != Some(create_engine::Block::WaterWheelStructure) {
+                continue;
+            }
+            if self.structure_valid(p, state) {
+                if let Some(master) = self.structure_master(p, state) {
+                    self.apply_flow(master);
+                }
+            } else {
+                self.set(p, AIR);
+            }
+        }
+    }
+
+    /// `WaterWheelStructuralBlock.stillValid(level, pos, state, false)`.
+    pub(super) fn structure_valid(&self, p: Pos, state: u32) -> bool {
+        let Some((create_engine::Block::WaterWheelStructure, info)) = self.w.table.get(state)
+        else {
+            return false;
+        };
+        let Some(facing) = info.facing else {
+            return false;
+        };
+        let target = add(p, facing.offset());
+        let target_state = self.at(target);
+        // A corner points at a side cell; that cell must reach the wheel directly.
+        if let Some((create_engine::Block::WaterWheelStructure, inner)) =
+            self.w.table.get(target_state)
+            && let Some(inner_facing) = inner.facing
+        {
+            let wheel = add(target, inner_facing.offset());
+            if let Some((create_engine::Block::LargeWaterWheel, wheel_info)) =
+                self.w.table.get(self.at(wheel))
+                && wheel_info
+                    .axis
+                    .is_some_and(|axis| axis != inner_facing.axis())
+            {
+                return true;
+            }
+        }
+        if let Some((create_engine::Block::LargeWaterWheel, wheel)) = self.w.table.get(target_state)
+        {
+            return wheel.axis.is_some_and(|axis| axis != facing.axis());
+        }
+        false
+    }
+
+    /// `WaterWheelStructuralBlock.getMaster`: follow the cells' facings to the wheel.
+    pub(super) fn structure_master(&self, p: Pos, state: u32) -> Option<Pos> {
+        let (mut at, mut state) = (p, state);
+        for _ in 0..2 {
+            let (block, info) = self.w.table.get(state)?;
+            if block != create_engine::Block::WaterWheelStructure {
+                return None;
+            }
+            let o = info.facing?.offset();
+            at = [at[0] + o[0], at[1] + o[1], at[2] + o[2]];
+            state = self.at(at);
+            if self.w.block_at(0, at) == Some(create_engine::Block::LargeWaterWheel) {
+                return Some(at);
+            }
+        }
+        None
+    }
+
+    /// `WaterWheelStructuralBlock.onRemove`: a cell removed while its frame holds removes the
+    /// wheel too (`destroyBlock(master, true)`).
+    pub(super) fn structure_removed(&mut self, p: Pos, old: u32) {
+        if self.w.table.get(old).map(|(b, _)| b) != Some(create_engine::Block::WaterWheelStructure)
+        {
+            return;
+        }
+        if !self.structure_valid(p, old) {
+            return;
+        }
+        if let Some(master) = self.structure_master(p, old) {
+            self.set(master, AIR);
+        }
+    }
+
     /// `BlazeBurnerBlock.useItemOn` on a lit burner: a creative blaze cake sets the next heat,
     /// a blaze cake burns special fuel for 3200 ticks (`BoilerHeaters.blazeBurner` reads the
     /// resulting `blaze` property). Other fuels are outside this adapter.
     pub(super) fn use_burner(&mut self, p: Pos, item: &str) -> bool {
         use create_engine::burner::{self, Fuel};
-        let Some((block, info)) = self.w.table.get(self.at(p)).map(|(b, i)| (b, *i)) else {
+        let Some((block, info)) = self.w.table.get(self.at(p)) else {
             return false;
         };
         if block != create_engine::Block::BlazeBurner
@@ -118,6 +252,22 @@ impl Run {
     /// read under the boiler, water supply sampled.
     pub(super) fn tick_boilers(&mut self) {
         self.w.evaluate_boilers(0);
+        self.apply_shaft_changes();
+        for (tank, width) in self.w.take_heat_checks(0) {
+            // `updateTemperature`: every block under the tank's bottom layer.
+            let w = i32::from(width);
+            let heats: Vec<i32> = (0..w)
+                .flat_map(|x| (0..w).map(move |z| [tank[0] + x, tank[1] - 1, tank[2] + z]))
+                .map(|p| self.boiler_heater(p))
+                .collect();
+            self.w.set_boiler_heat(0, tank, &heats);
+        }
+        self.w.tick_boilers(0);
+    }
+
+    /// Shafts in front of engines that changed: a powered shaft (`SteamEngineBlock.onPlace`,
+    /// `PoweredShaftBlock.getEquivalent`) or a plain one again (`PoweredShaftBlock.tick`).
+    pub(super) fn apply_shaft_changes(&mut self) {
         for (p, powered) in self.w.shaft_changes(0) {
             let (_, props) = parse_state(&self.name(self.at(p)));
             let get = |k: &str| {
@@ -134,16 +284,6 @@ impl Run {
             );
             self.set(p, self.id(&shaft));
         }
-        for (tank, width) in self.w.take_heat_checks(0) {
-            // `updateTemperature`: every block under the tank's bottom layer.
-            let w = i32::from(width);
-            let heats: Vec<i32> = (0..w)
-                .flat_map(|x| (0..w).map(move |z| [tank[0] + x, tank[1] - 1, tank[2] + z]))
-                .map(|p| self.boiler_heater(p))
-                .collect();
-            self.w.set_boiler_heat(0, tank, &heats);
-        }
-        self.w.tick_boilers(0);
     }
 
     /// `BoilerHeater.findHeat` under a boiler: a blaze burner by its heat level, another block in
@@ -181,6 +321,258 @@ impl Run {
             _ => NO_HEAT,
         }
     }
+
+    /// `WaterWheelBlock.getStateForPlacement` (the positive facing of the chosen axis) and
+    /// `canSurvive` (no adjacent wheel on another axis or off that axis).
+    pub(super) fn place_water_wheel(
+        &mut self,
+        p: Pos,
+        yaw: f32,
+        pitch: f32,
+        sneaking: bool,
+        face: Dir,
+    ) -> bool {
+        use create_engine::{Block, place};
+        let ctx = place::Context {
+            yaw,
+            pitch,
+            sneaking,
+            clicked_face: face,
+        };
+        let shaft = |d: Dir| {
+            self.w
+                .has_shaft_towards(0, add(p, d.offset()), d.opposite())
+        };
+        let Some(chosen) = place::facing(Block::WaterWheel, ctx, shaft) else {
+            return false;
+        };
+        let axis = chosen.axis();
+        for d in Dir::ALL {
+            let q = add(p, d.offset());
+            let Some((Block::WaterWheel, info)) = self.w.table.get(self.at(q)) else {
+                continue;
+            };
+            let Some(other) = info.facing else { continue };
+            if other.axis() != axis || axis != d.axis() {
+                return false;
+            }
+        }
+        // `getStateForPlacement`'s `setValue` discards its result: the facing stays as chosen.
+        self.set(
+            p,
+            self.id(&format!(
+                "create:water_wheel[facing={}]",
+                format!("{chosen:?}").to_lowercase()
+            )),
+        );
+        true
+    }
+
+    /// `LargeWaterWheelBlock.getStateForPlacement` (the wheel's room in its plane and its
+    /// `extension`) and `LargeWaterWheelBlockItem.place`'s retry at the clicked face's
+    /// neighbour when the first position has no room.
+    pub(super) fn place_large_wheel(
+        &mut self,
+        p: Pos,
+        yaw: f32,
+        pitch: f32,
+        sneaking: bool,
+        face: Dir,
+    ) -> bool {
+        let axis = self.large_wheel_axis(p, yaw, pitch, sneaking, face);
+        if self.large_wheel_room(p, axis) {
+            let ext = self.large_wheel_extension(p, axis);
+            self.set(p, self.id(&large_wheel_state(axis, ext)));
+            return true;
+        }
+        if face.axis() == axis {
+            return false;
+        }
+        let q = add(p, face.offset());
+        if !self.replaceable(q) {
+            return false;
+        }
+        let axis = self.large_wheel_axis(q, yaw, pitch, sneaking, face);
+        if !self.large_wheel_room(q, axis) {
+            return false;
+        }
+        let ext = self.large_wheel_extension(q, axis);
+        self.set(q, self.id(&large_wheel_state(axis, ext)));
+        true
+    }
+
+    fn large_wheel_axis(&self, p: Pos, yaw: f32, pitch: f32, sneaking: bool, face: Dir) -> Axis {
+        use create_engine::{Block, place};
+        let ctx = place::Context {
+            yaw,
+            pitch,
+            sneaking,
+            clicked_face: face,
+        };
+        let shaft = |d: Dir| {
+            self.w
+                .has_shaft_towards(0, add(p, d.offset()), d.opposite())
+        };
+        place::axis(
+            Block::LargeWaterWheel,
+            ctx,
+            shaft,
+            place::Nearby {
+                large_cog_above: self.w.large_cog_axis(0, add(p, [0, 1, 0])),
+                ..Default::default()
+            },
+        )
+        .expect("large wheel placement axis")
+        .0
+    }
+
+    /// The wheel's plane must be replaceable (`getStateForPlacement`'s 3x3 check).
+    fn large_wheel_room(&self, p: Pos, axis: Axis) -> bool {
+        create_engine::waterwheel::plane(axis)
+            .into_iter()
+            .all(|o| self.replaceable(add(p, o)))
+    }
+
+    /// `extension`: the wheel extends one behind it on its negative axis.
+    fn large_wheel_extension(&self, p: Pos, axis: Axis) -> bool {
+        let negative = match axis {
+            Axis::X => Dir::West,
+            Axis::Y => Dir::Down,
+            Axis::Z => Dir::North,
+        };
+        self.w.block_at(0, add(p, negative.offset())) == Some(create_engine::Block::LargeWaterWheel)
+    }
+
+    /// `SteamEngineBlock.getStateForPlacement` on the clicked face (`FACE` and `FACING`), its
+    /// waterlogging, `canSurvive` (a fluid tank behind it) and `onPlace` (a shaft in front
+    /// becomes a powered shaft).
+    pub(super) fn place_steam_engine(&mut self, p: Pos, yaw: f32, face: Dir) -> bool {
+        use create_engine::steam::{self, Face};
+        use create_engine::{Block, place};
+        let (attach, facing) = match face {
+            Dir::Down => (Face::Ceiling, place::horizontal_direction(yaw)),
+            Dir::Up => (Face::Floor, place::horizontal_direction(yaw)),
+            _ => (Face::Wall, face),
+        };
+        let connected = steam::connected_direction(attach, facing);
+        if self.w.block_at(0, add(p, connected.opposite().offset())) != Some(Block::FluidTank) {
+            return false;
+        }
+        let waterlogged = self
+            .world_fluid(p)
+            .is_some_and(|(fluid, _)| fluid == create_engine::tank::Fluid::Water);
+        let state = format!(
+            "create:steam_engine[face={},facing={},waterlogged={}]",
+            attach.name(),
+            format!("{facing:?}").to_lowercase(),
+            waterlogged,
+        );
+        self.set(p, self.id(&state));
+        // `SteamEngineBlock.onPlace` converts the shaft at once.
+        self.apply_shaft_changes();
+        true
+    }
+
+    /// `WaterWheelBlock.canSurvive` for a state at `p`: no adjacent wheel on another axis, nor off
+    /// the wheel's own axis.
+    pub(super) fn water_wheel_survives(&self, p: Pos, state: &str) -> bool {
+        use create_engine::{Block, kinetics::Axis};
+        let (_, props) = parse_state(state);
+        let Some(axis) = props
+            .iter()
+            .find(|(k, _)| k == "facing")
+            .map(|(_, v)| match v.as_str() {
+                "east" | "west" => Axis::X,
+                "up" | "down" => Axis::Y,
+                _ => Axis::Z,
+            })
+        else {
+            return false;
+        };
+        for d in Dir::ALL {
+            let Some((Block::WaterWheel, other)) = self.w.table.get(self.at(add(p, d.offset())))
+            else {
+                continue;
+            };
+            let Some(other) = other.facing else { continue };
+            if other.axis() != axis || axis != d.axis() {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// `PoweredShaftBlock.canSurvive` for a turned state at `p`: an engine two blocks away across
+    /// its axis points at it.
+    pub(super) fn powered_shaft_survives(&self, p: Pos, state: &str) -> bool {
+        use create_engine::kinetics::Axis;
+        let (_, props) = parse_state(state);
+        let Some(axis) =
+            props
+                .iter()
+                .find(|(k, _)| k == "axis")
+                .and_then(|(_, v)| match v.as_str() {
+                    "x" => Some(Axis::X),
+                    "y" => Some(Axis::Y),
+                    "z" => Some(Axis::Z),
+                    _ => None,
+                })
+        else {
+            return false;
+        };
+        create_engine::steam::still_valid(p, axis, |q| self.w.engine_at(0, q))
+    }
+
+    /// `SteamEngineBlock.canSurvive` for the turned state at `p`: a fluid tank behind the face
+    /// it attaches by.
+    pub(super) fn steam_engine_survives(&self, p: Pos, state: &str) -> bool {
+        use create_engine::steam::{self, Face};
+        let (_, props) = parse_state(state);
+        let get = |k: &str| {
+            props
+                .iter()
+                .find(|(key, _)| key == k)
+                .map(|(_, v)| v.as_str())
+        };
+        let Some(face) = get("face").and_then(|v| match v {
+            "wall" => Some(Face::Wall),
+            "ceiling" => Some(Face::Ceiling),
+            _ => None,
+        }) else {
+            return false;
+        };
+        let Some(facing) = get("facing").and_then(|v| match v {
+            "north" => Some(Dir::North),
+            "south" => Some(Dir::South),
+            "west" => Some(Dir::West),
+            "east" => Some(Dir::East),
+            "up" => Some(Dir::Up),
+            "down" => Some(Dir::Down),
+            _ => None,
+        }) else {
+            return false;
+        };
+        let connected = steam::connected_direction(face, facing);
+        self.w.block_at(0, add(p, connected.opposite().offset()))
+            == Some(create_engine::Block::FluidTank)
+    }
+}
+
+/// `LargeWaterWheelBlock`'s state with its axis and `extension`.
+fn large_wheel_state(axis: Axis, extension: bool) -> String {
+    format!(
+        "create:large_water_wheel[axis={},extension={}]",
+        format!("{axis:?}").to_lowercase(),
+        extension
+    )
+}
+
+/// The state of a frame cell facing `facing` (`WaterWheelStructuralBlock` with FACING).
+fn structure_state(facing: Dir) -> String {
+    format!(
+        "create:water_wheel_structure[facing={}]",
+        format!("{facing:?}").to_lowercase()
+    )
 }
 
 /// The offsets a wheel of this axis reads (`WaterWheelBlockEntity.getOffsetsToCheck`).

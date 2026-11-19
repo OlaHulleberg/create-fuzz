@@ -457,6 +457,16 @@ impl Run {
                     .depot_put(0, p, Some(create_engine::depot::Held::new(180, false)));
             }
         }
+        // `WaterWheelBlockEntity.read` keeps the saved flow score until the wheel looks again.
+        let wheels: Vec<(Pos, i8)> = self.wheel_scores.iter().map(|(p, s)| (*p, *s)).collect();
+        for (p, score) in wheels {
+            if matches!(
+                self.w.block_at(0, p),
+                Some(create_engine::Block::WaterWheel | create_engine::Block::LargeWaterWheel)
+            ) {
+                self.w.set_wheel_flow(0, p, i32::from(score));
+            }
+        }
     }
 }
 

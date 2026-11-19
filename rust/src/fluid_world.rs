@@ -61,6 +61,18 @@ pub fn states() -> &'static [String] {
                 }
             }
         }
+        // `create:passive_boiler_heaters` as block states: magma heats, a lit campfire heats
+        // and an unlit one does not (`BlockHelper.isNotUnheated`).
+        states.push("minecraft:magma_block".into());
+        for block in ["minecraft:campfire", "minecraft:soul_campfire"] {
+            for facing in ["north", "south", "west", "east"] {
+                for lit in ["true", "false"] {
+                    states.push(format!(
+                        "{block}[facing={facing},lit={lit},signal_fire=false,waterlogged=false]"
+                    ));
+                }
+            }
+        }
         for block in ["minecraft:beehive", "minecraft:bee_nest"] {
             for facing in ["north", "south", "west", "east"] {
                 for honey in 0..=5 {
