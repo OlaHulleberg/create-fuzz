@@ -696,21 +696,15 @@ impl Run {
         if matches!(b, Block::Shaft | Block::HandCrank) {
             next = with_prop(&next, "waterlogged", "false");
         }
-        if block == "create:clutch" || block == "create:gearshift" {
+        if block == "create:clutch"
+            || block == "create:gearshift"
+            || block == "create:adjustable_chain_gearshift"
+        {
             next = with_prop(
                 &next,
                 "powered",
                 if self.signal(p) > 0 { "true" } else { "false" },
             );
-        }
-        if block == "create:adjustable_chain_gearshift" {
-            next = with_prop(&next, "powered", "false");
-            if self.signal(p) > 0 {
-                self.notes.push(
-                    "API_GAPS: redstone unavailable during state_for_placement; corrected on tick"
-                        .into(),
-                );
-            }
         }
         let measured = crate::trig::exact_tie(yaw, pitch)
             .then(|| crate::trig::nearest_property(b, ctx, shaft, near))
