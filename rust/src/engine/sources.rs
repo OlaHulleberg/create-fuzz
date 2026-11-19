@@ -418,7 +418,11 @@ impl Run {
             ctx,
             shaft,
             place::Nearby {
-                large_cog_above: self.w.large_cog_axis(0, add(p, [0, 1, 0])),
+                large_cog_above: self
+                    .w
+                    .cog_at(0, add(p, [0, 1, 0]))
+                    .filter(|(large, _)| *large)
+                    .map(|(_, axis)| axis),
                 ..Default::default()
             },
         )

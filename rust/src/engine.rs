@@ -315,6 +315,10 @@ impl Run {
             || funnel(old_block).is_some_and(|material| funnel(new_block) == Some(material));
         if !retains {
             self.entity_order.retain(|pos| *pos != p);
+            // The block entity's own data goes with it (`WaterWheelBlockEntity.write`'s
+            // `FlowScore`, `PoweredShaftBlockEntity.write`'s engine).
+            self.wheel_scores.remove(&p);
+            self.persisted.engines.remove(&p);
         }
         if new_block.is_some_and(|block| block.has_block_entity())
             && !self.entity_order.contains(&p)
