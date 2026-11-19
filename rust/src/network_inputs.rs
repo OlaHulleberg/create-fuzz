@@ -1421,6 +1421,76 @@ pub fn encased_wrench(seed: u64) -> Scenario {
     }
 }
 
+/// Build a second chain on top of a driven one, so the drives touch across their
+/// connection axis without joining (ChainDriveBlock.areBlocksConnected), then break a
+/// lower drive under a running chain.
+pub fn stacked_chains(seed: u64) -> Scenario {
+    let drives = [
+        "create:encased_chain_drive",
+        "create:adjustable_chain_gearshift",
+    ];
+    let kind = |z: i32, level: u64| drives[((z as u64 + level + (seed >> 6)) & 1) as usize];
+    let place = |tick, pos: Pos, item, yaw: f32| {
+        let mut change = use_item(tick, pos, item, Face::Up, Face::Up.point(0.5, 0.5), true);
+        if let Some(Action::Use { yaw: y, .. }) = &mut change.action {
+            *y = yaw;
+        }
+        change
+    };
+    let crank = [-2, 8, 0];
+    let shaft = [-1, 8, 0];
+    let mut blocks: Vec<Placed> = (0..3)
+        .map(|z| Placed {
+            pos: [0, 7, z],
+            state: "minecraft:stone".into(),
+            motor: None,
+        })
+        .collect();
+    blocks.push(Placed {
+        pos: shaft,
+        state: "create:shaft[axis=x]".into(),
+        motor: None,
+    });
+    let mut events: Vec<Change> = (0..3)
+        .map(|z| place(4 + z as u32, [0, 7, z], kind(z, 0), 90.))
+        .collect();
+    events.push(use_item(
+        8,
+        shaft,
+        "create:hand_crank",
+        Face::West,
+        Face::West.point(0.5, 0.5),
+        false,
+    ));
+    let turn = |tick| {
+        use_item(
+            tick,
+            crank,
+            "minecraft:air",
+            Face::West,
+            Face::West.point(0.5, 0.5),
+            false,
+        )
+    };
+    events.push(turn(10));
+    events.extend((0..3).map(|z| place(12 + z as u32, [0, 8, z], kind(z, 1), 90.)));
+    events.extend([
+        turn(18),
+        turn(26),
+        action(28, [0, 8, 1], Action::Remove),
+        turn(32),
+    ]);
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 110,
+        checkpoints: vec![9, 11, 13, 14, 15, 16, 19, 27, 29, 33],
+        blocks,
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

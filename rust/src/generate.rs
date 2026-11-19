@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 64 == 32 {
+        return crate::network_inputs::stacked_chains(seed);
+    }
     if seed % 64 == 24 {
         return crate::network_inputs::encased_wrench(seed);
     }
