@@ -303,3 +303,26 @@ the side's filter slot (`BrassTunnelFilterSlot`, the side's face at the slot's p
 glue's `use_tunnel_filter` on Rust. An empty-hand `use` off the mode slot on top takes the
 stacks of the tunnel's group (`BrassTunnelBlock.useWithoutItem`); a plain `use` records no
 item outcome.
+
+### Filter boards
+
+`filter_setting` is the client's `ValueSettingsPacket` for a block's `FilteringBehaviour`, which
+the client sends only while the filter's amount board shows (`acceptsValueSettings`: a brass
+funnel that supports an amount with a filter that stacks). With `interact` it is the release of a
+short click on the filter slot holding `interact.item` (on `interact.face`); without it a board
+pick: `row` 0 for "up to", 1 for exactly, `value` the count.
+
+```json
+{"tick":32,"pos":[0,9,2],"action":{"kind":"filter_setting","row":0,"value":0,
+  "interact":{"item":"minecraft:gold_ingot","face":"up"}}}
+{"tick":34,"pos":[0,9,2],"action":{"kind":"filter_setting","row":1,"value":16}}
+```
+
+Java does what `ValueSettingsPacket.applySettings` does for the filtering behaviour: nothing
+unless `acceptsValueSettings`, then `onShortInteract` with the item in the main hand, or
+`setValueSettings`. Rust follows the glue's `amount::value_settings` for brass funnels: the release
+sets the filter (`set_funnel_filter`, a wrench or an arm doing nothing), the pick the amount
+(`FilterAmount::from_settings`, the count within the filter's stack size). While the board does not
+show, an ordinary `use` on the filter slot sets the filter on both sides (`onShortInteract` from
+`ValueSettingsInputHandler`, the glue's `use_funnel_filter`); while it shows, that `use` does
+nothing on the server. A smart chute's filter slot takes the same `use`.

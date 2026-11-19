@@ -258,6 +258,12 @@ depots behind them, a floor funnel at the belt's end, and player pickups that fr
 funnel. The chute family (5 modulo 32) ends belts at vertical chutes over depots, belts,
 chutes, stone or nothing, and under a chute leading into them.
 
+Four families take residues of the actions lane: depot output buffers (55 modulo 64: a spout
+fills a stack on a depot; item handlers, pickups, landings and a pulling belt funnel reach the
+buffer), brass funnels' filters and amounts (39 modulo 64, with the `filter_setting` action),
+chute columns (35 modulo 64: diagonal and smart chutes and encased fans at a belt's end) and
+presses over depots and belts (7 modulo 64). See [item transport](docs/item-transport.md).
+
 The water wheel family (seeds congruent to 20 modulo 32) drives a wheel's flow from a
 contained falling-water column, both flow signs, a lava column, the plank material through
 player uses (a non-block item, the wheel's own spruce, an invalid block and a valid plank),
