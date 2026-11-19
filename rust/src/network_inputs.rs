@@ -188,8 +188,8 @@ pub fn competing_sources(seed: u64) -> Scenario {
     let right = [1, 8, 0];
     let join = [0, 8, 1];
     let second = if seed & 64 == 0 { opposite } else { right };
-    let above = |[x, y, z]| [x, y + 1, z];
-    let below = |[x, y, z]| [x, y - 1, z];
+    let above = |[x, y, z]: Pos| [x, y + 1, z];
+    let below = |[x, y, z]: Pos| [x, y - 1, z];
     let up = |tick, pos, item, sneaking| {
         use_item(
             tick,
