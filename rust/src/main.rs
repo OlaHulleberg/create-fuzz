@@ -29,6 +29,7 @@ mod records;
 mod repeat_java;
 mod scenario;
 mod shrink;
+mod steam_engine;
 mod transmission;
 mod transport;
 mod trig;

@@ -42,6 +42,9 @@ fn generate_base(seed: u64) -> Scenario {
     if seed % 32 == 20 {
         return crate::waterwheel::generate(seed);
     }
+    if seed % 32 == 21 {
+        return crate::steam_engine::generate(seed);
+    }
     if seed % 32 == 19 {
         return crate::fluid_inputs::generate(seed);
     }
