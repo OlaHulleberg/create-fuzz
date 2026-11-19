@@ -411,6 +411,25 @@ impl Run {
                 self.switch(p, self.id(&next));
                 return;
             }
+            // glue/transmission.rs wrench_used: a drive in a chain turns about the chain's
+            // axis (ChainDriveBlock.getRotatedBlockState); its neighbours reshape it after.
+            // A drive alone takes the ordinary axis turn below.
+            if !sneaking
+                && let Some((Block::EncasedChainDrive | Block::AdjustableChainGearshift, info)) =
+                    own
+                && info.chain.unwrap_or_default() != create_engine::chain::Part::None
+            {
+                let axis = info.axis.expect("chain drive axis");
+                let about = create_engine::chain::connection_axis(axis, info.along_first);
+                let turned = create_engine::wrench::clockwise(Dir::from_axis(axis, true), about);
+                if turned.axis() != axis {
+                    let next = with_prop(&self.name(state), "axis", axis_name(turned.axis()));
+                    let id = self.id(&next);
+                    self.switch(p, id);
+                    self.w.neighbor_changed(0, p, id);
+                }
+                return;
+            }
             if !sneaking
                 && let Some((Block::SequencedGearshift, info)) = own
                 && face.axis() != Axis::Y

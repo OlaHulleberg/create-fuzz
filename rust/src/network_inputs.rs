@@ -644,6 +644,125 @@ pub fn vertical_sequencer(seed: u64) -> Scenario {
     }
 }
 
+/// Wrench drives of a running chain: the middle turns about the chain's axis and
+/// back, the end, then a powered one. A drive beside the end but off its axis is
+/// wrenched about each clicked face until it can join, and the middle is finally
+/// picked up with a sneaking wrench.
+pub fn chain_wrench(seed: u64) -> Scenario {
+    let crank = [-2, 8, 0];
+    let shaft = [-1, 8, 0];
+    let middle = [0, 8, 1];
+    let end = [0, 8, 2];
+    let lone = [0, 8, 3];
+    let signal = [1, 8, 1];
+    let drives = [
+        "create:encased_chain_drive",
+        "create:adjustable_chain_gearshift",
+    ];
+    let kind = |z: i32| drives[((z as u64 + (seed >> 6)) & 1) as usize];
+    let place = |tick, pos: Pos, item, sneaking, yaw| {
+        let mut change = use_item(
+            tick,
+            pos,
+            item,
+            Face::Up,
+            Face::Up.point(0.5, 0.5),
+            sneaking,
+        );
+        if let Some(Action::Use { yaw: y, .. }) = &mut change.action {
+            *y = yaw;
+        }
+        change
+    };
+    let wrench = |tick, pos, face: Face, sneaking| {
+        use_item(
+            tick,
+            pos,
+            "create:wrench",
+            face,
+            face.point(0.5, 0.5),
+            sneaking,
+        )
+    };
+    let turn = |tick| {
+        use_item(
+            tick,
+            crank,
+            "minecraft:air",
+            Face::West,
+            Face::West.point(0.5, 0.5),
+            false,
+        )
+    };
+    let faces = [Face::Up, Face::North, Face::East];
+    let first = faces[(seed / 128 % 3) as usize];
+    let mut blocks: Vec<Placed> = (0..4)
+        .map(|z| Placed {
+            pos: [0, 7, z],
+            state: "minecraft:stone".into(),
+            motor: None,
+        })
+        .collect();
+    blocks.push(Placed {
+        pos: shaft,
+        state: "create:shaft[axis=x]".into(),
+        motor: None,
+    });
+    let mut events: Vec<Change> = (0..3)
+        .map(|z| place(4 + 2 * z as u32, [0, 7, z], kind(z), true, 90.))
+        .collect();
+    events.extend([
+        use_item(
+            10,
+            shaft,
+            "create:hand_crank",
+            Face::West,
+            Face::West.point(0.5, 0.5),
+            false,
+        ),
+        turn(12),
+        wrench(14, middle, first, false),
+        turn(17),
+        wrench(19, middle, first, false),
+        turn(22),
+        wrench(24, end, Face::Up, false),
+        turn(27),
+        wrench(29, end, Face::Up, false),
+        action(31, signal, Action::Signal { strength: 15 }),
+        turn(32),
+        wrench(34, middle, Face::West, false),
+        turn(37),
+        wrench(39, middle, Face::West, false),
+        action(41, signal, Action::Remove),
+        place(43, [0, 7, 3], kind(3), seed & 1024 != 0, 0.),
+        turn(45),
+        wrench(47, lone, Face::Up, false),
+        turn(49),
+        wrench(51, lone, Face::North, false),
+        turn(53),
+        wrench(55, lone, Face::East, false),
+        turn(57),
+        wrench(60, middle, Face::Up, true),
+        turn(62),
+    ]);
+    let checkpoints = events
+        .iter()
+        .map(|e| e.tick + 1)
+        .filter(|t| *t > 10)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 135,
+        checkpoints,
+        blocks,
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
