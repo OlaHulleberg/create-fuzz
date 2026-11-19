@@ -414,6 +414,7 @@ pub fn gauge_thresholds(seed: u64) -> Scenario {
         "create:stressometer"
     };
     let mut events = vec![
+        action(3, motor, Action::GameMode { creative: true }),
         side_use(5, shaft, "create:creative_motor", Face::West, false),
         side_use(8, shaft, item, Face::East, false),
     ];
@@ -517,7 +518,7 @@ pub fn chain_junction(seed: u64) -> Scenario {
 }
 
 /// Extend a pole past several shafts, then block that end and try the other
-/// side. Casing disables assisted extension until sneak-wrenched off.
+/// side. Case the resulting shaft, remove the casing, then fit brackets.
 pub fn shaft_extension(seed: u64) -> Scenario {
     let floor = [0, 7, 0];
     let shaft = [0, 8, 0];
@@ -564,6 +565,78 @@ pub fn shaft_extension(seed: u64) -> Scenario {
             up(40, tip, "create:wrench", false),
             up(46, tip, "create:wooden_bracket", false),
             action(51, tip, Action::Remove),
+        ],
+    }
+}
+
+/// Install a sequencer over a live vertical input, add a shaft from its face,
+/// and remove drive during a program. Turn it flat using the side wrench.
+pub fn vertical_sequencer(seed: u64) -> Scenario {
+    use crate::program::{Instruction, Kind, Modifier};
+    let support = [0, 7, 0];
+    let sequencer = [0, 8, 0];
+    let arm = [0, 6, 0];
+    let crank = [0, 5, 0];
+    let signal = [1, 8, 0];
+    let up = |tick, p, item| use_item(tick, p, item, Face::Up, Face::Up.point(0.5, 0.5), false);
+    let down =
+        |tick, p, item| use_item(tick, p, item, Face::Down, Face::Down.point(0.5, 0.5), false);
+    let mut shaft = up(14, sequencer, "create:shaft");
+    if let Some(Action::Use { pitch, .. }) = &mut shaft.action {
+        *pitch = 80.;
+    }
+    let wrench = |tick, face: Face| {
+        use_item(
+            tick,
+            sequencer,
+            "create:wrench",
+            face,
+            face.point(0.5, 0.5),
+            false,
+        )
+    };
+    let instructions = vec![
+        Instruction {
+            instruction: Kind::TurnAngle,
+            modifier: if seed & 64 == 0 {
+                Modifier::Forward
+            } else {
+                Modifier::BackFast
+            },
+            value: 360,
+        },
+        Instruction {
+            instruction: Kind::End,
+            modifier: Modifier::Forward,
+            value: -1,
+        },
+    ];
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 115,
+        checkpoints: vec![13, 17, 24, 27, 33, 39, 45, 49],
+        blocks: [support, arm]
+            .map(|pos| Placed {
+                pos,
+                state: "create:shaft[axis=y]".into(),
+                motor: None,
+            })
+            .to_vec(),
+        events: vec![
+            down(6, arm, "create:hand_crank"),
+            down(10, crank, "minecraft:air"),
+            up(12, support, "create:sequenced_gearshift"),
+            shaft,
+            action(19, sequencer, Action::Program { instructions }),
+            action(21, signal, Action::Signal { strength: 15 }),
+            action(25, crank, Action::Remove),
+            action(28, signal, Action::Remove),
+            wrench(32, Face::North),
+            wrench(38, Face::East),
+            wrench(44, Face::Up),
+            wrench(48, Face::South),
         ],
     }
 }

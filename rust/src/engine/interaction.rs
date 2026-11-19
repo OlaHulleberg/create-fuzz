@@ -198,6 +198,17 @@ impl Run {
             return;
         }
         if !sneaking {
+            // An off-shaft click opens the program screen; shaft-facing clicks
+            // carrying a kinetic block pass through to ordinary item placement.
+            if own.is_some_and(|(block, _)| block == Block::SequencedGearshift)
+                && item != "create:wrench"
+                && !(crate::catalogue::entries()
+                    .iter()
+                    .any(|entry| entry.id == item)
+                    && self.w.has_shaft_towards(0, p, face))
+            {
+                return;
+            }
             if let Some(large) = cog_item(item)
                 && let Some((clicked_large, axis)) = self.w.cog_at(0, p)
                 && let Some((target, axis)) = place::cog_helper(
@@ -400,6 +411,20 @@ impl Run {
                 self.switch(p, self.id(&next));
                 return;
             }
+            if !sneaking
+                && let Some((Block::SequencedGearshift, info)) = own
+                && face.axis() != Axis::Y
+            {
+                if info.axis != Some(face.axis()) {
+                    let next = with_prop(
+                        &self.name(state),
+                        "vertical",
+                        if info.vertical { "false" } else { "true" },
+                    );
+                    self.switch(p, self.id(&next));
+                }
+                return;
+            }
             if sneaking {
                 if name == "create:andesite_encased_shaft" || name == "create:brass_encased_shaft" {
                     let axis = props.iter().find(|(k, _)| k == "axis").unwrap().1.clone();
@@ -592,12 +617,17 @@ impl Run {
         let mut next = if let Some(f) = create_engine::place::facing(b, ctx, shaft) {
             format!("{block}[facing={}]", format!("{f:?}").to_lowercase())
         } else {
-            let (a, _) = place::axis(b, ctx, shaft, near).expect("placement axis");
+            let (a, vertical) = place::axis(b, ctx, shaft, near).expect("placement axis");
             if let Some(large) = cog_item(block) {
                 self.place_cog(p, block, large, a);
                 return;
             }
-            format!("{block}[axis={}]", format!("{a:?}").to_lowercase())
+            let axis = axis_name(a);
+            if b == Block::SequencedGearshift {
+                format!("{block}[axis={axis},state=0,vertical={vertical}]")
+            } else {
+                format!("{block}[axis={axis}]")
+            }
         };
         // Start from the port's declared default for properties placement does not select.
         let set: Vec<String> = parse_state(&next).1.into_iter().map(|(k, _)| k).collect();

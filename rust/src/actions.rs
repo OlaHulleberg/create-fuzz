@@ -96,6 +96,7 @@ pub const BLOCKS: &[&str] = &[
     "create:creative_motor",
     "create:clutch",
     "create:gearshift",
+    "create:sequenced_gearshift",
     "create:gearbox",
     "create:vertical_gearbox",
     "create:speedometer",
