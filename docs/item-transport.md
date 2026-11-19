@@ -170,3 +170,19 @@ adapter gaps with a note; entities on the plate are not generated.
 the stacks in flight (ticks flown, stack) and `earlyTargetTime`; the plate and the time compare
 within the transport tolerance. The depot observation covers ejectors too and lists an ejector's
 merging stacks (`DepotBehaviour.incoming`) as pending items.
+
+## Funnels pushing from a depot
+
+Belt funnels move the stacks of the depot behind them (its `DepotItems`): one facing with its
+belt (retracted or extended: the shapes a player can give a funnel along a belt) or a pushing
+one across it puts one item at a time onto the belt from its side while the belt takes items
+there (`activateExtractingBeltFunnel`); one on a depot pushes onto it while it is empty (a stack
+unless it is a pushing funnel) or, pulling, takes its resting stack into the depot behind
+(`handleBeltFunnelOutput`). The driver mirrors the glue's `tick_funnels`: each funnel is due
+again the next tick, `EXTRACTION_COOLDOWN` + 1 ticks after a stack left, and never while dormant;
+`funnel` observes `extractionCooldown` as the ticks before its next turn. Redstone pauses them.
+Extracting funnels (their stacks fly off as item entities), brass funnels' filters and amounts,
+inventories other than depots and a funnel over an ejector are adapter gaps with a note.
+
+Depot observations add the comparator output (`getComparatorInputOverride`): the held stack and
+outputs over the held stack's size (an ejector's stack size), as the glue's `analog.rs` reads it.
