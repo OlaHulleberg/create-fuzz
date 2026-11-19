@@ -129,25 +129,30 @@ pub fn generate(seed: u64) -> Scenario {
         ));
     }
     let mut tick = 30;
-    let mut colored = false;
+    // The segment the last event dyed: water washes it only straight after (on an undyed belt
+    // the bucket would place water instead).
+    let mut dyed: Option<Pos> = None;
     for _ in 0..3 + r.below(4) {
         let k = r.below(length as u32) as i32;
-        let p = at(k);
-        match r.below(8) {
+        let mut p = at(k);
+        let pick = r.below(8);
+        let last = dyed.take();
+        match pick {
             0..=2 => {
                 // A dye, the same again, or another.
                 sc.events
                     .push(act(tick, p, use_on(r.pick(&DYES), Face::Up, [0.; 3])));
-                colored = true;
+                dyed = Some(p);
             }
-            3 if colored => {
-                // Water washes it; on an undyed belt the bucket would place water instead.
+            // Not on vertical or sideways belts: there the driver's native fluid path and
+            // Java part on water a wash leaves (findings f2c), outside this family.
+            3 if last.is_some() && kind < 3 => {
+                p = last.unwrap();
                 sc.events.push(act(
                     tick,
                     p,
                     use_on("minecraft:water_bucket", Face::Up, [0.; 3]),
                 ));
-                colored = false;
             }
             4 => sc.events.push(act(
                 tick,
