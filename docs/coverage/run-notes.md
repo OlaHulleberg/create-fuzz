@@ -218,3 +218,40 @@ vertical or sideways belt; the surface family no longer does (`fuzz-lane 0 6400 
 afterwards: 196 matched, 4 differed, all the direction flag). Each difference is a port
 behaviour with a shrunk case for the lead; none is allowed in `allow.rs`. All 98 `cases/`
 match, as before (`input/case-statuses.tsv`).
+
+## Belt phase, second round
+
+Branch `belts-cover2` adds three families: brass tunnel distribution (seeds 38 mod 64),
+weighted ejectors (32 mod 64) and funnels pushing from depots (23 mod 64), the halves of the
+geometry lanes that reload and half of the actions lane 23. `belts.md` and `input/` come from
+the union of the first round's three exec sets with a fourth: `fuzz cover 0` over a 60-scenario
+corpus (20 seeds of each new family, now in `replay-corpus`), private server `FUZZ_PORT=25633`,
+fuzzer a002a53, the port at 4625fb5. Union: 3961/15274 branches covered (3542 before).
+
+Missed branch outcomes by family (all categories / harness-gap), before (the first round's) and
+after:
+
+| Family | Before | After |
+| --- | ---: | ---: |
+| funnels | 412 / 296 | 381 / 265 |
+| tunnels | 103 / 89 | 93 / 79 |
+| brass distribution | 339 / 321 | 112 / 96 |
+| ejector | 362 / 240 | 281 / 159 |
+| slicer and connector | 183 / 100 | 183 / 100 |
+| depot | 178 / 102 | 132 / 56 |
+| belt core | 987 / 496 | 963 / 472 |
+| chutes | 464 / 378 | 464 / 378 |
+| packages | 237 / 183 | 237 / 183 |
+
+The harness-gap reasons of the brass tunnel, ejector, depot and funnel classes now name what the
+new families leave. All 98 `cases/` keep their statuses (`input/case-statuses.tsv`): the
+ejector observation applies to version 3 cases only, as version 1 cases load ejectors for stress.
+
+`fuzz-lane 0 768 <lane> 64` for each new lane (12 seeds each): brass 1 matched / 11 differed,
+ejectors 0 / 12, funnel pushing 0 / 12 (two of them from a pushing shape along the belt, which
+players cannot make; the generator no longer uses it). The differences are port behaviours with
+shrunk cases for the lead (brass: a joining tunnel's mode, stuck items' position, the logistics
+phase order, synchronize's gather tick, the item handler without distribution, the saved
+distribution state, an emptied stack saved as one item; ejectors: an empty ejector taking one
+item, idle wind-up, the ejector's depot never sliding, the whole-block obstacle scan; funnels: the
+phase order). None is allowed in `allow.rs`.
