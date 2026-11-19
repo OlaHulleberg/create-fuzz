@@ -426,7 +426,7 @@ mod conversion_fidelity {
         let mut raw = Run::new(&sc);
         let regular=raw.id("create:fluid_pipe[down=false,east=true,north=false,south=false,up=false,waterlogged=false,west=true]");
         let glass = raw.id("create:glass_fluid_pipe[alt=false,axis=x,waterlogged=false]");
-        raw.w.block_changed(0, [1, 4, 0], AIR, regular);
+        raw.w.apply_block_change(0, [1, 4, 0], AIR, regular, false);
         raw.w.dims[0].fluid_transport.register(
             [1, 4, 0],
             Cell::Pipe(Dir::East.bit() | Dir::West.bit()),
