@@ -39,6 +39,9 @@ pub fn generate(seed: u64) -> Scenario {
 }
 
 fn generate_base(seed: u64) -> Scenario {
+    if seed % 64 == 56 {
+        return crate::network_inputs::opposed_motors(seed);
+    }
     if seed % 64 == 33 {
         return crate::network_inputs::controller_axes(seed);
     }

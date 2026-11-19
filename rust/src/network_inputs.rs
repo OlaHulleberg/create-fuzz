@@ -1308,6 +1308,66 @@ pub fn controller_axes(seed: u64) -> Scenario {
     }
 }
 
+/// Join two running creative motors on one shaft line by placing the shaft between
+/// them, with the second at the same, a slower, a faster or the opposite speed. Then
+/// retarget the second through slower, faster, stopped and reversed settings, and
+/// remove the first so the second takes the line over.
+pub fn opposed_motors(seed: u64) -> Scenario {
+    let first = [-1, 8, 0];
+    let second = [3, 8, 0];
+    let speeds = [32, -32, 16, -16, 64, -64];
+    let start = speeds[(seed / 64 % 6) as usize];
+    let blocks = vec![
+        Placed {
+            pos: first,
+            state: "create:creative_motor[facing=east]".into(),
+            motor: Some(32),
+        },
+        Placed {
+            pos: [0, 8, 0],
+            state: "create:shaft[axis=x]".into(),
+            motor: None,
+        },
+        Placed {
+            pos: [2, 8, 0],
+            state: "create:shaft[axis=x]".into(),
+            motor: None,
+        },
+        Placed {
+            pos: second,
+            state: "create:creative_motor[facing=west]".into(),
+            motor: Some(start),
+        },
+    ];
+    let setting = |tick, row, value| action(tick, second, Action::SpeedSetting { row, value });
+    let events = vec![
+        action(5, first, Action::GameMode { creative: true }),
+        use_item(
+            8,
+            [0, 8, 0],
+            "create:shaft",
+            Face::East,
+            Face::East.point(0.5, 0.5),
+            false,
+        ),
+        setting(14, 0, 16),
+        setting(20, 0, 64),
+        setting(26, 0, 0),
+        setting(32, 1, 32),
+        action(38, first, Action::Remove),
+        setting(44, 0, 32),
+    ];
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 120,
+        checkpoints: vec![7, 9, 10, 15, 21, 27, 33, 39, 45],
+        blocks,
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
