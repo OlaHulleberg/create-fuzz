@@ -155,8 +155,7 @@ impl Run {
         // ItemUseOverrides (glue/interaction/item_use_overrides), then the game's own use of
         // the block (glue/interaction/crank.rs): the crank's use takes the click whatever the
         // hand holds but the wrench; a sneaking player holding the wrench uses it instead.
-        if !(sneaking && item == "create:wrench")
-            && own.is_some_and(|(b, _)| b == Block::HandCrank)
+        if !(sneaking && item == "create:wrench") && own.is_some_and(|(b, _)| b == Block::HandCrank)
         {
             self.w.turn_crank(0, p, sneaking);
             self.publish_interaction();

@@ -54,9 +54,10 @@ fn tank(sc: &mut Scenario, corner: Pos, width: i32, height: i32) {
     }
 }
 
-pub fn generate(seed: u64) -> Scenario {
-    let big = seed % 4 < 2;
-    let cake = seed % 8 < 6;
+/// The family's `k`th seed picks the variants.
+pub fn generate(seed: u64, k: u64) -> Scenario {
+    let big = k % 4 < 2;
+    let cake = k % 8 < 6;
     let mut sc = Scenario {
         version: 3,
         seed,
@@ -75,12 +76,12 @@ pub fn generate(seed: u64) -> Scenario {
             [0, 4, 0],
             "create:blaze_burner[blaze=smouldering,facing=north]",
         ));
-    } else if seed % 16 < 10 {
+    } else if k % 16 < 10 {
         // Passive heat (`create:passive_boiler_heaters`): magma under the tank.
         sc.blocks.push(placed([0, 4, 0], "minecraft:magma_block"));
     } else {
         // A campfire heats while it is lit (`BlockHelper.isNotUnheated`).
-        let lit = if seed % 16 < 12 { "true" } else { "false" };
+        let lit = if k.is_multiple_of(2) { "true" } else { "false" };
         sc.blocks.push(placed(
             [0, 4, 0],
             &format!(
@@ -234,7 +235,7 @@ pub fn generate(seed: u64) -> Scenario {
     sc.events
         .push(use_at(n + 28, north, "create:wrench", Face::Up, false));
     // An engine removed, or a tank block taken out of the boiler.
-    if seed % 4 == 1 {
+    if k % 4 == 1 {
         sc.events.push(Change {
             tick: n + 32,
             pos: [9, 5, 0],
@@ -244,7 +245,7 @@ pub fn generate(seed: u64) -> Scenario {
             action: Some(Action::Remove),
         });
     }
-    if seed % 8 == 3 {
+    if k % 8 == 3 {
         sc.events.push(Change {
             tick: n + 36,
             pos: [8, 6, 1],
@@ -254,8 +255,8 @@ pub fn generate(seed: u64) -> Scenario {
             action: None,
         });
     }
-    // A rare seed reloads a running boiler: its engines' saved size is restored by both sides.
-    if seed % 64 == 21 {
+    // Half the seeds reload a running boiler: its engines' saved size is restored by both sides.
+    if k & 16 == 0 {
         sc.events.push(Change {
             tick: n + 60,
             pos: floor_engine,

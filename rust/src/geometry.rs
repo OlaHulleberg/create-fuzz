@@ -227,24 +227,17 @@ fn specifications() -> &'static [Specification] {
 fn placed(pos: Pos, state: String, motor: Option<i32>) -> Placed {
     Placed { pos, state, motor }
 }
-/// Each seed visits a complete state; successive cycles rotate all faces, signs and orders.
-/// Eight independent probes share a case: six shaft faces plus two cog geometries.
-pub fn generate(seed: u64) -> Scenario {
-    if seed % 32 == 16 {
-        return network(seed);
-    }
-    if seed.is_multiple_of(8) {
-        return stress_boundary(seed);
-    }
-    let seed_index = seed - seed / 8 - seed / 16 - 1;
+/// The family's `n`th seed visits a complete state; successive cycles rotate all faces, signs
+/// and orders. Eight independent probes share a case: six shaft faces plus two cog geometries.
+pub fn states(seed: u64, n: u64) -> Scenario {
     let specs = specifications();
-    let s = &specs[seed_index as usize % specs.len()];
-    let cycle = seed_index / specs.len() as u64;
+    let s = &specs[n as usize % specs.len()];
+    let cycle = n / specs.len() as u64;
     let mut blocks = Vec::new();
     for (i, face) in FACES.into_iter().enumerate() {
         let p = [(i as i32 % 3) * 5 - 5, 8, (i as i32 / 3) * 5 - 3];
         let q = add(p, face.offset());
-        let speed = if (seed + i as u64).is_multiple_of(2) {
+        let speed = if (n + i as u64).is_multiple_of(2) {
             32
         } else {
             -32
@@ -311,7 +304,7 @@ pub fn generate(seed: u64) -> Scenario {
                         }
                         .name()
                     ),
-                    Some(if seed.is_multiple_of(2) { 128 } else { -128 }),
+                    Some(if n.is_multiple_of(2) { 128 } else { -128 }),
                 ),
                 placed(
                     q,
@@ -344,7 +337,7 @@ pub fn generate(seed: u64) -> Scenario {
 
 /// Crank capacity 8/rpm, ejector impact 2/rpm are
 /// registered in AllBlocks. A fast small cog weights the ejector by two.
-fn stress_boundary(seed: u64) -> Scenario {
+pub fn stress_boundary(seed: u64) -> Scenario {
     let sign = seed.is_multiple_of(16);
     let mut blocks = vec![
         placed([0, 8, 0], "create:large_cogwheel[axis=x]".into(), None),
@@ -388,7 +381,7 @@ fn stress_boundary(seed: u64) -> Scenario {
 }
 
 /// Grow networks through catalogue shaft faces, mixing competing sources and dead ends.
-fn network(seed: u64) -> Scenario {
+pub fn network(seed: u64) -> Scenario {
     let mut rng = crate::generate::Rng::new(seed);
     let specs = specifications();
     let mut blocks = vec![placed(
@@ -437,10 +430,11 @@ fn network(seed: u64) -> Scenario {
 
 /// RotationPropagator.getAxisModifier depends on the source face, not just the
 /// block axis. Drive both halves of split shafts and every gearbox input face.
-pub fn source_faces(seed: u64) -> Scenario {
+/// The family's `n`th seed picks the block and the motors' sign.
+pub fn source_faces(seed: u64, n: u64) -> Scenario {
     let mut blocks = Vec::new();
     let mut events = Vec::new();
-    let kind = ["gearbox", "clutch", "gearshift"][(seed / 32 % 3) as usize];
+    let kind = ["gearbox", "clutch", "gearshift"][(n % 3) as usize];
     for (i, face) in FACES.into_iter().enumerate() {
         let p = [(i as i32 % 3) * 6 - 6, 8, (i as i32 / 3) * 6 - 3];
         let axis = if kind == "gearbox" {
@@ -466,7 +460,7 @@ pub fn source_faces(seed: u64) -> Scenario {
         blocks.push(placed(
             motor,
             format!("create:creative_motor[facing={}]", face.opposite().name()),
-            Some(if seed & 128 == 0 { 32 } else { -32 }),
+            Some(if (n / 3).is_multiple_of(2) { 32 } else { -32 }),
         ));
         if kind != "gearbox" {
             let signal = add(p, FACES[if axis == 1 { 1 } else { 3 }].offset());
@@ -567,8 +561,8 @@ mod tests {
             .map(|e| e.specifications().len())
             .sum();
         assert!(total < 2000);
-        for seed in 0..2000 {
-            crate::catalogue::scenario(&super::generate(seed));
+        for n in 0..2000 {
+            crate::catalogue::scenario(&super::states(n, n));
         }
         let enc = crate::catalogue::entries()
             .iter()

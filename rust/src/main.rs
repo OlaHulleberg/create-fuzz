@@ -396,8 +396,9 @@ fn record_inner(sc: &Scenario, j: &Snapshot, counts: &mut Counts, verify_java: b
         },
     );
     println!(
-        "seed {}: {} differences, first: {}",
+        "seed {} ({}): {} differences, first: {}",
         sc.seed,
+        generate::family_name(sc.seed),
         diffs.len(),
         diffs[0]
     );

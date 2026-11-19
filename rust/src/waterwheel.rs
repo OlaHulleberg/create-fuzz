@@ -88,8 +88,9 @@ fn normals(axis: &str) -> [[i32; 3]; 2] {
     }
 }
 
-pub fn generate(seed: u64) -> Scenario {
-    let axis = if seed.is_multiple_of(2) { "x" } else { "z" };
+/// The family's `k`th seed picks the variants.
+pub fn generate(seed: u64, k: u64) -> Scenario {
+    let axis = if k.is_multiple_of(2) { "x" } else { "z" };
     let facing = if axis == "x" { "east" } else { "south" };
     let sides = normals(axis);
     let mut sc = Scenario {
@@ -107,11 +108,11 @@ pub fn generate(seed: u64) -> Scenario {
     sc.blocks.push(stone(a));
     sc.blocks.push(stone(add(a, [0, 1, 0])));
     column(&mut sc, a, add(a, sides[0]));
-    if seed % 4 < 2 {
+    if k % 4 < 2 {
         // A second column on the other side adds the opposite score.
         column(&mut sc, a, add(a, sides[1]));
     }
-    if seed % 64 == 52 {
+    if k & 8 != 0 {
         // A wheel built before its streams: each score change re-places its part.
         sc.blocks.insert(
             0,
@@ -140,12 +141,12 @@ pub fn generate(seed: u64) -> Scenario {
     sc.blocks
         .push(placed(f, &format!("create:water_wheel[facing={facing}]")));
     sc.blocks.push(stone(add(f, [0, 1, 0])));
-    // A rare seed reloads a *flowing* wheel: its saved network is restored by both sides.
-    if seed % 64 == 20 {
+    // The other half reloads a *flowing* wheel: its saved network is restored by both sides.
+    if k & 8 == 0 {
         column(&mut sc, f, add(f, sides[0]));
     }
     // F: a lava column turns a wheel the other way and reads the lava input.
-    if seed % 4 == 1 {
+    if k % 4 == 1 {
         let g: Pos = [-3, 8, 6];
         sc.blocks.push(placed(g, "create:water_wheel[facing=east]"));
         let q = add(g, [0, 0, -1]);
@@ -188,7 +189,7 @@ pub fn generate(seed: u64) -> Scenario {
         sc.events
             .push(use_at(n + 2 + i as u32, a, item, Face::Up, false));
     }
-    if seed % 8 >= 4 {
+    if k % 8 >= 4 {
         let source = add(add(a, sides[0]), [0, 1, 0]);
         sc.events.push(Change::set(n + 34, source, "minecraft:air"));
     }
@@ -204,7 +205,7 @@ pub fn generate(seed: u64) -> Scenario {
         .push(use_at(n + 10, b, "create:water_wheel", Face::South, false));
     sc.events
         .push(use_at(n + 16, c, "create:water_wheel", Face::East, false));
-    let yaw = if seed.is_multiple_of(4) { 90. } else { 0. };
+    let yaw = if k.is_multiple_of(4) { 90. } else { 0. };
     sc.events
         .push(use_look(n + 22, c, "create:water_wheel", Face::Up, yaw, 0.));
     // C: the retry placement, the extension, the frame's material, a wrench and a break.
@@ -251,7 +252,7 @@ pub fn generate(seed: u64) -> Scenario {
         "minecraft:air",
     ));
     // D: the wheel and the casing in its frame in one tick; its own tick breaks the wheel.
-    if seed % 4 != 3 {
+    if k % 4 != 3 {
         sc.events.push(use_at(
             n + 8,
             [e[0], e[1] - 2, e[2]],
