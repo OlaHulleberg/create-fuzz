@@ -1021,6 +1021,76 @@ pub fn sequencer_pair(seed: u64) -> Scenario {
     }
 }
 
+/// Close metal girders around turning shafts on both horizontal axes, then extend
+/// another shaft while sneaking, which places it beside rather than along the line.
+pub fn girder_shaft(seed: u64) -> Scenario {
+    let crank = [-2, 8, 0];
+    let line = [-1, 8, 0];
+    let girdered = [0, 8, 0];
+    let across = [0, 8, 2];
+    let pole = [2, 8, 0];
+    let west = |tick, pos, item| {
+        use_item(
+            tick,
+            pos,
+            item,
+            Face::West,
+            Face::West.point(0.5, 0.5),
+            false,
+        )
+    };
+    let face = [Face::Up, Face::North, Face::East][(seed / 64 % 3) as usize];
+    let girder = |tick, pos| {
+        use_item(
+            tick,
+            pos,
+            "create:metal_girder",
+            face,
+            face.point(0.5, 0.5),
+            false,
+        )
+    };
+    let blocks = [
+        (line, "create:shaft[axis=x]"),
+        (girdered, "create:shaft[axis=x]"),
+        (across, "create:shaft[axis=z]"),
+        (pole, "create:shaft[axis=x]"),
+        ([2, 7, 0], "minecraft:stone"),
+    ]
+    .map(|(pos, state)| Placed {
+        pos,
+        state: state.into(),
+        motor: None,
+    })
+    .to_vec();
+    let events = vec![
+        west(4, line, "create:hand_crank"),
+        west(6, crank, "minecraft:air"),
+        girder(8, girdered),
+        girder(10, across),
+        west(12, crank, "minecraft:air"),
+        use_item(
+            14,
+            pole,
+            "create:shaft",
+            Face::East,
+            Face::East.point(0.5, 0.5),
+            true,
+        ),
+        west(18, crank, "minecraft:air"),
+        action(24, girdered, Action::Remove),
+    ];
+    Scenario {
+        version: 3,
+        seed,
+        day_time: 0,
+        ticks: 100,
+        checkpoints: vec![7, 9, 11, 13, 15, 19, 25],
+        blocks,
+        events,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

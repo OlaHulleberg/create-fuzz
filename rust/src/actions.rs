@@ -126,6 +126,7 @@ pub const ITEMS: &[&str] = &[
     "create:wooden_bracket",
     "create:extendo_grip",
     "minecraft:stick",
+    "create:metal_girder",
 ];
 impl Action {
     pub fn validate(&self) {

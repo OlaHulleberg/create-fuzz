@@ -311,6 +311,21 @@ impl Run {
                     self.switch(p, self.id(&next));
                     return;
                 }
+                // ShaftBlock.useItemOn: a metal girder around a horizontal shaft.
+                if block == Block::Shaft && item == "create:metal_girder" && axis != Axis::Y {
+                    let mut next = format!(
+                        "create:metal_girder_encased_shaft[axis={},waterlogged={}]",
+                        axis_name(axis),
+                        info.waterlogged
+                    );
+                    for (k, v) in crate::defaults::declared("create:metal_girder_encased_shaft") {
+                        if !parse_state(&next).1.iter().any(|(key, _)| *key == k) {
+                            next = with_prop(&next, &k, &v);
+                        }
+                    }
+                    self.switch(p, self.id(&next));
+                    return;
+                }
                 if block == Block::Shaft && (item == "create:shaft" || cog_item(item).is_some()) {
                     let at = place::pole_helper(
                         p,
