@@ -18,6 +18,7 @@ mod fluid_pumps;
 mod fluid_recipes;
 mod fluid_world;
 mod fluids;
+mod funnels;
 mod generate;
 mod geometry;
 mod guided;
