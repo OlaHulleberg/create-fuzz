@@ -196,8 +196,13 @@ pub fn generate(seed: u64, k: u64) -> Scenario {
         turn: None,
         action: Some(Action::GameMode { creative: true }),
     });
-    // Water while the boiler is active, then again after it sampled its supply.
+    // Water while the boiler is active, then again after it sampled its supply. Tank B's top
+    // corner, the third bucket's target, is gone when the boiler loses a tank block (below).
+    let tank_block_removed = k % 8 == 3;
     for (i, tick) in [n + 6, n + 44, n + 74].into_iter().enumerate() {
+        if i == 2 && tank_block_removed {
+            continue;
+        }
         let (corner, w) = if i == 2 { (b, 2) } else { (a, width) };
         sc.events.push(use_at(
             tick,
@@ -245,7 +250,7 @@ pub fn generate(seed: u64, k: u64) -> Scenario {
             action: Some(Action::Remove),
         });
     }
-    if k % 8 == 3 {
+    if tank_block_removed {
         sc.events.push(Change {
             tick: n + 36,
             pos: [8, 6, 1],

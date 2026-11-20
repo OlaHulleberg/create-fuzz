@@ -53,9 +53,15 @@ fn neg(a: Pos) -> Pos {
     [-a[0], -a[1], -a[2]]
 }
 
-/// A falling column beside the wheel at `wheel`: a source over the falling cell `q`, enclosed in
-/// stone so the native fluid never leaves the fixture. The wheel reads the falling cell.
+/// A falling water column beside the wheel at `wheel`.
 fn column(sc: &mut Scenario, wheel: Pos, q: Pos) {
+    fluid_column(sc, wheel, q, "minecraft:water");
+}
+
+/// A falling column of `fluid` beside the wheel at `wheel`: a source over the falling cell `q`,
+/// enclosed in stone so the native fluid never leaves the fixture. The wheel reads the falling
+/// cell.
+fn fluid_column(sc: &mut Scenario, wheel: Pos, q: Pos, fluid: &str) {
     let up = [0, 1, 0];
     let ring = [
         add(q, neg(up)),
@@ -76,8 +82,8 @@ fn column(sc: &mut Scenario, wheel: Pos, q: Pos) {
     }
     // The source first: a falling cell with nothing above it drains before the source arrives.
     sc.blocks
-        .push(placed(add(q, up), "minecraft:water[level=0]"));
-    sc.blocks.push(placed(q, "minecraft:water[level=8]"));
+        .push(placed(add(q, up), &format!("{fluid}[level=0]")));
+    sc.blocks.push(placed(q, &format!("{fluid}[level=8]")));
 }
 
 /// The two lateral sample directions of a wheel on `axis`.
@@ -149,21 +155,7 @@ pub fn generate(seed: u64, k: u64) -> Scenario {
     if k % 4 == 1 {
         let g: Pos = [-3, 8, 6];
         sc.blocks.push(placed(g, "create:water_wheel[facing=east]"));
-        let q = add(g, [0, 0, -1]);
-        for o in [
-            [0, -1, 0],
-            [0, 0, -2],
-            [1, 0, -1],
-            [-1, 0, -1],
-            [0, 1, -2],
-            [1, 1, -1],
-            [-1, 1, -1],
-        ] {
-            sc.blocks.push(stone(add(q, o)));
-        }
-        sc.blocks
-            .push(placed(add(q, [0, 1, 0]), "minecraft:lava[level=0]"));
-        sc.blocks.push(placed(q, "minecraft:lava[level=8]"));
+        fluid_column(&mut sc, g, add(g, [0, 0, -1]), "minecraft:lava");
     }
     let n = sc.blocks.len() as u32;
     sc.ticks = n + 165;
