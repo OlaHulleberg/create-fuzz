@@ -282,7 +282,14 @@ impl Run {
             Some(Block::BrassTunnel) => {
                 self.brass_capability(p, slot, insert, simulate, &mut outcome)
             }
-            Some(Block::Belt | Block::AndesiteTunnel) | None => {}
+            #[cfg(feature = "belt-io")]
+            Some(Block::Belt) => {
+                self.belt_capability(p, slot, insert, extract, simulate, &mut outcome)
+            }
+            // create-horizon main's `handlers::provide` has no belt arm: no handler.
+            #[cfg(not(feature = "belt-io"))]
+            Some(Block::Belt) => {}
+            Some(Block::AndesiteTunnel) | None => {}
             Some(b) => self.notes.push(format!(
                 "adapter gap: item handler of create:{} at {p:?}",
                 b.name()
@@ -290,8 +297,75 @@ impl Run {
         }
         self.item_outcomes.push(outcome);
     }
+    /// fix/belt-io's `handlers::BeltItems`, `ItemHandlerBeltSegment` (registered by
+    /// `BeltBlockEntity.registerCapabilities`, none where the belt cannot transport): one slot at
+    /// the segment. In: onto the segment while `canInsertAt` allows, from the next tick
+    /// (`addItem`); out: `getStackAtOffset`, split in place, a stack it empties only marked
+    /// `toRemove`.
+    #[cfg(feature = "belt-io")]
+    fn belt_capability(
+        &mut self,
+        p: Pos,
+        slot: u8,
+        insert: Option<&Stack>,
+        extract: Option<u8>,
+        simulate: bool,
+        outcome: &mut Outcome,
+    ) {
+        let Some((c, index, seg)) = self.belt_location(p) else {
+            return;
+        };
+        if !seg.transports() {
+            return;
+        }
+        outcome.handler = Some(true);
+        if slot != 0 {
+            return;
+        }
+        if let Some(s) = insert {
+            let left = if simulate {
+                // `insertItem` simulated: `canInsertAt`, and the count limited to one stack.
+                let rpm = self.w.speed(0, c).unwrap_or(0.);
+                let room = self.w.dims[0].belts.get(&c).is_some_and(|b| {
+                    b.items.can_insert_at_from_side(
+                        index,
+                        Dir::Up,
+                        belt::movement_facing(rpm, b.segment.facing),
+                    )
+                });
+                if room {
+                    s.count.saturating_sub(s.limit())
+                } else {
+                    s.count
+                }
+            } else {
+                self.put_on_from_above(p, s).unwrap_or(s.count)
+            };
+            outcome.remainder = (left > 0).then(|| Stack {
+                item: s.item.clone(),
+                count: left,
+            });
+        } else if let Some(n) = extract {
+            let d = &mut self.w.dims[0];
+            let taken = d
+                .belts
+                .get_mut(&c)
+                .and_then(|b| b.items.extract_at(index, n, simulate));
+            if let Some((item, k)) = taken.filter(|(_, k)| *k > 0) {
+                if !simulate {
+                    d.belt_changes.push(c);
+                }
+                outcome.taken.push(Stack { item, count: k });
+            }
+        }
+    }
     pub(super) fn tick_transport(&mut self) {
         // The glue's logistics phase: chutes, funnels, tunnels, then covers, then transport.
+        // fix/belt-io's `break_pass` leads it: `BeltBlock.onRemove`'s break cascade runs at
+        // block-change time in Java, before every block entity tick, so a tunnel over a removed
+        // segment breaks in the same tick (`BeltTunnelBlock.neighborChanged`).
+        #[cfg(feature = "belt-io")]
+        self.belt_breaks();
         self.tick_chutes();
         self.tick_funnels();
         self.tick_tunnels();
@@ -316,6 +390,8 @@ impl Run {
                 self.w.wake_depot(0, p);
             }
         }
+        // Main's `tick_transport` runs the break cascade just before its walk.
+        #[cfg(not(feature = "belt-io"))]
         self.belt_breaks();
         // The glue's shared level registration walk (BeltBlockEntity.tick and
         // DepotBehaviour.tick): apply transfers before the next entity's turn.

@@ -351,9 +351,17 @@ pub fn belts_from_nbt(data: &Compound) -> Vec<([i32; 3], create_engine::belt::In
                 .zip(ids)
                 .filter_map(|(n, id)| {
                     let Tag::String(id) = id else { return None };
+                    // `belts_from_nbt`: main clamps a saved count to 1..=255; fix/belt-io reads
+                    // an empty stack (`minecraft:air` with 0, which a funnel's remainder or a
+                    // pickup leaves for a tick) back as empty, as `ItemStack.parseOptional` does.
+                    let least = if cfg!(feature = "belt-io") {
+                        i32::from(id.as_str() != "minecraft:air")
+                    } else {
+                        1
+                    };
                     let mut item = create_engine::belt::Item::new(
                         id.as_str(),
-                        n[3].clamp(1, 255) as u8,
+                        n[3].clamp(least, 255) as u8,
                         n[2],
                         false,
                     );

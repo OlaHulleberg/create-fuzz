@@ -162,17 +162,44 @@ impl Run {
             self.set(pos, self.id(&next));
         }
     }
-    /// `tick_chutes`: each chute holding a stack moves it at its column's motion, falling or
-    /// rising, and hands it on at the end of its way.
-    pub(super) fn tick_chutes(&mut self) {
-        self.tick_chute_shapes();
+    /// Main's `tick_chutes` walks a snapshot of the moving chutes taken before any moved.
+    #[cfg(not(feature = "belt-io"))]
+    fn chute_turns(&self) -> std::vec::IntoIter<(Pos, f32)> {
         let mut moving: Vec<(Pos, f32)> = self.w.dims[0]
             .chutes
             .iter()
             .map(|(p, v)| (*p, *v))
             .collect();
         moving.sort_by_key(|m| m.0);
-        for (pos, position) in moving {
+        moving.into_iter()
+    }
+    #[cfg(not(feature = "belt-io"))]
+    fn next_chute_turn(&self, turns: &mut std::vec::IntoIter<(Pos, f32)>) -> Option<(Pos, f32)> {
+        turns.next()
+    }
+    /// fix/belt-io's: `Level.blockEntityTickers`, each chute at its own turn
+    /// (`ChuteBlockEntity.tick`): a stack a chute hands down during its turn moves on in the
+    /// same level tick when the chute below is registered after it.
+    #[cfg(feature = "belt-io")]
+    fn chute_turns(&self) -> create_engine::world::ChuteTicks {
+        self.w.chute_ticks(0)
+    }
+    /// The next chute in that order that holds a moving stack, with its position.
+    #[cfg(feature = "belt-io")]
+    fn next_chute_turn(&self, turns: &mut create_engine::world::ChuteTicks) -> Option<(Pos, f32)> {
+        loop {
+            let pos = turns.next(&self.w)?;
+            if let Some(position) = self.w.dims[0].chutes.get(&pos) {
+                return Some((pos, *position));
+            }
+        }
+    }
+    /// `tick_chutes`: each chute holding a stack moves it at its column's motion, falling or
+    /// rising, and hands it on at the end of its way.
+    pub(super) fn tick_chutes(&mut self) {
+        self.tick_chute_shapes();
+        let mut turns = self.chute_turns();
+        while let Some((pos, position)) = self.next_chute_turn(&mut turns) {
             let Some(stack) = self.chute_stacks.get(&pos).cloned() else {
                 self.w.dims[0].chutes.remove(&pos);
                 continue;
@@ -197,6 +224,20 @@ impl Run {
                 None => {
                     self.w.dims[0].chutes.remove(&pos);
                 }
+            }
+        }
+        // fix/belt-io: entries whose chute block is gone (removed while it held a stack) leave
+        // with their pass.
+        #[cfg(feature = "belt-io")]
+        {
+            let stale: Vec<Pos> = self.w.dims[0]
+                .chutes
+                .keys()
+                .copied()
+                .filter(|p| self.chute_at(*p).is_none())
+                .collect();
+            for p in stale {
+                self.w.dims[0].chutes.remove(&p);
             }
         }
     }
@@ -233,6 +274,16 @@ impl Run {
                     && run.chute_accepts(target, b, powered, &stack.item)
             })
         };
+        let drops = |run: &Run| {
+            let funnel_down = run.funnel_at(below).is_some_and(|(b, i)| {
+                matches!(b, Block::AndesiteFunnel | Block::BrassFunnel)
+                    && i.facing == Some(Dir::Down)
+            });
+            // `falls_through`: unless the block below can hold a rigid block up.
+            !funnel_down && !run.sturdy(below, Dir::Up)
+        };
+        // Main's glue takes any container below as able to take the stack.
+        #[cfg(not(feature = "belt-io"))]
         let can = if !active {
             false
         } else if container {
@@ -242,12 +293,32 @@ impl Run {
         } else if diagonal {
             false
         } else {
-            let funnel_down = self.funnel_at(below).is_some_and(|(b, i)| {
-                matches!(b, Block::AndesiteFunnel | Block::BrassFunnel)
-                    && i.facing == Some(Dir::Down)
+            drops(self)
+        };
+        // fix/belt-io's: `handleDownwardOutput(true)` past the middle asks, by a simulated
+        // `insertItemStacked` into the inventory below, whether it takes any of the stack; a
+        // straight chute over one that refuses waits at 0.5, a diagonal one asks its target
+        // (`chute::can_output_down`).
+        #[cfg(feature = "belt-io")]
+        let can = active && {
+            let inventory = container.then(|| {
+                if belt_below {
+                    let (c, index, _) = self.belt_location(below).unwrap();
+                    let rpm = self.w.speed(0, c).unwrap_or(0.);
+                    self.w.dims[0].belts.get(&c).is_some_and(|b| {
+                        b.items.can_insert_at_from_side(
+                            index,
+                            Dir::Up,
+                            belt::movement_facing(rpm, b.segment.facing),
+                        )
+                    })
+                } else {
+                    self.depot_insert(below, &stack, true)
+                        .is_none_or(|left| left.count != stack.count)
+                }
             });
-            // `falls_through`: unless the block below can hold a rigid block up.
-            !funnel_down && !self.sturdy(below, Dir::Up)
+            let target = target_chute.map(|_| target_takes(self));
+            create_engine::chute::can_output_down(diagonal, inventory, target, || drops(self))
         };
         let into_target = |run: &mut Run, stack: Stack| {
             run.chute_stacks.remove(&pos);
