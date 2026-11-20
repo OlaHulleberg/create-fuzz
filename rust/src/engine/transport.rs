@@ -280,7 +280,7 @@ impl Run {
                 }
             }
             Some(Block::BrassTunnel) => {
-                self.brass_capability(p, slot, insert, simulate, &mut outcome)
+                self.brass_capability(p, slot, insert, extract, simulate, &mut outcome)
             }
             Some(Block::Belt) => {
                 self.belt_capability(p, slot, insert, extract, simulate, &mut outcome)
@@ -298,7 +298,7 @@ impl Run {
     /// the segment. In: onto the segment while `canInsertAt` allows, from the next tick
     /// (`addItem`); out: `getStackAtOffset`, split in place, a stack it empties only marked
     /// `toRemove`.
-    fn belt_capability(
+    pub(super) fn belt_capability(
         &mut self,
         p: Pos,
         slot: u8,
@@ -964,7 +964,7 @@ impl belt::Surroundings for Side<'_> {
     }
     /// The glue's `BeltSide::tunnel`: the tunnel over `segment` may take some of `item`; the
     /// flaps it sets are client animation and are not observed.
-    fn tunnel(&mut self, segment: i32, item: &mut belt::Item) -> bool {
+    fn tunnel(&mut self, segment: i32, item: &mut belt::Item) -> belt::TunnelStep {
         self.run.tunnel_takes(
             self.controller,
             self.segment,

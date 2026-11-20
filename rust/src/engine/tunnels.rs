@@ -65,7 +65,7 @@ impl Run {
         let new = std::mem::take(&mut d.tunnels_new);
         let kept = std::mem::take(&mut d.tunnel_checks);
         let fresh = std::mem::take(&mut d.tunnel_fresh);
-        for pos in new {
+        for &pos in &new {
             if self.tunnel_state(pos).is_none() {
                 continue;
             }
@@ -92,6 +92,7 @@ impl Run {
             .collect();
         checks.sort_by_key(|c| (c.0, !c.1));
         checks.dedup_by_key(|c| c.0);
+        let check_positions: Vec<Pos> = checks.iter().map(|c| c.0).collect();
         for (pos, at_once) in checks {
             let Some(now) = self.tunnel_state(pos) else {
                 continue;
@@ -141,6 +142,31 @@ impl Run {
                 shape2.name(),
             );
             self.set(pos, self.id(&next));
+        }
+        // `BrassTunnelBlockEntity.updateTunnelConnections`: newly placed tunnels run before
+        // neighbour shape updates (matching `onPlace` before `updateShape`), so a joining
+        // tunnel takes the group's mode.
+        let mut conn_checks = new;
+        for p in check_positions {
+            if !conn_checks.contains(&p) {
+                conn_checks.push(p);
+            }
+        }
+        let brass_info = self.collect_brass_info(&conn_checks);
+        if !brass_info.is_empty() {
+            let mut changed = Vec::new();
+            let d = &mut self.w.dims[0];
+            for p in conn_checks {
+                tunnel::update_connections(
+                    p,
+                    &mut d.brass,
+                    &|q| brass_info.get(&q).copied(),
+                    &mut changed,
+                );
+            }
+            for p in changed {
+                self.w.mark_unsaved(0, p);
+            }
         }
     }
     /// A tunnel item or a wrench on a tunnel (`BeltTunnelBlock.onWrenched`, the wrench's
@@ -205,7 +231,7 @@ impl Run {
     }
     /// `flapTunnelsAndCheckIfStuck` for the belt `controller` (segment `seg`, length `length`,
     /// moving along `movement`): an andesite junction over segment `segment` hands single items
-    /// to the outputs beside it while more than one is left. True when the item must wait.
+    /// to the outputs beside it while more than one is left.
     pub(super) fn tunnel_takes(
         &mut self,
         controller: Pos,
@@ -214,14 +240,14 @@ impl Run {
         movement: Dir,
         segment: i32,
         item: &mut belt::Item,
-    ) -> bool {
+    ) -> belt::TunnelStep {
         if seg.slope != belt::Slope::Horizontal {
-            return false;
+            return belt::TunnelStep::Pass;
         }
         let at = belt::position_for_offset(controller, &seg, length, segment);
         let t = [at[0], at[1] + 1, at[2]];
         let Some((axis, shape)) = self.tunnel_state(t) else {
-            return false;
+            return belt::TunnelStep::Pass;
         };
         if self
             .w
@@ -230,23 +256,23 @@ impl Run {
             .is_some_and(|(b, _)| b == Block::BrassTunnel)
         {
             // `stuckAtTunnel` (`canInsert`): its own filter on the side the item comes in by
-            // must pass it; a distributing tunnel takes the whole stack while it holds none.
+            // must pass it, and a distributing tunnel must hold no stack.
             let from = movement.opposite();
-            if !self.brass_filter_passes(t, from, &item.item) {
-                return true;
+            if !self.brass_can_insert(t, from, &item.item) {
+                return belt::TunnelStep::Stuck;
             }
             if !self.has_distribution(t) {
-                return false;
+                return belt::TunnelStep::Pass;
             }
             if !self.brass_can_take(t) {
-                return true;
+                return belt::TunnelStep::Hold;
             }
             self.brass_set_stack(t, item, Some(from));
             item.count = 0;
-            return true;
+            return belt::TunnelStep::Hold;
         }
         if !tunnel::splits(axis, shape, movement, item.count) {
-            return false;
+            return belt::TunnelStep::Pass;
         }
         for d in tunnel::sides(axis, shape) {
             if d.axis() == axis {
@@ -266,14 +292,14 @@ impl Run {
             match self.handle_insertion(out, d, &one, true, false) {
                 None => continue,
                 Some(0) => {}
-                Some(_) => return true,
+                Some(_) => return belt::TunnelStep::Hold,
             }
             item.count -= 1;
             if item.count <= 1 {
                 break;
             }
         }
-        false
+        belt::TunnelStep::Pass
     }
 }
 
