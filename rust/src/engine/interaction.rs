@@ -1,4 +1,25 @@
 use super::*;
+use create_engine::{
+    Block,
+    kinetics::{Axis, Dir},
+    place,
+};
+
+fn axis_name(axis: Axis) -> &'static str {
+    match axis {
+        Axis::X => "x",
+        Axis::Y => "y",
+        Axis::Z => "z",
+    }
+}
+
+fn cog_item(item: &str) -> Option<bool> {
+    match item {
+        "create:cogwheel" => Some(false),
+        "create:large_cogwheel" => Some(true),
+        _ => None,
+    }
+}
 
 impl Run {
     pub(super) fn action(&mut self, p: Pos, action: &crate::actions::Action) {
@@ -113,7 +134,7 @@ impl Run {
         pitch: f32,
         sneaking: bool,
     ) {
-        use create_engine::{Block, board, place};
+        use create_engine::board;
         if item == "minecraft:air" && self.transport_empty_use(p, face, sneaking) {
             return;
         }
@@ -140,7 +161,8 @@ impl Run {
         let state = self.at(p);
         let own = self.w.table.get(state).map(|(b, i)| (b, *i));
         if let Some((block, info)) = own.filter(|(b, _)| create_engine::dye::is_valve_handle(*b)) {
-            // interaction/values.rs: a box takes the click only while its behaviour is active.
+            // ItemUseOverrides (glue/interaction/item_use_overrides), with the value box of
+            // interaction/values.rs taking a click first, only while its behaviour is active.
             if !sneaking
                 && self.w.value_box_active(0, p)
                 && let Some(slot) = info.facing.and_then(|f| board::valve_slot(f, face))
@@ -167,7 +189,11 @@ impl Run {
                 return;
             }
         }
-        if item == "minecraft:air" && own.is_some_and(|(b, _)| b == Block::HandCrank) {
+        // ItemUseOverrides (glue/interaction/item_use_overrides), then the game's own use of
+        // the block (glue/interaction/crank.rs): the crank's use takes the click whatever the
+        // hand holds but the wrench; a sneaking player holding the wrench uses it instead.
+        if !(sneaking && item == "create:wrench") && own.is_some_and(|(b, _)| b == Block::HandCrank)
+        {
             self.w.turn_crank(0, p, sneaking);
             self.publish_interaction();
             return;
@@ -188,6 +214,12 @@ impl Run {
                 && name != "create:andesite_encased_shaft"
                 && name != "create:brass_encased_shaft"
                 && name != "create:powered_shaft"
+                && !name.ends_with("_encased_cogwheel")
+                && !name.ends_with("_encased_large_cogwheel")
+                // A sneaking wrench picks a valve handle up as any wrenchable block.
+                && !(create_engine::dye::is_valve_handle(block)
+                    && sneaking
+                    && item == "create:wrench")
                 && name != "create:brass_casing"
                 && name != "create:andesite_casing"
                 && !(name == "create:belt"
@@ -209,16 +241,66 @@ impl Run {
                 return;
             }
         }
-        // interaction/values.rs: the motor's active value box consumes the click first.
+        // interaction/values.rs: the motor's or controller's active value box consumes the
+        // click first, whatever is held.
         if !sneaking
-            && let Some((Block::CreativeMotor, info)) = own
+            && let Some((block, info)) = own
             && self.w.value_box_active(0, p)
-            && let Some(slot) = info.facing.and_then(|f| board::motor_slot(f, face))
+            && let Some(slot) = match block {
+                Block::CreativeMotor => info.facing.and_then(|f| board::motor_slot(f, face)),
+                Block::RotationSpeedController => {
+                    info.axis.and_then(|a| board::controller_slot(a, face))
+                }
+                _ => None,
+            }
             && board::hits_box(slot, hit)
         {
             return;
         }
         if !sneaking {
+            // An off-shaft click opens the program screen; shaft-facing clicks
+            // carrying a kinetic block pass through to ordinary item placement.
+            if own.is_some_and(|(block, _)| block == Block::SequencedGearshift)
+                && item != "create:wrench"
+                && !(crate::catalogue::entries()
+                    .iter()
+                    .any(|entry| entry.id == item)
+                    && self.w.has_shaft_towards(0, p, face))
+            {
+                return;
+            }
+            if let Some(large) = cog_item(item)
+                && let Some((clicked_large, axis)) = self.w.cog_at(0, p)
+                && let Some((target, axis)) = place::cog_helper(
+                    large,
+                    p,
+                    place::ClickedCog {
+                        large: clicked_large,
+                        axis,
+                    },
+                    hit,
+                    |q, large, axis| self.w.valid_cog_position(0, q, large, axis),
+                    |q| self.replaceable(q),
+                )
+            {
+                self.place_cog(target, item, large, axis);
+                return;
+            }
+            // SpeedControllerBlock's placement helper sends the held large cog above it.
+            if item == "create:large_cogwheel"
+                && let Some((Block::RotationSpeedController, info)) = own
+            {
+                let target = add(p, Dir::Up.offset());
+                let axis = if info.axis == Some(Axis::X) {
+                    Axis::Z
+                } else {
+                    Axis::X
+                };
+                if self.replaceable(target) && self.w.valid_cog_position(0, target, true, axis) {
+                    self.place_cog(target, item, true, axis);
+                    return;
+                }
+            }
             // decor/brackets.rs runs before the wrench item's use_on.
             if item == "create:wrench" && {
                 let removed = self.brackets.remove(&p).is_some();
@@ -260,22 +342,56 @@ impl Run {
                 return;
             }
             // transmission.rs Clicked: casing, then the shaft placement helper.
-            if let Some((Block::Shaft | Block::PoweredShaft, info)) = own {
-                let axis = info.axis.expect("shaft axis");
-                if item == "create:brass_casing" || item == "create:andesite_casing" {
-                    let next = format!(
-                        "create:{}_encased_shaft[axis={}]",
-                        if item == "create:brass_casing" {
-                            "brass"
-                        } else {
-                            "andesite"
-                        },
-                        format!("{axis:?}").to_lowercase()
+            // PoweredShaftBlock.useItemOn has only the shaft's placement helper.
+            if let Some((block, info)) = own
+                && matches!(
+                    block,
+                    Block::Shaft | Block::PoweredShaft | Block::Cogwheel | Block::LargeCogwheel
+                )
+            {
+                let axis = info.axis.expect("relay axis");
+                if block != Block::PoweredShaft
+                    && let Some(casing) = match item {
+                        "create:brass_casing" => Some("brass"),
+                        "create:andesite_casing" => Some("andesite"),
+                        _ => None,
+                    }
+                {
+                    let mut next = format!(
+                        "create:{casing}_encased_{}[axis={}]",
+                        block.name(),
+                        axis_name(axis)
                     );
+                    if block != Block::Shaft {
+                        for (positive, key) in [(true, "top_shaft"), (false, "bottom_shaft")] {
+                            let d = Dir::from_axis(axis, positive);
+                            let connected =
+                                self.w
+                                    .has_shaft_towards(0, add(p, d.offset()), d.opposite());
+                            next = with_prop(&next, key, if connected { "true" } else { "false" });
+                        }
+                    }
                     self.switch(p, self.id(&next));
                     return;
                 }
-                if item == "create:shaft" {
+                // ShaftBlock.useItemOn: a metal girder around a horizontal shaft.
+                if block == Block::Shaft && item == "create:metal_girder" && axis != Axis::Y {
+                    let mut next = format!(
+                        "create:metal_girder_encased_shaft[axis={},waterlogged={}]",
+                        axis_name(axis),
+                        info.waterlogged
+                    );
+                    for (k, v) in crate::defaults::declared("create:metal_girder_encased_shaft") {
+                        if !parse_state(&next).1.iter().any(|(key, _)| *key == k) {
+                            next = with_prop(&next, &k, &v);
+                        }
+                    }
+                    self.switch(p, self.id(&next));
+                    return;
+                }
+                if matches!(block, Block::Shaft | Block::PoweredShaft)
+                    && (item == "create:shaft" || cog_item(item).is_some())
+                {
                     let at = place::pole_helper(
                         p,
                         axis,
@@ -289,11 +405,13 @@ impl Run {
                         |q| self.at(q) == AIR,
                     );
                     if let Some(q) = at {
-                        let next = format!(
-                            "create:shaft[axis={},waterlogged=false]",
-                            format!("{axis:?}").to_lowercase()
-                        );
-                        self.set(q, self.id(&next));
+                        if let Some(large) = cog_item(item) {
+                            self.place_cog(q, item, large, axis);
+                        } else {
+                            let next =
+                                format!("create:shaft[axis={},waterlogged=false]", axis_name(axis));
+                            self.set(q, self.id(&next));
+                        }
                         return;
                     }
                 }
@@ -301,23 +419,32 @@ impl Run {
         }
         // Item use_on: bracket, wrench (including subsystem casing removal), BlockItem.
         if item == "create:metal_bracket" || item == "create:wooden_bracket" {
-            if let Some((Block::Shaft, info)) = own {
+            if let Some((block, info)) = own
+                && matches!(block, Block::Shaft | Block::Cogwheel | Block::LargeCogwheel)
+            {
+                let kind = if block == Block::Shaft {
+                    create_engine::decor::BracketKind::Shaft
+                } else {
+                    create_engine::decor::BracketKind::Cog
+                };
                 let toward = place::ordered_by_nearest(yaw, pitch)[0].opposite();
                 if let Some(b) = create_engine::decor::bracket_for_click(
                     item == "create:wooden_bracket",
                     info.axis,
-                    create_engine::decor::BracketKind::Shaft,
+                    kind,
                     face,
                     toward,
                 ) {
                     self.brackets.insert(p, b);
                     self.mark_column(p);
                 }
-            } else if own.is_some() {
+            } else if own.is_some_and(|(block, _)| block == Block::FluidPipe) {
                 self.notes.push(format!(
-                    "adapter gap: bracket target outside shaft subset at {p:?}"
+                    "adapter gap: bracket target outside relay subset at {p:?}"
                 ));
             }
+            // glue/decor/brackets.rs use_bracket: a block without bracket support takes
+            // nothing (BracketBlockItem.useOn returns FAIL without a bracket behaviour).
             return;
         }
         if item == "create:wrench" {
@@ -325,18 +452,80 @@ impl Run {
             if name == "minecraft:air" || name == "minecraft:stone" {
                 return;
             }
-            // `LargeWaterWheelBlock.onWrenched` and `WaterWheelStructuralBlock.onWrenched` pass;
-            // the frame's cells implement no IWrenchable turning, but a sneak wrench on one
-            // removes its wheel (`WaterWheelStructuralBlock.onSneakWrenched`).
-            if name == "create:large_water_wheel" && !sneaking {
+            if let Some((block, info)) = own
+                && matches!(
+                    block,
+                    Block::AndesiteEncasedCogwheel
+                        | Block::BrassEncasedCogwheel
+                        | Block::AndesiteEncasedLargeCogwheel
+                        | Block::BrassEncasedLargeCogwheel
+                )
+            {
+                let axis = info.axis.expect("encased cog axis");
+                let large = name.ends_with("_large_cogwheel");
+                let next = if sneaking {
+                    let bare = if large { "large_cogwheel" } else { "cogwheel" };
+                    format!("create:{bare}[axis={},waterlogged=false]", axis_name(axis))
+                } else if face.axis() == axis {
+                    let (key, on) = if face == Dir::from_axis(axis, true) {
+                        ("top_shaft", info.top_shaft)
+                    } else {
+                        ("bottom_shaft", info.bottom_shaft)
+                    };
+                    with_prop(&self.name(state), key, if on { "false" } else { "true" })
+                } else {
+                    let turned =
+                        create_engine::wrench::clockwise(Dir::from_axis(axis, true), face.axis());
+                    let swap = matches!(
+                        (face.axis(), axis),
+                        (Axis::X, Axis::Y) | (Axis::Y, Axis::Z) | (Axis::Z, Axis::X)
+                    );
+                    let (top, bottom) = if swap {
+                        (info.bottom_shaft, info.top_shaft)
+                    } else {
+                        (info.top_shaft, info.bottom_shaft)
+                    };
+                    if !self.w.valid_cog_position(0, p, large, turned.axis()) {
+                        return;
+                    }
+                    format!(
+                        "{name}[axis={},top_shaft={top},bottom_shaft={bottom}]",
+                        axis_name(turned.axis())
+                    )
+                };
+                self.switch(p, self.id(&next));
                 return;
             }
-            if name == "create:water_wheel_structure" {
-                if sneaking {
-                    // `onSneakWrenched` redirects the click at the wheel itself.
-                    if let Some(master) = self.w.wheel_master(0, p, state) {
-                        self.set(master, AIR);
-                    }
+            // glue/transmission.rs wrench_used: a drive in a chain turns about the chain's
+            // axis (ChainDriveBlock.getRotatedBlockState); its neighbours reshape it after.
+            // A drive alone takes the ordinary axis turn below.
+            if !sneaking
+                && let Some((Block::EncasedChainDrive | Block::AdjustableChainGearshift, info)) =
+                    own
+                && info.chain.unwrap_or_default() != create_engine::chain::Part::None
+            {
+                let axis = info.axis.expect("chain drive axis");
+                let about = create_engine::chain::connection_axis(axis, info.along_first);
+                let turned = create_engine::wrench::clockwise(Dir::from_axis(axis, true), about);
+                if turned.axis() != axis {
+                    let next = with_prop(&self.name(state), "axis", axis_name(turned.axis()));
+                    let id = self.id(&next);
+                    self.switch(p, id);
+                    self.w.neighbor_changed(0, p, id);
+                }
+                return;
+            }
+            if !sneaking
+                && let Some((Block::SequencedGearshift, info)) = own
+                && face.axis() != Axis::Y
+            {
+                if info.axis != Some(face.axis()) {
+                    let next = with_prop(
+                        &self.name(state),
+                        "vertical",
+                        if info.vertical { "false" } else { "true" },
+                    );
+                    self.switch(p, self.id(&next));
                 }
                 return;
             }
@@ -403,6 +592,13 @@ impl Run {
         }
     }
 
+    fn place_cog(&mut self, p: Pos, item: &str, large: bool, axis: Axis) {
+        if self.w.valid_cog_position(0, p, large, axis) {
+            let state = format!("{item}[axis={},waterlogged=false]", axis_name(axis));
+            self.set(p, self.id(&state));
+        }
+    }
+
     pub(super) fn switch(&mut self, p: Pos, id: u32) {
         if self.at(p) == id {
             return;
@@ -462,6 +658,24 @@ impl Run {
             self.set(p, self.id(block));
             return;
         }
+        if block == "create:vertical_gearbox" {
+            let shafts: Vec<_> = [Dir::South, Dir::West, Dir::North, Dir::East]
+                .into_iter()
+                .filter(|d| {
+                    self.w
+                        .has_shaft_towards(0, add(p, d.offset()), d.opposite())
+                })
+                .collect();
+            let axis = create_engine::decor::vertical_gearbox_axis(
+                &shafts,
+                place::horizontal_direction(yaw),
+            );
+            self.set(
+                p,
+                self.id(&format!("create:gearbox[axis={}]", axis_name(axis))),
+            );
+            return;
+        }
         let b = create_engine::Block::ALL
             .iter()
             .copied()
@@ -477,23 +691,51 @@ impl Run {
             self.w
                 .has_shaft_towards(0, add(p, d.offset()), d.opposite())
         };
+        if matches!(b, Block::Speedometer | Block::Stressometer) {
+            let (facing, along) = create_engine::gauge::placement(
+                face,
+                place::ordered_by_nearest(yaw, pitch)[0],
+                place::horizontal_direction(yaw),
+                self.w
+                    .has_shaft_towards(0, add(p, face.opposite().offset()), face),
+                shaft,
+            );
+            let state =
+                format!("{block}[facing={facing:?},axis_along_first={along}]").to_lowercase();
+            self.set(p, self.id(&state));
+            return;
+        }
+        let near = place::Nearby {
+            large_cog_above: self
+                .w
+                .cog_at(0, add(p, [0, 1, 0]))
+                .filter(|(large, _)| *large)
+                .map(|(_, a)| a),
+            small_cog_clicked: self
+                .w
+                .cog_at(0, add(p, face.opposite().offset()))
+                .and_then(|(large, axis)| (!large).then_some(axis)),
+            controller_below: self
+                .w
+                .table
+                .get(self.at(add(p, [0, -1, 0])))
+                .filter(|(block, _)| *block == Block::RotationSpeedController)
+                .and_then(|(_, info)| info.axis),
+        };
         let mut next = if let Some(f) = create_engine::place::facing(b, ctx, shaft) {
             format!("{block}[facing={}]", format!("{f:?}").to_lowercase())
         } else {
-            let (a, _) = create_engine::place::axis(
-                b,
-                ctx,
-                shaft,
-                create_engine::place::Nearby {
-                    large_cog_above: self
-                        .w
-                        .cog_at(0, add(p, [0, 1, 0]))
-                        .and_then(|(large, axis)| large.then_some(axis)),
-                    ..Default::default()
-                },
-            )
-            .expect("placement axis");
-            format!("{block}[axis={}]", format!("{a:?}").to_lowercase())
+            let (a, vertical) = place::axis(b, ctx, shaft, near).expect("placement axis");
+            if let Some(large) = cog_item(block) {
+                self.place_cog(p, block, large, a);
+                return;
+            }
+            let axis = axis_name(a);
+            if b == Block::SequencedGearshift {
+                format!("{block}[axis={axis},state=0,vertical={vertical}]")
+            } else {
+                format!("{block}[axis={axis}]")
+            }
         };
         // Start from the port's declared default for properties placement does not select.
         let set: Vec<String> = parse_state(&next).1.into_iter().map(|(k, _)| k).collect();
@@ -502,32 +744,19 @@ impl Run {
                 next = with_prop(&next, &k, &v);
             }
         }
-        if block == "create:shaft" {
+        if matches!(b, Block::Shaft | Block::HandCrank) {
             next = with_prop(&next, "waterlogged", "false");
         }
-        if block == "create:clutch" || block == "create:gearshift" {
+        if block == "create:clutch"
+            || block == "create:gearshift"
+            || block == "create:adjustable_chain_gearshift"
+        {
             next = with_prop(
                 &next,
                 "powered",
                 if self.signal(p) > 0 { "true" } else { "false" },
             );
         }
-        if block == "create:adjustable_chain_gearshift" {
-            next = with_prop(&next, "powered", "false");
-            if self.signal(p) > 0 {
-                self.notes.push(
-                    "API_GAPS: redstone unavailable during state_for_placement; corrected on tick"
-                        .into(),
-                );
-            }
-        }
-        let near = create_engine::place::Nearby {
-            large_cog_above: self
-                .w
-                .cog_at(0, add(p, [0, 1, 0]))
-                .and_then(|(large, axis)| large.then_some(axis)),
-            ..Default::default()
-        };
         let measured = crate::trig::exact_tie(yaw, pitch)
             .then(|| crate::trig::nearest_property(b, ctx, shaft, near))
             .flatten();
@@ -535,6 +764,12 @@ impl Run {
             && let Some(property) = measured
         {
             next = crate::trig::java_choice(&next, property);
+        }
+        if b == Block::HandCrank {
+            let facing = place::facing(b, ctx, shaft).expect("crank facing");
+            if self.replaceable(add(p, facing.opposite().offset())) {
+                return;
+            }
         }
         self.set(p, self.id(&next));
         if let Some(property) = measured {

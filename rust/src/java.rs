@@ -195,8 +195,8 @@ mod tests {
         let cases = vec![
             heavy.clone(),
             heavy,
-            crate::geometry::generate(0),
-            crate::geometry::generate(2),
+            crate::geometry::stress_boundary(0),
+            crate::geometry::states(2, 1),
         ];
         let batches: Vec<_> = super::batches(&cases, 128).collect();
         assert_eq!(batches[0], 0..1);

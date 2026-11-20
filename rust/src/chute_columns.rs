@@ -280,7 +280,7 @@ pub fn generate(seed: u64) -> Scenario {
 mod tests {
     #[test]
     fn columns_lead_down_from_the_belt_end() {
-        for seed in (35..35 + 64 * 60).step_by(64) {
+        for seed in (35..35 + 128 * 60).step_by(128) {
             let sc = super::generate(seed);
             crate::transport::validate_scenario(&sc);
             for e in &sc.events {

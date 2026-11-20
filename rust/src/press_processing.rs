@@ -195,7 +195,7 @@ pub fn generate(seed: u64) -> Scenario {
 mod tests {
     #[test]
     fn presses_stand_two_over_their_depot_or_segment() {
-        for seed in (7..7 + 64 * 60).step_by(64) {
+        for seed in (78..78 + 128 * 60).step_by(128) {
             let sc = super::generate(seed);
             crate::catalogue::scenario(&sc);
             crate::transport::validate_scenario(&sc);

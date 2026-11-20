@@ -182,11 +182,12 @@ axis selection, shaft face predicate and small/large cog classification. The Jav
 checks these rules against every generated block state's actual `IRotate` and `ICogWheel`
 methods. Adding a block requires its manifest contract, rather than a generator kind list.
 
-The seed schedule alternates catalogue domain enumeration with weighted crank stress boundaries
-and networks grown through compatible shaft faces. Geometry cases probe all six adjacent faces
+The static kinetics families (see [seed families](#seed-families)) enumerate the catalogue's
+domains, test weighted crank stress boundaries and grow networks through compatible shaft faces.
+Geometry cases probe all six adjacent faces
 (including nonconnections), output shafts, planar and diagonal gears and perpendicular large
 gears. Repeated domain passes reverse insertion order. Motors reverse after a source removal;
-a settled checkpoint preserves the initial drive observation. Every eighth seed tests loads
+a settled checkpoint preserves the initial drive observation. The stress boundary cases test loads
 4, 8 or 12 per source rpm against crank capacity 8, with a 2:1 cog speed ratio. These are the
 adjacent load steps in that fixture. Static specifications include waterlogging. Contained fluid fixtures use the native fluid scheduler through the private host peer, described below. Static geometry remains state injection; dedicated fluid histories use player placement.
 
@@ -230,7 +231,7 @@ original differences, and at least one original difference containing the witnes
 must survive. Omitting the witness retains the original shrink policy. Coverage
 reports can reside on a different filesystem from the server's work directory.
 
-The belt family (seeds congruent to 15 modulo 16) now drives persistent belt
+The belt family now drives persistent belt
 connector clicks, horizontal/sloped/vertical/sideways chains, both click orders,
 refusals and casing changes followed by segment removal. Manual belt cases add
 pulley insertion/removal and endpoint shortening/extension. Conveyor loop traces
@@ -238,33 +239,33 @@ use `chain_link`, the server transaction sent after the player's chain selection
 Snapshots compare controller/index/length/casing and sorted conveyor link offsets.
 See [item transport](docs/item-transport.md) for player stack landings/uses, movement, belt/depot handoff, stalls, per-tick observations and explicit native-flight/component boundaries. Inventory-backed splitting remains separate.
 
-The belt slicer family (seeds congruent to 22 modulo 32) cuts and joins loaded belts:
+The belt slicer family cuts and joins loaded belts:
 interior wrench splits on both sides of a segment (creative, and refused in survival, whose
 actor holds no connector or shafts), shortening from either end, lengthening, joins with and
 without a flipped partner, the maximum length, and the connector's refusals (cross axes, range,
 obstacles, cross shafts, opposing driven ends, a forgotten first shaft) and its 5-tick item
 cooldown, which the driver models as the game does for the port.
 
-The tunnel family (seeds congruent to 24 modulo 32) places andesite and brass tunnels on
+The tunnel family places andesite and brass tunnels on
 belts beside depots and cross belts, with neighbouring tunnels, the wrench's window toggle,
 outputs taken away and back, stacks through andesite junctions, and the tunnel losing its
-casing or belt. The belt surface family (25 modulo 32) dyes, washes, cases, covers and
+casing or belt. The belt surface family dyes, washes, cases, covers and
 pulleys horizontal, sloped, vertical and sideways belts, then breaks a segment. The depot
-family (1 modulo 32) inserts into and extracts from a depot through its item handler
+family inserts into and extracts from a depot through its item handler
 (`capability`), with belt handoffs, player pickups and a belt segment's own handler.
 
-The funnel family (seeds congruent to 4 modulo 32) puts belt funnels over loaded belts with
+The funnel family puts belt funnels over loaded belts with
 depots behind them, a floor funnel at the belt's end, and player pickups that free a blocked
-funnel. The chute family (5 modulo 32) ends belts at vertical chutes over depots, belts,
+funnel. The chute family ends belts at vertical chutes over depots, belts,
 chutes, stone or nothing, and under a chute leading into them.
 
-Four families take residues of the actions lane: depot output buffers (55 modulo 64: a spout
-fills a stack on a depot; item handlers, pickups, landings and a pulling belt funnel reach the
-buffer), brass funnels' filters and amounts (39 modulo 64, with the `filter_setting` action),
-chute columns (35 modulo 64: diagonal and smart chutes and encased fans at a belt's end) and
-presses over depots and belts (7 modulo 64). See [item transport](docs/item-transport.md).
+Four more cover depot output buffers (a spout fills a stack on a depot; item handlers,
+pickups, landings and a pulling belt funnel reach the buffer), brass funnels' filters and
+amounts (with the `filter_setting` action), chute columns (diagonal and smart chutes and
+encased fans at a belt's end) and presses over depots and belts. Each family's residues are in
+[Seed families](#seed-families). See [item transport](docs/item-transport.md).
 
-The water wheel family (seeds congruent to 20 modulo 32) drives a wheel's flow from a
+The water wheel family drives a wheel's flow from a
 contained falling-water column, both flow signs, a lava column, the plank material through
 player uses (a non-block item, the wheel's own spruce, an invalid block and a valid plank),
 player-placed wheels along and across the existing wheel's axis, and the large wheel's room
@@ -273,7 +274,7 @@ sneak wrench and break cascades. The Rust driver asks the native fluid host for
 `FluidState.getFlow` at each wheel's sample cells and runs the frame's scheduled shape
 reconstruction, so flow scores and controller cells are compared per checkpoint.
 
-The steam engine family (seeds congruent to 21 modulo 32) builds tanks with active
+The steam engine family builds tanks with active
 (blaze burner fed a blaze cake) and passive (magma, a lit or unlit campfire) heat, water
 supplied by a creative actor's bucket, floor/wall/ceiling engines, a waterlogged boxed-in
 engine, valid and same-axis shafts, the engine's and powered shaft's placement helpers, a
@@ -289,3 +290,57 @@ Found records are written as compact `.json.gz` files (with fluid lanes a raw re
 The default remains plain JSON for existing coverage tools. `rust`, `java`, `check`,
 `shrink`, `repeat-java`, `compare-records` and `diff-files` accept gzip inputs by suffix.
 Compression preserves both complete snapshots and every difference for triage.
+
+Kinetic network histories (`rust/src/network_inputs.rs`) drive the network and transmission blocks the way a player builds them: cogs, gauges,
+gearboxes, chain drives, controllers, sequencers, cranks and valve handles placed with `use`
+against competing shaft neighbours, clicked faces, sneaking and look directions; casings,
+girders, brackets and wrench turns or pickups on relays, encased cogs and chain drives in and out
+of a chain; competing and opposed sources joined, retargeted and removed while running; cranks
+turned holding items; valve rims clicked through their cooldown; sequencers powered in the same
+tick. The driver mirrors the port's glue for these inputs (chain wrench turns, value boxes, the
+crank's use, unbracketable targets). Each history's doc comment names its Create inputs;
+`docs/coverage/kinetics-core.md` lists what remains.
+
+## Seed families
+
+`rust/src/generate.rs` deals each seed to one scenario family by its residue modulo 128
+(`FAMILIES`). Every residue has exactly one owner: the table is checked when it compiles, and a
+unit test lists the residues that changed owner. Families written for consecutive seeds (water
+wheels, steam engines, source faces, catalogue states) pick their variants by the seed's index
+among their own seeds, so every variant is reached. A seed with `seed & 32` set also reloads
+(`persistence.rs`); a family with one residue mod 128 either always or never reloads, as the
+table's comments say.
+
+| Family | Residues | Share | Why |
+| --- | --- | --- | --- |
+| 20 kinetic network histories | one each mod 64: 1, 4-7, 20-22, 24, 25, 32, 33, 36-38, 52-54, 56, 57 | 20 × 1/64 = 31% | Newest player-built histories; their variants use the seed's bits from 64 up, so each keeps a whole residue mod 64 |
+| fluid_pipes, fluid_world, fluid_pumps, fluid_inputs, fluids, transport | 16, 17, 18, 19, 8, 9 mod 32 | 6 × 1/32 = 19% | Long histories with variants keyed on the seed from bit 32 up; unchanged |
+| belts | 15 mod 16 | 1/16 | Unchanged: belt findings cite these seeds |
+| belt funnel_push, chute_columns, brass_funnels, depot_outputs | 23, 35, 39, 55 mod 128 | 4/128 | Belt logistics histories of the third round; each keeps the half of its `belts-cover` lane (23, 35, 39, 55 mod 64) whose seeds the issues cite. funnel_push never reloads, the other three always do, as on `belts-cover` |
+| belt press_processing, brass, ejectors | 78, 110, 126 mod 128 | 3/128 | Presses never reloaded on `belts-cover` (7 mod 64); brass tunnels and ejectors always did (38, 32 mod 64): kept so |
+| belt slicer, tunnels, funnels | 99, 103, 61 mod 128 | 3/128 | Reload; the slicer picks its cut, join or refusal variant by `index` |
+| belt surface, depots, chutes | 94, 29, 66 mod 128 | 3/128 | Never reload |
+| transmission valve, sequence, chain, generate | 10-12, 14 mod 16, below 64 mod 128 | 4 × 1/32 = 12.5% | Short traces with few variants (bits 16 and 32, seed / 64 mod 3); they gave up the half above 64 |
+| transmission crank | 13, 45 mod 128 | 1/64 | Its trace reads no seed bit but the reload one: one residue of each half |
+| transmission flicker | 2 mod 128 | 1/128 | Reads no seed bit and 2 mod 64 never reloads: 66 generated the same trace |
+| waterwheel | 74, 90, 106, 122 mod 128 | 1/32 | Back after the network campaign took its residues; its pre-campaign share |
+| steam_engine | 75, 91, 107, 123 mod 128 | 1/32 | As water wheels |
+| actions | 3 mod 64; 87, 119 mod 128 | 4/128 = 3% | A few variants of uses on one shaft, clutch or gearshift: 3 mod 64 has `seed % 8 == 3` and `% 32 == 3`, 87 and 119 the `% 8 == 7` half |
+| geometry/states | 77, 93, 109, 125 mod 128 | 4/128 = 3% | Static kinetics: one catalogue state per seed by index, every block, face and order; each state is still reached, over more seeds |
+| geometry/stress_boundary | 0 mod 64 | 1/64 | Unchanged: every eighth static kinetics seed |
+| geometry/network | 92, 124 mod 128 | 1/64 | Random networks through compatible faces (unreached since the fluid families) |
+| geometry/source_faces | 76, 108 mod 128 | 1/64 | Six input faces of gearboxes, clutches and gearshifts (unreached since fluid_pumps took 18 mod 32) |
+| geometry/cog_boundary | 34 mod 64 | 1/64 | Unchanged |
+
+Residues that changed owner (mod 128): transmission valve's 74, 90, 106, 122 to waterwheel;
+sequence's 75, 91, 107, 123 to steam_engine; chain's 76, 108 to source_faces and 92, 124 to
+geometry/network; crank's 77, 93, 109, 125, generate's 78, 94, 110, 126 and actions' 87, 99,
+103, 119 to geometry/states.
+
+The belt logistics families (from `belts-cover`, whose lanes the network campaign had taken)
+then took: actions' 23, 35, 39, 55 (funnel_push, chute_columns, brass_funnels, depot_outputs);
+geometry/states' 78 (press_processing), 94 (belt surface), 99 (slicer), 103 (tunnels),
+110 (brass), 126 (ejectors); transmission/crank's 29 (depots) and 61 (funnels);
+transmission/flicker's 66 (chutes); geometry/states' 87 and 119 went to actions. A belt issue
+that cites a `belts-cover` sweep seed reproduces from its `.min.json`; the seed itself generates
+the same history only at 23, 35, 39 or 55 mod 128.

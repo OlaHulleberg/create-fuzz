@@ -69,7 +69,7 @@ pub fn generate(seed: u64) -> Scenario {
         events: vec![],
     };
     let speed = if r.chance(0.5) { 32 } else { -32 };
-    match (seed / 32) % 4 {
+    match crate::generate::index(seed) % 4 {
         0 | 1 => cut(&mut r, &mut sc, speed),
         2 => join(&mut r, &mut sc, speed),
         _ => refusals(&mut r, &mut sc, speed),

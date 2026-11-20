@@ -122,10 +122,17 @@ pub const BLOCKS: &[&str] = &[
     "create:encased_chain_drive",
     "create:adjustable_chain_gearshift",
     "create:shaft",
+    "create:hand_crank",
+    "create:cogwheel",
+    "create:large_cogwheel",
     "create:creative_motor",
     "create:clutch",
     "create:gearshift",
+    "create:sequenced_gearshift",
     "create:gearbox",
+    "create:vertical_gearbox",
+    "create:speedometer",
+    "create:stressometer",
     "create:flywheel",
     "create:steam_engine",
     "create:water_wheel",
@@ -160,6 +167,9 @@ pub const ITEMS: &[&str] = &[
     "minecraft:iron_ingot",
     "minecraft:gold_ingot",
     "minecraft:diamond",
+    "create:extendo_grip",
+    "minecraft:stick",
+    "create:metal_girder",
 ];
 impl Action {
     pub fn validate(&self) {

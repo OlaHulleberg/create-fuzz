@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn histories_reach_the_buffer_slots_after_the_landing() {
         // The fluid world runs on the native fluid host, so the scenario itself is checked here.
-        for seed in (55..55 + 64 * 40).step_by(64) {
+        for seed in (55..55 + 128 * 40).step_by(128) {
             let sc = super::generate(seed);
             let landing = sc
                 .events

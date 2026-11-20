@@ -871,7 +871,10 @@ mod tests {
                     assert_eq!(r.w.saved_handle(0, p), Some(saved));
                 }
                 for _ in 1..saved.in_use {
+                    // `tick_cranks` asks for the cranks' pass; the level tick runs it with
+                    // the other block entities.
                     r.w.tick_cranks(0);
+                    r.w.tick(0, &mut Vec::new());
                     r.save_kinetic_records();
                 }
                 assert_eq!(r.w.dims[0].kinetics.generated(p, 0), Some(rpm));

@@ -367,7 +367,7 @@ pub fn generate(seed: u64) -> Scenario {
 mod tests {
     #[test]
     fn filter_clicks_hit_the_slot() {
-        for seed in (39..39 + 64 * 60).step_by(64) {
+        for seed in (39..39 + 128 * 60).step_by(128) {
             let sc = super::generate(seed);
             for e in &sc.events {
                 if let Some(a) = &e.action {
