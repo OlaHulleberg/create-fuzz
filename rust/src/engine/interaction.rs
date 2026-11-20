@@ -494,8 +494,16 @@ impl Run {
                         self.id(&format!("create:shaft[axis={axis},waterlogged=false]")),
                     );
                 } else {
-                    self.set(p, AIR);
+                    // `WaterWheelStructuralBlock.onSneakWrenched`: a frame cell hands the
+                    // wrench to the wheel it holds.
+                    let target = self.w.sneak_wrenched(0, p, state);
+                    self.set(target, AIR);
                 }
+                return;
+            }
+            // `IWrenchable.onWrenched` answering PASS (the port's `wrench::turns`): the large
+            // water wheel and its frame cells are neither turned nor taken.
+            if !create_engine::wrench::turns(name.trim_start_matches("create:")) {
                 return;
             }
             if !crate::actions::BLOCKS.contains(&name.as_str())
