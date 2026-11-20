@@ -176,6 +176,7 @@ impl Run {
                 && !crate::actions::BLOCKS.contains(&name.as_str())
                 && name != "create:andesite_encased_shaft"
                 && name != "create:brass_encased_shaft"
+                && name != "create:powered_shaft"
                 && !name.ends_with("_encased_cogwheel")
                 && !name.ends_with("_encased_large_cogwheel")
                 // A sneaking wrench picks a valve handle up as any wrenchable block.
@@ -298,15 +299,21 @@ impl Run {
                 return;
             }
             // transmission.rs Clicked: casing, then the shaft placement helper.
+            // PoweredShaftBlock.useItemOn has only the shaft's placement helper.
             if let Some((block, info)) = own
-                && matches!(block, Block::Shaft | Block::Cogwheel | Block::LargeCogwheel)
+                && matches!(
+                    block,
+                    Block::Shaft | Block::PoweredShaft | Block::Cogwheel | Block::LargeCogwheel
+                )
             {
                 let axis = info.axis.expect("relay axis");
-                if let Some(casing) = match item {
-                    "create:brass_casing" => Some("brass"),
-                    "create:andesite_casing" => Some("andesite"),
-                    _ => None,
-                } {
+                if block != Block::PoweredShaft
+                    && let Some(casing) = match item {
+                        "create:brass_casing" => Some("brass"),
+                        "create:andesite_casing" => Some("andesite"),
+                        _ => None,
+                    }
+                {
                     let mut next = format!(
                         "create:{casing}_encased_{}[axis={}]",
                         block.name(),
@@ -339,7 +346,9 @@ impl Run {
                     self.switch(p, self.id(&next));
                     return;
                 }
-                if block == Block::Shaft && (item == "create:shaft" || cog_item(item).is_some()) {
+                if matches!(block, Block::Shaft | Block::PoweredShaft)
+                    && (item == "create:shaft" || cog_item(item).is_some())
+                {
                     let at = place::pole_helper(
                         p,
                         axis,
