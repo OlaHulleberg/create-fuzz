@@ -249,7 +249,17 @@ impl Run {
                 .insert("belts".into(), codec::belts_to_nbt(&belts));
         }
     }
+    /// A save and reload of the running world: the Java side saves live block entities
+    /// (`saveWithoutMetadata`), so the records are brought up to date first, or a change in
+    /// this very tick (a wrench turning a water wheel) is lost.
     pub(super) fn reload(&mut self) {
+        self.publish_entities();
+        self.load_saved();
+    }
+
+    /// Loads exactly the saved records, as a world saved earlier (or by an older version,
+    /// without some of them) is loaded.
+    pub(super) fn load_saved(&mut self) {
         let outputs = serde_json::to_vec(&self.depot_outputs.iter().collect::<Vec<_>>()).unwrap();
         self.depot_outputs =
             serde_json::from_slice::<Vec<(Pos, Vec<crate::transport::Stack>)>>(&outputs)
@@ -1010,11 +1020,11 @@ mod tests {
                 count: 1,
             },
         );
-        r.reload();
+        r.load_saved();
         assert_eq!(r.w.saved_depot(0, p).unwrap().held.unwrap().position, 0.5);
         r.w.depot_put(0, p, None);
         r.save_depot_records();
-        r.reload();
+        r.load_saved();
         assert_eq!(r.w.saved_depot(0, p).unwrap().held, None);
     }
     #[test]
@@ -1295,7 +1305,7 @@ mod reload_order_tests {
         r.reload();
         assert_eq!(r.w.saved_chain_signal(0, p), Some(3));
         r.persisted.chain_entities.clear();
-        r.reload();
+        r.load_saved();
         assert_eq!(r.w.saved_chain_signal(0, p), Some(0));
         r.persisted
             .chain_entities
