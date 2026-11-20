@@ -141,7 +141,9 @@ impl Run {
                 let max = self.funnel_extraction(pos);
                 self.push_onto_belt(pos, facing, max)
             }
-            Mode::TakingFromBelt if depot_below => {
+            // The glue's `depot_output` hands a depot's stack over at the depot's turn; only
+            // an ejector's (not in the walk) is pulled here.
+            Mode::TakingFromBelt if depot_below && self.is_ejector(below) => {
                 self.pull_from_depot(pos, facing);
                 Some(Turn::Blocked)
             }
@@ -221,6 +223,22 @@ impl Run {
             }),
         );
         Some(Turn::Moved)
+    }
+    /// The glue's `depot_output` (`DepotBehaviour.tick` → `handleBeltFunnelOutput`): at the
+    /// depot's turn, a belt funnel pulling from it above takes what `pull_from_depot` gives.
+    /// True when a stack moved.
+    pub(super) fn depot_output(&mut self, depot: Pos) -> bool {
+        let pos = [depot[0], depot[1] + 1, depot[2]];
+        let Some((block, info, mode)) = self.funnel_mode(pos) else {
+            return false;
+        };
+        if !matches!(block, Block::AndesiteBeltFunnel | Block::BrassBeltFunnel)
+            || mode != Mode::TakingFromBelt
+        {
+            return false;
+        }
+        let facing = info.facing.unwrap_or(Dir::Up);
+        matches!(self.pull_from_depot(pos, facing), Some(Turn::Moved))
     }
     /// `pull_from_depot` (`handleBeltFunnelOutput`): the depot's outputs, then its held stack
     /// once at rest, into the inventory behind the funnel as far as they fit.

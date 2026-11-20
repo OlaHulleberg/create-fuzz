@@ -407,7 +407,9 @@ impl Run {
                     continue;
                 }
                 create_engine::world::TransportTick::Depot(p) => {
-                    if self.w.tick_depot(0, p, false) {
+                    let arrived = self.w.tick_depot(0, p, false);
+                    // The glue's `tick_depot`: `handleBeltFunnelOutput` before the processing.
+                    if !self.depot_output(p) && arrived {
                         self.spout_on_depot(p);
                     }
                     continue;
