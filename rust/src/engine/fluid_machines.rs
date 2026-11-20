@@ -24,6 +24,7 @@ impl Run {
                 offered: offered.clone(),
                 remainder: offered,
                 taken: Vec::new(),
+                handler: None,
             });
         }
         let mut remainder = offered.clone();
@@ -84,6 +85,7 @@ impl Run {
             offered,
             remainder,
             taken,
+            handler: None,
         })
     }
     pub(super) fn spout_on_depot(&mut self, depot: Pos) {
@@ -95,6 +97,11 @@ impl Run {
         let Some(mut h) = self.w.dims[0].depots.get(&depot).copied().flatten() else {
             return;
         };
+        // `lv.blocked`: anything with a collision shape over the depot (a funnel too) stops an
+        // unlocked stack.
+        if !h.locked && self.host_collision(add(depot, [0, 1, 0])) {
+            return;
+        }
         {
             let depot = add(p, [0, -2, 0]);
             let held = self.depot_stacks.get(&depot).cloned();
@@ -117,15 +124,9 @@ impl Run {
                     stack.count -= 1;
                     self.depot_stacks.insert(depot, stack);
                     let filled = Stack { item, count: 1 };
+                    // glue/fluids/machines.rs: onto a stack of it with room, else an empty slot.
                     let outputs = self.depot_outputs.entry(depot).or_default();
-                    if let Some(slot) = outputs
-                        .iter_mut()
-                        .find(|s| s.item == filled.item && s.count < s.limit())
-                    {
-                        slot.count += 1;
-                    } else if outputs.len() < create_engine::depot::OUTPUTS.len() {
-                        outputs.push(filled);
-                    } else {
+                    if outputs.insert_stacked(&filled) > 0 {
                         self.notes.push(format!(
                             "adapter gap: native spout overflow item flight at {depot:?}"
                         ));
@@ -312,7 +313,10 @@ mod tests {
         assert_eq!(direct.fluid, None);
         assert_eq!(run.depot_stacks[&depot].item, "create:builders_tea");
         assert_eq!(
-            run.depot_outputs[&depot],
+            run.depot_outputs[&depot]
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>(),
             vec![Stack {
                 item: "create:builders_tea".into(),
                 count: 3

@@ -10,6 +10,12 @@ pub struct Observation {
     pub index: i32,
     pub length: i32,
     pub casing: String,
+    /// `BeltBlockEntity.covered`: a block stands on this cased horizontal segment.
+    #[serde(default)]
+    pub covered: bool,
+    /// `BeltBlockEntity.color`, by dye name.
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 pub fn generate(seed: u64) -> Scenario {

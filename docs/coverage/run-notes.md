@@ -159,3 +159,137 @@ exact class/method/line groups it applies to. The main implementation areas are:
 
 The isolated server is stopped and temporary build/sweep outputs are removed after
 saving these measurements. The shared server and port source remain untouched.
+
+## Belt phase campaign
+
+`belts.md` and `input/` now come from the union of three exec sets on a private server
+(`FUZZ_PORT=25630`, this branch's harness, the default include set with chutes):
+
+1. `fuzz cover 100` over a 292-scenario corpus: 40 seeds each of the depot (1 mod 32),
+   funnel (4), transport (9), slicer (22), tunnel (24) and belt surface (25) families, 30 belt
+   family seeds (15 mod 16) and the manual belt, depot and spout cases. The replay and one
+   guided round were measured; the second round stopped on a Java fluid-boundary error (a
+   mutated water bucket use on a belt left water outside the contained region), so the
+   campaign history (`seeds.tsv`, campaign 1 rows) records rounds without branch counts.
+2. `fuzz cover 0` over 80 funnel and chute seeds (4 and 5 mod 32).
+3. `fuzz cover 0` over the previous campaign's `replay-corpus`, so branches other families
+   reach stay counted.
+
+`report.sh` merged campaign 2's and 3's `union.exec` into campaign 1's; `campaign.json`
+records the three corpora and the union. The belts subsystem now counts
+`logistics/chute/` (its classes are in the include set); chutes were not counted before.
+
+Missed branch outcomes by family (all categories / harness-gap), before (the previous
+`belts.md`) and after:
+
+| Family | Before | After |
+| --- | ---: | ---: |
+| funnels | 509 / 393 | 412 / 296 |
+| tunnels | 277 / 263 | 103 / 89 |
+| brass distribution | 390 / 372 | 339 / 321 |
+| ejector | 366 / 244 | 362 / 240 |
+| slicer and connector | 322 / 244 | 183 / 100 |
+| depot | 240 / 164 | 178 / 102 |
+| belt core | 1060 / 573 | 987 / 496 |
+| chutes | not counted | 464 / 378 |
+| packages | 237 / 183 | 237 / 183 |
+
+Reclassified with the Java: the client-side outcome of side guards in `BeltSlicer`
+(lines 79, 187, 196, 204, 312), `BeltBlock` (306, 348, 355) and `BeltBlockEntity.applyColor`
+(275), each an `isClientSide` test whose server outcome ran; `ChuteBlockEntity.spawnParticles`
+(called only under `level.isClientSide`) and `addToGoggleTooltip`; the chute renderers; and
+`ChuteGenerator` (datagen). Every other new chute group is a harness gap with the remaining
+work named. Harness-gap explanations of the belt, slicer, connector, funnel, tunnel and depot
+classes now name what the new families leave.
+
+### Sweep and findings
+
+`fuzz 0 2000` on this branch (driver 0beb7d4 plus the reasons commit; private server, the
+port at 4625fb5): 1878 matched, 120 differed, 1 java-unstable, 1 driver-unsupported
+(`input/differing-seeds.tsv`). Every one is in a belt family: depot 5 (no item handler for a
+belt segment in the port), funnel 56 (a funnel's emptied stack lingers a tick in Java), chute 22
+(the chute hand-over and the full-container wait), slicer 25 (START shortening, the slicer's
+kinetic detach, the inventory direction flag, the join's stale length), tunnel 8 (the wrench's
+window, the cascade's tick), belt surface 4 (the direction flag). Seed 1366 (a two-motor join,
+then a split) is Java-unstable: Java's saved network sizes after the slicer re-attaches its
+segments depend on the save phase (phases 8 and 9 differ; the live networks agree). The
+unsupported seed 1721 and the differing sideways-belt seed 921 used a water bucket on a
+vertical or sideways belt; the surface family no longer does (`fuzz-lane 0 6400 25 32`
+afterwards: 196 matched, 4 differed, all the direction flag). Each difference is a port
+behaviour with a shrunk case for the lead; none is allowed in `allow.rs`. All 98 `cases/`
+match, as before (`input/case-statuses.tsv`).
+
+## Belt phase, second round
+
+Branch `belts-cover2` adds three families: brass tunnel distribution (seeds 38 mod 64),
+weighted ejectors (32 mod 64) and funnels pushing from depots (23 mod 64), the halves of the
+geometry lanes that reload and half of the actions lane 23. `belts.md` and `input/` come from
+the union of the first round's three exec sets with a fourth: `fuzz cover 0` over a 60-scenario
+corpus (20 seeds of each new family, now in `replay-corpus`), private server `FUZZ_PORT=25633`,
+fuzzer a002a53, the port at 4625fb5. Union: 3961/15274 branches covered (3542 before).
+
+Missed branch outcomes by family (all categories / harness-gap), before (the first round's) and
+after:
+
+| Family | Before | After |
+| --- | ---: | ---: |
+| funnels | 412 / 296 | 381 / 265 |
+| tunnels | 103 / 89 | 93 / 79 |
+| brass distribution | 339 / 321 | 112 / 96 |
+| ejector | 362 / 240 | 281 / 159 |
+| slicer and connector | 183 / 100 | 183 / 100 |
+| depot | 178 / 102 | 132 / 56 |
+| belt core | 987 / 496 | 963 / 472 |
+| chutes | 464 / 378 | 464 / 378 |
+| packages | 237 / 183 | 237 / 183 |
+
+The harness-gap reasons of the brass tunnel, ejector, depot and funnel classes now name what the
+new families leave. All 98 `cases/` keep their statuses (`input/case-statuses.tsv`): the
+ejector observation applies to version 3 cases only, as version 1 cases load ejectors for stress.
+
+`fuzz-lane 0 768 <lane> 64` for each new lane (12 seeds each): brass 1 matched / 11 differed,
+ejectors 0 / 12, funnel pushing 0 / 12 (two of them from a pushing shape along the belt, which
+players cannot make; the generator no longer uses it). The differences are port behaviours with
+shrunk cases for the lead (brass: a joining tunnel's mode, stuck items' position, the logistics
+phase order, synchronize's gather tick, the item handler without distribution, the saved
+distribution state, an emptied stack saved as one item; ejectors: an empty ejector taking one
+item, idle wind-up, the ejector's depot never sliding, the whole-block obstacle scan; funnels: the
+phase order). None is allowed in `allow.rs`.
+
+## Belt phase, third round
+
+Branch `belts-cover3` adds four families in the actions lane's residues: depot output buffers
+(55 mod 64: a spout filling a stack on a depot, item handler access to the buffer's slots, pickups,
+landings and a pulling belt funnel exporting the outputs), brass funnels' filters and amounts
+(39 mod 64: the `filter_setting` action), chute columns (35 mod 64: diagonal and smart chutes and
+encased fans) and presses over depots and belts (7 mod 64). `belts.md` and `input/` come from the
+union of the second round's four exec sets with a fifth: `fuzz cover 0` over a 48-scenario corpus
+(12 seeds of each new family, now in `replay-corpus`), private server `FUZZ_PORT=25634`, fuzzer
+5ef4a08, the port at 4625fb5. Union: 4195/15274 branches covered (3961 before).
+
+Missed branch outcomes by family (all categories / harness-gap), before (the second round's) and
+after:
+
+| Family | Before | After |
+| --- | ---: | ---: |
+| funnels | 381 / 265 | 346 / 245 |
+| tunnels | 93 / 79 | 93 / 79 |
+| brass distribution | 112 / 96 | 112 / 96 |
+| ejector | 281 / 159 | 281 / 159 |
+| slicer and connector | 183 / 100 | 183 / 100 |
+| depot | 132 / 56 | 122 / 46 |
+| belt core | 963 / 472 | 953 / 462 |
+| chutes | 464 / 378 | 373 / 287 |
+| packages | 237 / 183 | 237 / 183 |
+
+The press classes (`kinetics/press`, outside the belts report) go from 200 to 147 missed branch
+outcomes. The harness-gap reasons of the depot, funnel, chute, press and belt processing classes
+now name what the new families leave.
+
+`fuzz 0 2000` on this branch (private server, the port at 4625fb5): 1724 matched, 276 differed,
+0 java-unstable, 0 driver-unsupported (`input/differing-seeds.tsv`). Each differing seed is
+attributed to a finding (the first two rounds' create-horizon issues #130-#154, or this round's
+O1-O3, C3-C5 and P1, shrunk for the lead), but for seeds 806 and 1318: a filter-slot click on a
+brass tunnel side without a slot reaches the driver's unsupported-use note (a harness gap; in Java
+it does nothing). Seed 1366, Java-unstable in the first round, now differs stably: the slicer's
+split halves stay one network in the port (F2, #131). None is allowed in `allow.rs`.

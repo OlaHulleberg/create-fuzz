@@ -131,6 +131,42 @@ pub const FAMILIES: &[Family] = &[
     family("fluids", &[(32, 8)], crate::fluids::generate),
     family("transport", &[(32, 9)], crate::transport::generate),
     family("belts", &[(16, 15)], crate::belts::generate),
+    // Belt logistics histories, one residue each. Four keep half the actions lane they had
+    // before the table (the halves whose sweep seeds the third round's issues cite); the rest
+    // take the residues geometry/states, transmission/crank and transmission/flicker gave up.
+    family(
+        "belt/funnel_push",
+        &[(128, 23)],
+        crate::funnel_push::generate,
+    ),
+    family(
+        "belt/chute_columns",
+        &[(128, 35)],
+        crate::chute_columns::generate,
+    ),
+    family(
+        "belt/brass_funnels",
+        &[(128, 39)],
+        crate::brass_funnels::generate,
+    ),
+    family(
+        "belt/depot_outputs",
+        &[(128, 55)],
+        crate::depot_outputs::generate,
+    ),
+    family(
+        "belt/press_processing",
+        &[(128, 78)],
+        crate::press_processing::generate,
+    ),
+    family("belt/brass", &[(128, 110)], crate::brass::generate),
+    family("belt/ejectors", &[(128, 126)], crate::ejectors::generate),
+    family("belt/slicer", &[(128, 99)], crate::slicer::generate),
+    family("belt/tunnels", &[(128, 103)], crate::tunnels::generate),
+    family("belt/funnels", &[(128, 61)], crate::funnels::generate),
+    family("belt/surface", &[(128, 94)], crate::belt_surface::generate),
+    family("belt/depots", &[(128, 29)], crate::depots::generate),
+    family("belt/chutes", &[(128, 66)], crate::chutes::generate),
     // Transmission traces.
     family("transmission/valve", &low_half(10), transmission::valve),
     family(
@@ -139,19 +175,21 @@ pub const FAMILIES: &[Family] = &[
         transmission::sequence,
     ),
     family("transmission/chain", &low_half(12), transmission::chain),
-    family("transmission/crank", &low_half(13), transmission::crank),
+    // The crank trace reads no seed bit but the reload one: one residue of each half.
+    family(
+        "transmission/crank",
+        &[(128, 13), (128, 45)],
+        transmission::crank,
+    ),
     family(
         "transmission/generate",
         &low_half(14),
         transmission::generate,
     ),
-    family("transmission/flicker", &[(64, 2)], transmission::flicker),
+    // The flicker trace reads no seed bit, and 2 mod 64 never reloads: 66 was its copy.
+    family("transmission/flicker", &[(128, 2)], transmission::flicker),
     // Player actions on a single shaft, clutch or gearshift.
-    family(
-        "actions",
-        &[(64, 3), (128, 23), (128, 35), (128, 39), (128, 55)],
-        actions,
-    ),
+    family("actions", &[(64, 3), (128, 87), (128, 119)], actions),
     // Static kinetics.
     family("geometry/cog_boundary", &[(64, 34)], geometry::cog_boundary),
     family(
@@ -171,20 +209,7 @@ pub const FAMILIES: &[Family] = &[
     ),
     family(
         "geometry/states",
-        &[
-            (128, 77),
-            (128, 93),
-            (128, 109),
-            (128, 125),
-            (128, 78),
-            (128, 94),
-            (128, 110),
-            (128, 126),
-            (128, 87),
-            (128, 99),
-            (128, 103),
-            (128, 119),
-        ],
+        &[(128, 77), (128, 93), (128, 109), (128, 125)],
         geometry_states,
     ),
 ];
@@ -436,19 +461,76 @@ mod tests {
         assert_eq!(names.len(), FAMILIES.len());
     }
 
-    /// Only these residues changed owner; every other seed generates what it did before.
+    /// The table as #7 left it (9f00743): `before`, with the residues it moved.
+    fn at_9f00743(r: u64) -> String {
+        match r {
+            74 | 90 | 106 | 122 => "waterwheel",
+            75 | 91 | 107 | 123 => "steam_engine",
+            76 | 108 => "geometry/source_faces",
+            92 | 124 => "geometry/network",
+            77 | 78 | 87 | 93 | 94 | 99 | 103 | 109 | 110 | 119 | 125 | 126 => "geometry/states",
+            23 | 35 | 39 | 55 => "actions",
+            _ => return before(r),
+        }
+        .into()
+    }
+
+    /// The belt family each residue had on `belts-cover` (65d02be), whose sweeps the belt
+    /// issues cite; that branch's own if-chain ran before the network campaign.
+    fn belts_cover(r: u64) -> Option<&'static str> {
+        Some(match (r % 32, r % 64) {
+            (22, _) => "belt/slicer",
+            (24, _) => "belt/tunnels",
+            (25, _) => "belt/surface",
+            (_, 38) => "belt/brass",
+            (_, 32) => "belt/ejectors",
+            (_, 23) => "belt/funnel_push",
+            (_, 7) => "belt/press_processing",
+            (_, 35) => "belt/chute_columns",
+            (_, 39) => "belt/brass_funnels",
+            (_, 55) => "belt/depot_outputs",
+            (1, _) => "belt/depots",
+            (4, _) => "belt/funnels",
+            (5, _) => "belt/chutes",
+            _ => return None,
+        })
+    }
+
+    /// Only these residues changed owner since #7; every other seed generates what it did.
     #[test]
     fn moved_residues() {
-        let moved: Vec<_> = (0..PERIOD)
-            .filter(|r| before(*r) != family_name(*r))
-            .collect();
+        let moved = |old: fn(u64) -> String| -> Vec<u64> {
+            (0..PERIOD).filter(|r| old(*r) != family_name(*r)).collect()
+        };
         assert_eq!(
-            moved,
+            moved(at_9f00743),
             [
-                74, 75, 76, 77, 78, 87, 90, 91, 92, 93, 94, 99, 103, 106, 107, 108, 109, 110, 119,
-                122, 123, 124, 125, 126
+                23, 29, 35, 39, 55, 61, 66, 78, 87, 94, 99, 103, 110, 119, 126
             ]
         );
+        // #7's own moves and the belt families'; 87 and 119 are actions' again.
+        assert_eq!(
+            moved(before),
+            [
+                23, 29, 35, 39, 55, 61, 66, 74, 75, 76, 77, 78, 90, 91, 92, 93, 94, 99, 103, 106,
+                107, 108, 109, 110, 122, 123, 124, 125, 126
+            ]
+        );
+    }
+
+    /// The belt seeds that generate what they did on `belts-cover`: half of each actions-lane
+    /// family's. Every other belt family moved whole.
+    #[test]
+    fn kept_belt_residues() {
+        let kept: Vec<_> = (0..PERIOD)
+            .filter(|r| belts_cover(*r) == Some(family_name(*r)))
+            .collect();
+        assert_eq!(kept, [23, 35, 39, 55]);
+        for r in 0..PERIOD {
+            if let Some(name) = belts_cover(r) {
+                assert!(FAMILIES.iter().any(|f| f.name == name), "{name}");
+            }
+        }
     }
 
     #[test]

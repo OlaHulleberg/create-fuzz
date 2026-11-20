@@ -35,6 +35,12 @@ To drive another checkout's engine (a worktree), set `CREATE_HORIZON=/path/to/ch
 against it in its own folder (`FUZZ_BUILD`, default `/mnt/lanes/fuzz-build`), and several drivers can share one
 server. `FUZZ_FOUND` sets where `fuzz` saves differences.
 
+### Engines
+
+The driver re-implements the port's glue (`rust/src/engine*`) and mirrors create-horizon `main`:
+its engine API and its glue's order and rules. A driver built against an older checkout may not
+compile; one built against a branch that changes the glue differs where the branch does.
+
 The server queues requests by arrival (file modification time, filename only to break ties).
 After each case is disposed and its cleanup has settled, an unfinished batch goes to the back
 of the queue. Small checks and fluid-host RPCs therefore wait for case quanta rather than
@@ -110,7 +116,7 @@ JaCoCo and ASM jars are checked against pinned Maven Central SHA-1 values on eve
 cached jars; mismatches are deleted and stop the command.
 `FUZZ_COVERAGE_INCLUDES` is a colon-separated JaCoCo include list; it defaults to
 `com.simibubi.create.content.kinetics.*:com.simibubi.create.api.stress.*:com.simibubi.create.api.registry.*`,
-including the kinetic network, torque propagator, stress values and their registry helpers. Fluid, belt and depot classes are included by the default wrapper. `FUZZ_CREATE_JAR` selects the matching published Create binary.
+including the kinetic network, torque propagator, stress values and their registry helpers. Fluid, belt, depot, funnel, tunnel, chute and package classes are included by the default wrapper; the belts report counts chutes with them. `FUZZ_CREATE_JAR` selects the matching published Create binary.
 Each guided case resets the agent after area cleanup and dumps probes before publishing its snapshot.
 Offline analysis unions those probes before counting branches, so discoveries on opposite edges of the
 same line count separately. The agent dumps only included Create classes into `work/coverage-classes`: analysis uses these
@@ -239,6 +245,32 @@ use `chain_link`, the server transaction sent after the player's chain selection
 Snapshots compare controller/index/length/casing and sorted conveyor link offsets.
 See [item transport](docs/item-transport.md) for player stack landings/uses, movement, belt/depot handoff, stalls, per-tick observations and explicit native-flight/component boundaries. Inventory-backed splitting remains separate.
 
+The belt slicer family cuts and joins loaded belts:
+interior wrench splits on both sides of a segment (creative, and refused in survival, whose
+actor holds no connector or shafts), shortening from either end, lengthening, joins with and
+without a flipped partner, the maximum length, and the connector's refusals (cross axes, range,
+obstacles, cross shafts, opposing driven ends, a forgotten first shaft) and its 5-tick item
+cooldown, which the driver models as the game does for the port.
+
+The tunnel family places andesite and brass tunnels on
+belts beside depots and cross belts, with neighbouring tunnels, the wrench's window toggle,
+outputs taken away and back, stacks through andesite junctions, and the tunnel losing its
+casing or belt. The belt surface family dyes, washes, cases, covers and
+pulleys horizontal, sloped, vertical and sideways belts, then breaks a segment. The depot
+family inserts into and extracts from a depot through its item handler
+(`capability`), with belt handoffs, player pickups and a belt segment's own handler.
+
+The funnel family puts belt funnels over loaded belts with
+depots behind them, a floor funnel at the belt's end, and player pickups that free a blocked
+funnel. The chute family ends belts at vertical chutes over depots, belts,
+chutes, stone or nothing, and under a chute leading into them.
+
+Four more cover depot output buffers (a spout fills a stack on a depot; item handlers,
+pickups, landings and a pulling belt funnel reach the buffer), brass funnels' filters and
+amounts (with the `filter_setting` action), chute columns (diagonal and smart chutes and
+encased fans at a belt's end) and presses over depots and belts. Each family's residues are in
+[Seed families](#seed-families). See [item transport](docs/item-transport.md).
+
 The water wheel family drives a wheel's flow from a
 contained falling-water column, both flow signs, a lava column, the plank material through
 player uses (a non-block item, the wheel's own spruce, an invalid block and a valid plank),
@@ -282,19 +314,25 @@ crank's use, unbracketable targets). Each history's doc comment names its Create
 unit test lists the residues that changed owner. Families written for consecutive seeds (water
 wheels, steam engines, source faces, catalogue states) pick their variants by the seed's index
 among their own seeds, so every variant is reached. A seed with `seed & 32` set also reloads
-(`persistence.rs`); each family's residues include both halves.
+(`persistence.rs`); a family with one residue mod 128 either always or never reloads, as the
+table's comments say.
 
 | Family | Residues | Share | Why |
 | --- | --- | --- | --- |
 | 20 kinetic network histories | one each mod 64: 1, 4-7, 20-22, 24, 25, 32, 33, 36-38, 52-54, 56, 57 | 20 × 1/64 = 31% | Newest player-built histories; their variants use the seed's bits from 64 up, so each keeps a whole residue mod 64 |
 | fluid_pipes, fluid_world, fluid_pumps, fluid_inputs, fluids, transport | 16, 17, 18, 19, 8, 9 mod 32 | 6 × 1/32 = 19% | Long histories with variants keyed on the seed from bit 32 up; unchanged |
 | belts | 15 mod 16 | 1/16 | Unchanged: belt findings cite these seeds |
-| transmission valve, sequence, chain, crank, generate | 10-14 mod 16, below 64 mod 128 | 5 × 1/32 = 16% | Short traces with few variants (bits 16 and 32, seed / 64 mod 3); they gave up the half above 64 |
-| transmission flicker | 2 mod 64 | 1/64 | Unchanged |
+| belt funnel_push, chute_columns, brass_funnels, depot_outputs | 23, 35, 39, 55 mod 128 | 4/128 | Belt logistics histories of the third round; each keeps the half of its `belts-cover` lane (23, 35, 39, 55 mod 64) whose seeds the issues cite. funnel_push never reloads, the other three always do, as on `belts-cover` |
+| belt press_processing, brass, ejectors | 78, 110, 126 mod 128 | 3/128 | Presses never reloaded on `belts-cover` (7 mod 64); brass tunnels and ejectors always did (38, 32 mod 64): kept so |
+| belt slicer, tunnels, funnels | 99, 103, 61 mod 128 | 3/128 | Reload; the slicer picks its cut, join or refusal variant by `index` |
+| belt surface, depots, chutes | 94, 29, 66 mod 128 | 3/128 | Never reload |
+| transmission valve, sequence, chain, generate | 10-12, 14 mod 16, below 64 mod 128 | 4 × 1/32 = 12.5% | Short traces with few variants (bits 16 and 32, seed / 64 mod 3); they gave up the half above 64 |
+| transmission crank | 13, 45 mod 128 | 1/64 | Its trace reads no seed bit but the reload one: one residue of each half |
+| transmission flicker | 2 mod 128 | 1/128 | Reads no seed bit and 2 mod 64 never reloads: 66 generated the same trace |
 | waterwheel | 74, 90, 106, 122 mod 128 | 1/32 | Back after the network campaign took its residues; its pre-campaign share |
 | steam_engine | 75, 91, 107, 123 mod 128 | 1/32 | As water wheels |
-| actions | 3 mod 64; 23, 35, 39, 55 mod 128 | 6/128 = 5% | A few variants of uses on one shaft, clutch or gearshift; dense at this share |
-| geometry/states | 77, 78, 87, 93, 94, 99, 103, 109, 110, 119, 125, 126 mod 128 | 12/128 = 9% | Static kinetics: one catalogue state per seed, every block, face and order |
+| actions | 3 mod 64; 87, 119 mod 128 | 4/128 = 3% | A few variants of uses on one shaft, clutch or gearshift: 3 mod 64 has `seed % 8 == 3` and `% 32 == 3`, 87 and 119 the `% 8 == 7` half |
+| geometry/states | 77, 93, 109, 125 mod 128 | 4/128 = 3% | Static kinetics: one catalogue state per seed by index, every block, face and order; each state is still reached, over more seeds |
 | geometry/stress_boundary | 0 mod 64 | 1/64 | Unchanged: every eighth static kinetics seed |
 | geometry/network | 92, 124 mod 128 | 1/64 | Random networks through compatible faces (unreached since the fluid families) |
 | geometry/source_faces | 76, 108 mod 128 | 1/64 | Six input faces of gearboxes, clutches and gearshifts (unreached since fluid_pumps took 18 mod 32) |
@@ -304,3 +342,11 @@ Residues that changed owner (mod 128): transmission valve's 74, 90, 106, 122 to 
 sequence's 75, 91, 107, 123 to steam_engine; chain's 76, 108 to source_faces and 92, 124 to
 geometry/network; crank's 77, 93, 109, 125, generate's 78, 94, 110, 126 and actions' 87, 99,
 103, 119 to geometry/states.
+
+The belt logistics families (from `belts-cover`, whose lanes the network campaign had taken)
+then took: actions' 23, 35, 39, 55 (funnel_push, chute_columns, brass_funnels, depot_outputs);
+geometry/states' 78 (press_processing), 94 (belt surface), 99 (slicer), 103 (tunnels),
+110 (brass), 126 (ejectors); transmission/crank's 29 (depots) and 61 (funnels);
+transmission/flicker's 66 (chutes); geometry/states' 87 and 119 went to actions. A belt issue
+that cites a `belts-cover` sweep seed reproduces from its `.min.json`; the seed itself generates
+the same history only at 23, 35, 39 or 55 mod 128.

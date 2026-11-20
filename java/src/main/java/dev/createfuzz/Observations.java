@@ -35,6 +35,7 @@ final class Observations {
                 lo[a] = Math.min(lo[a], v);
                 hi[a] = Math.max(hi[a], v);
             }
+        boolean transportVersion=c.has("version") && c.get("version").getAsInt()>=3;
         int padding=FluidBounds.enabled(c)?2:1;
         for (int a = 0; a < 3; a++) {
             lo[a]-=padding;
@@ -84,6 +85,14 @@ final class Observations {
                         }
                     }
                     if (be != null) {var transport=TransportObservations.observe(be);if(transport!=null) snap.add("transport",transport); }
+                    if (be != null) {
+                        var tunnel=TransportObservations.tunnel(be);if(tunnel!=null) snap.add("tunnel",tunnel);
+                        var funnel=TransportObservations.funnel(be);if(funnel!=null) snap.add("funnel",funnel);
+                        var chute=TransportObservations.chute(be);if(chute!=null) snap.add("chute",chute);
+                        // Ejectors' plates and throws belong to the version 3 transport contract; version 1
+                        // kinetic cases use ejectors as stress loads only.
+                        var ejector=transportVersion?TransportObservations.ejector(be):null;if(ejector!=null) snap.add("ejector",ejector);
+                    }
                     if (be instanceof com.simibubi.create.content.kinetics.belt.BeltBlockEntity belt) {
                         JsonObject b = new JsonObject();
                         BlockPos controller = belt.getController().subtract(origin);
@@ -91,6 +100,8 @@ final class Observations {
                         b.addProperty("length",belt.beltLength);
                         b.addProperty("index",belt.index);
                         b.addProperty("casing",belt.casing.name().toLowerCase(java.util.Locale.ROOT));
+                        b.addProperty("covered",belt.covered);
+                        b.add("color",belt.color.map(dye->(com.google.gson.JsonElement)new com.google.gson.JsonPrimitive(dye.getSerializedName())).orElse(com.google.gson.JsonNull.INSTANCE));
                         snap.add("belt",b);
                     }
                     if (be instanceof com.simibubi.create.content.kinetics.chainConveyor.ChainConveyorBlockEntity conveyor) {

@@ -6,18 +6,26 @@
 //! the scenarios use: adjacent redstone blocks or controlled 0..15 signal sources.
 
 mod belts;
+mod brass;
+mod chutes;
 mod conveyors;
+mod ejectors;
 mod fluid_machines;
 mod fluid_world;
 mod fluids;
+mod funnel_filters;
+mod funnels;
 mod interaction;
 mod kinetics;
 mod observation;
+mod outputs;
 mod persistence;
 mod pipes;
+mod presses;
 mod pumps;
 mod sources;
 mod transport;
+mod tunnels;
 
 use crate::scenario::{
     BlockSnap, Kinetic, Placed, Pos, Scenario, Snapshot, key, parse_state, with_prop,
@@ -78,6 +86,58 @@ fn create_states(sc: &Scenario) -> Vec<String> {
     for water in ["false", "true"] {
         push(format!("create:depot[waterlogged={water}]"));
     }
+    // Shafts placed against a belt (a shaft item on a segment that is no middle one) may
+    // stand in water a bucket left.
+    for axis in ["x", "y", "z"] {
+        for water in ["true", "false"] {
+            push(format!("create:shaft[axis={axis},waterlogged={water}]"));
+        }
+    }
+    // Chutes beside belts, and the shapes `tick_chute_shapes` gives them.
+    for facing in ["down", "north", "south", "west", "east"] {
+        for shape in ["normal", "window", "intersection"] {
+            for water in ["false", "true"] {
+                push(format!(
+                    "create:chute[facing={facing},shape={shape},waterlogged={water}]"
+                ));
+            }
+        }
+    }
+    for powered in ["false", "true"] {
+        push(format!("create:smart_chute[powered={powered}]"));
+    }
+    // Funnels at a belt's end.
+    for funnel in ["andesite_funnel", "brass_funnel"] {
+        for facing in ["up", "down", "north", "south", "west", "east"] {
+            for extracting in ["false", "true"] {
+                for powered in ["false", "true"] {
+                    push(format!(
+                        "create:{funnel}[extracting={extracting},facing={facing},powered={powered},waterlogged=false]"
+                    ));
+                }
+            }
+        }
+    }
+    // Belt funnels, as a state event places them on a belt.
+    for funnel in ["andesite_belt_funnel", "brass_belt_funnel"] {
+        for facing in ["north", "south", "west", "east"] {
+            for shape in ["retracted", "extended", "pushing", "pulling"] {
+                for powered in ["false", "true"] {
+                    push(format!(
+                        "create:{funnel}[facing={facing},powered={powered},shape={shape},waterlogged=false]"
+                    ));
+                }
+            }
+        }
+    }
+    // Tunnels: the shapes `tick_tunnels` gives them.
+    for tunnel in ["andesite_tunnel", "brass_tunnel"] {
+        for axis in ["x", "z"] {
+            for shape in ["straight", "window", "closed", "t_left", "t_right", "cross"] {
+                push(format!("create:{tunnel}[axis={axis},shape={shape}]"));
+            }
+        }
+    }
     push("create:brass_casing".into());
     push("create:andesite_casing".into());
     for face in ["up", "down", "north", "south", "east", "west"] {
@@ -137,11 +197,33 @@ pub struct Run {
     entity_order: Vec<Pos>,
     notes: Vec<String>,
     depot_stacks: HashMap<Pos, crate::transport::Stack>,
-    depot_outputs: HashMap<Pos, Vec<crate::transport::Stack>>,
+    depot_outputs: HashMap<Pos, outputs::Outputs>,
     item_outcomes: Vec<crate::transport::Outcome>,
     chains: create_engine::chain_conveyor::Chains<()>,
     connector: Option<Pos>,
+    /// The tick from which the belt connector's `useOn` runs again: Create starts the item's
+    /// 5-tick cooldown (`addCooldown(this, 5)`) when it remembers or connects a shaft, and the
+    /// game skips an item's `useOn` while it cools down (the block's own use still runs).
+    connector_ready: u32,
+    /// Ticks run so far: the tick whose actions run now.
+    now: u32,
     belt_casing: HashMap<Pos, String>,
+    /// `BeltBlockEntity.covered` of each segment.
+    belt_covered: std::collections::HashSet<Pos>,
+    /// `BeltBlockEntity.color` of each segment.
+    belt_color: HashMap<Pos, String>,
+    /// Belt segments whose block above changed, their cover looked at in the logistics phase.
+    cover_checks: Vec<Pos>,
+    /// Per belt, the positions of items a funnel held in place over the last tick.
+    funnel_held: HashMap<Pos, std::collections::HashSet<u32>>,
+    /// Each chute's stack (`ChuteBlockEntity.item`).
+    chute_stacks: HashMap<Pos, crate::transport::Stack>,
+    /// Brass tunnels' side filters (`tunnel_filters`): plain item ids.
+    tunnel_filters: HashMap<(Pos, create_engine::kinetics::Dir), String>,
+    /// Brass funnels' and smart chutes' filters (plain item ids) and amount boards
+    /// (`chute_filters`, `filter_amounts`).
+    funnel_filters: HashMap<Pos, String>,
+    filter_amounts: HashMap<Pos, create_engine::board::FilterAmount>,
     handles: HashMap<Pos, crate::handles::Handle>,
     brackets: HashMap<Pos, create_engine::decor::Bracket>,
     measured_trig: HashMap<Pos, String>,
@@ -199,7 +281,17 @@ impl Run {
             item_outcomes: Vec::new(),
             chains: Default::default(),
             connector: None,
+            connector_ready: 0,
+            now: 0,
             belt_casing: HashMap::new(),
+            belt_covered: Default::default(),
+            belt_color: HashMap::new(),
+            cover_checks: Vec::new(),
+            funnel_held: HashMap::new(),
+            chute_stacks: HashMap::new(),
+            tunnel_filters: HashMap::new(),
+            funnel_filters: HashMap::new(),
+            filter_amounts: HashMap::new(),
             handles: HashMap::new(),
             brackets: HashMap::new(),
             measured_trig: HashMap::new(),
@@ -372,6 +464,28 @@ impl Run {
             .is_some_and(|(b, _)| b == create_engine::Block::Belt)
         {
             self.belt_casing.remove(&p);
+            self.belt_covered.remove(&p);
+            self.belt_color.remove(&p);
+        }
+        if !self.w.table.get(new).is_some_and(|(b, _)| {
+            matches!(
+                b,
+                create_engine::Block::Chute | create_engine::Block::SmartChute
+            )
+        }) {
+            // The chute's block entity, and its stack, go with it.
+            self.chute_stacks.remove(&p);
+            self.w.dims[0].chutes.remove(&p);
+        }
+        // `BeltBlock.updateShape` from above: the belt's cover is looked at after the tick.
+        let below = [p[0], p[1] - 1, p[2]];
+        if self
+            .w
+            .table
+            .get(self.at(below))
+            .is_some_and(|(b, _)| b == create_engine::Block::Belt)
+        {
+            self.cover_checks.push(below);
         }
         self.w
             .apply_block_change(0, p, old, new, skip_shape_updates);

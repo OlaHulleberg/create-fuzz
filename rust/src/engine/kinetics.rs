@@ -3,6 +3,7 @@ use super::*;
 impl Run {
     /// One level tick: inputs, then the solve and what it breaks.
     pub(super) fn tick(&mut self) {
+        self.now += 1;
         self.persisted.clock += 1;
         // Shape notifications from committed inputs precede the level tick.
         self.tick_pipe_shapes();
@@ -69,6 +70,10 @@ impl Run {
         self.tick_boilers();
         self.tick_burners();
         self.tick_transport();
+        // `processing::Tools`: presses on what the depots and belts did this tick.
+        self.tick_presses();
+        // The arms subsystem after logistics: weighted ejectors.
+        self.tick_ejectors();
         self.save_fluid_entities();
         self.w.settle_belts(0);
         // CreateWorld::tick: the solve, then sequencer instructions (committed after it).

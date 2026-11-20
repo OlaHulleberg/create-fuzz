@@ -131,7 +131,10 @@ final class Persistence {
     }
     private static JsonObject savedItem(net.minecraft.nbt.CompoundTag data, net.minecraft.world.level.block.entity.BlockEntity be) {
         var out=new JsonObject();
-        out.add("stack",ItemInputs.stack(net.minecraft.world.item.ItemStack.parseOptional(be.getLevel().registryAccess(),data.getCompound("Item"))));
+        var stack=ItemInputs.stack(net.minecraft.world.item.ItemStack.parseOptional(be.getLevel().registryAccess(),data.getCompound("Item")));
+        // A stack a funnel emptied is saved until the next tick's loop top removes it.
+        if(stack.isJsonNull()) {var empty=new JsonObject();empty.addProperty("item","minecraft:air");empty.addProperty("count",0);stack=empty;}
+        out.add("stack",stack);
         out.addProperty("position",data.getFloat("Pos"));out.addProperty("locked",data.getBoolean("Locked"));return out;
     }
     static JsonObject saved(KineticBlockEntity be, BlockPos origin) {

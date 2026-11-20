@@ -1,48 +1,277 @@
-seed
-20
-21
-84
-85
-148
-149
-212
-213
-276
-277
-340
-341
-372
-404
-405
-436
-468
-469
-500
-501
-532
-533
-564
-565
-596
-597
-629
-660
-661
-693
-724
-725
-757
-788
-789
-821
-852
-853
-885
-916
-917
-949
-980
-981
-1013
-1044
-1045
+seed	kind
+4	differed
+7	differed
+22	differed
+23	differed
+32	differed
+36	differed
+38	differed
+68	differed
+69	differed
+71	differed
+86	differed
+87	differed
+96	differed
+100	differed
+102	differed
+120	differed
+132	differed
+133	differed
+135	differed
+150	differed
+151	differed
+160	differed
+163	differed
+164	differed
+166	differed
+167	differed
+183	differed
+196	differed
+199	differed
+215	differed
+224	differed
+230	differed
+263	differed
+278	differed
+279	differed
+288	differed
+292	differed
+293	differed
+310	differed
+311	differed
+324	differed
+327	differed
+342	differed
+343	differed
+352	differed
+355	differed
+356	differed
+358	differed
+375	differed
+388	differed
+391	differed
+407	differed
+416	differed
+420	differed
+422	differed
+449	differed
+452	differed
+471	differed
+480	differed
+484	differed
+486	differed
+516	differed
+519	differed
+534	differed
+535	differed
+544	differed
+547	differed
+550	differed
+551	differed
+566	differed
+568	differed
+580	differed
+583	differed
+598	differed
+599	differed
+600	differed
+608	differed
+611	differed
+612	differed
+613	differed
+614	differed
+615	differed
+644	differed
+647	differed
+663	differed
+672	differed
+673	differed
+675	differed
+676	differed
+678	differed
+696	differed
+708	differed
+711	differed
+726	differed
+727	differed
+729	differed
+736	differed
+742	differed
+743	differed
+772	differed
+775	differed
+790	differed
+791	differed
+800	differed
+803	differed
+804	differed
+805	differed
+806	differed
+822	differed
+823	differed
+836	differed
+839	differed
+855	differed
+864	differed
+867	differed
+868	differed
+869	differed
+870	differed
+871	differed
+887	differed
+900	differed
+903	differed
+919	differed
+928	differed
+931	differed
+932	differed
+933	differed
+934	differed
+951	differed
+952	differed
+964	differed
+965	differed
+982	differed
+983	differed
+992	differed
+995	differed
+996	differed
+998	differed
+999	differed
+1015	differed
+1028	differed
+1029	differed
+1031	differed
+1046	differed
+1047	differed
+1056	differed
+1059	differed
+1062	differed
+1063	differed
+1078	differed
+1079	differed
+1092	differed
+1111	differed
+1120	differed
+1123	differed
+1124	differed
+1126	differed
+1156	differed
+1157	differed
+1159	differed
+1174	differed
+1175	differed
+1184	differed
+1188	differed
+1190	differed
+1207	differed
+1220	differed
+1238	differed
+1239	differed
+1248	differed
+1249	differed
+1251	differed
+1252	differed
+1254	differed
+1284	differed
+1287	differed
+1303	differed
+1312	differed
+1315	differed
+1316	differed
+1317	differed
+1318	differed
+1319	differed
+1349	differed
+1351	differed
+1366	differed
+1367	differed
+1376	differed
+1380	differed
+1382	differed
+1399	differed
+1409	differed
+1412	differed
+1413	differed
+1415	differed
+1430	differed
+1431	differed
+1440	differed
+1444	differed
+1446	differed
+1462	differed
+1463	differed
+1476	differed
+1479	differed
+1494	differed
+1495	differed
+1504	differed
+1507	differed
+1508	differed
+1509	differed
+1510	differed
+1511	differed
+1528	differed
+1540	differed
+1543	differed
+1559	differed
+1568	differed
+1572	differed
+1574	differed
+1591	differed
+1605	differed
+1607	differed
+1622	differed
+1623	differed
+1632	differed
+1635	differed
+1636	differed
+1637	differed
+1638	differed
+1657	differed
+1668	differed
+1669	differed
+1671	differed
+1687	differed
+1696	differed
+1700	differed
+1701	differed
+1702	differed
+1720	differed
+1729	differed
+1732	differed
+1733	differed
+1735	differed
+1751	differed
+1752	differed
+1760	differed
+1763	differed
+1764	differed
+1766	differed
+1783	differed
+1796	differed
+1797	differed
+1799	differed
+1815	differed
+1824	differed
+1828	differed
+1830	differed
+1846	differed
+1860	differed
+1861	differed
+1863	differed
+1878	differed
+1879	differed
+1888	differed
+1892	differed
+1894	differed
+1924	differed
+1927	differed
+1942	differed
+1952	differed
+1956	differed
+1958	differed
+1974	differed
+1988	differed
+1989	differed
+1991	differed

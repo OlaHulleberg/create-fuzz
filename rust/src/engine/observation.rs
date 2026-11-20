@@ -47,6 +47,13 @@ impl Run {
                         v
                     }),
                     belt: self.belt_observation(p),
+                    tunnel: self.tunnel_observation(p),
+                    funnel: self.funnel_observation(p),
+                    chute: self.chute_observation(p),
+                    // Version 1 kinetic cases use ejectors as stress loads only.
+                    ejector: (sc.version >= 3)
+                        .then(|| self.ejector_observation(p))
+                        .flatten(),
                     measured_trig: self.measured_trig.get(&p).map(|property| {
                         crate::allow::MeasuredTrigState {
                             tie: Some(crate::allow::NearestTie::Yaw45Pitch0),

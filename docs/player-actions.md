@@ -259,3 +259,70 @@ loaded slicing and full interaction closure remain separate coverage boundaries.
 No comparison field or allowance was removed.
 
 `game_mode` with a boolean `creative` selects the real actor game mode on Java and the corresponding glue permission branch on Rust. Normal tank bucket exchange requires creative; creative tanks accept fluid selection from either mode. Fluid pipe/pump/smart pipe/valve and machine placement uses the same `use` primitive and custom placement callbacks. Smart filters use their actual slot hit region. Drain landings use the existing typed `item/drop_on` primitive; item flight before landing is outside this boundary.
+
+### Item handler access
+
+`capability` is the access another block makes (a hopper, a pipe, another mod): the
+clicked block's item handler on `side` (null: the unsided one), then one
+`insertItem(slot, insert, simulate)` or one `extractItem(slot, extract, simulate)`.
+It is not a player input: the actor's inventory is untouched.
+
+```json
+{"tick":30,"pos":[0,8,0],"action":{"kind":"capability","side":"up","slot":0,
+  "insert":{"item":"minecraft:iron_ingot","count":20},"extract":null,"simulate":false}}
+```
+
+Java calls `level.getCapability(Capabilities.ItemHandler.BLOCK, pos, side)`. Rust follows
+the glue's `logistics/handlers.rs::provide`: a depot's `DepotItems` takes into the held slot
+only while every slot is empty (up to the stack limit, the held stack arriving at position 0
+as `depot_contents_changed` sets it) and gives from the held slot; belts and andesite tunnels
+have no handler in the port. The outcome joins `item_outcomes` with `handler` (whether one
+was given), the offered stack, the remainder and what was extracted. Other blocks' handlers
+are adapter gaps with a note.
+
+### Value board picks on scroll values
+
+`scroll_setting` is a pick on a block's value board for its `ScrollValueBehaviour`, as the
+client's `ValueSettingsPacket` sends it: `row` and `value`.
+
+```json
+{"tick":40,"pos":[0,9,2],"action":{"kind":"scroll_setting","row":0,"value":2}}
+```
+
+Java calls `setValueSettings(player, new ValueSettings(row, value), false)` on the block
+entity's `ScrollValueBehaviour` (a `ScrollOptionBehaviour` is one: a brass tunnel's selection
+mode takes the option's ordinal; a weighted ejector's `maxStackSize` takes the count, 0 for
+any). Rust follows the glue's `interaction/values.rs`: a brass tunnel takes
+`board::option_value` against its current mode and hands it to its group (`set_brass_mode`);
+an ejector's stack size is `value` clamped to 0..64. The value board's opening hold and
+`isActive` gate are the client's and are not part of this input.
+
+A brass tunnel's side filter is set by the ordinary `use` primitive: the held item clicked on
+the side's filter slot (`BrassTunnelFilterSlot`, the side's face at the slot's point), which
+`ValueSettingsInputHandler` routes to `FilteringBehaviour.onShortInteract` on Java and the
+glue's `use_tunnel_filter` on Rust. An empty-hand `use` off the mode slot on top takes the
+stacks of the tunnel's group (`BrassTunnelBlock.useWithoutItem`); a plain `use` records no
+item outcome.
+
+### Filter boards
+
+`filter_setting` is the client's `ValueSettingsPacket` for a block's `FilteringBehaviour`, which
+the client sends only while the filter's amount board shows (`acceptsValueSettings`: a brass
+funnel that supports an amount with a filter that stacks). With `interact` it is the release of a
+short click on the filter slot holding `interact.item` (on `interact.face`); without it a board
+pick: `row` 0 for "up to", 1 for exactly, `value` the count.
+
+```json
+{"tick":32,"pos":[0,9,2],"action":{"kind":"filter_setting","row":0,"value":0,
+  "interact":{"item":"minecraft:gold_ingot","face":"up"}}}
+{"tick":34,"pos":[0,9,2],"action":{"kind":"filter_setting","row":1,"value":16}}
+```
+
+Java does what `ValueSettingsPacket.applySettings` does for the filtering behaviour: nothing
+unless `acceptsValueSettings`, then `onShortInteract` with the item in the main hand, or
+`setValueSettings`. Rust follows the glue's `amount::value_settings` for brass funnels: the release
+sets the filter (`set_funnel_filter`, a wrench or an arm doing nothing), the pick the amount
+(`FilterAmount::from_settings`, the count within the filter's stack size). While the board does not
+show, an ordinary `use` on the filter slot sets the filter on both sides (`onShortInteract` from
+`ValueSettingsInputHandler`, the glue's `use_funnel_filter`); while it shows, that `use` does
+nothing on the server. A smart chute's filter slot takes the same `use`.

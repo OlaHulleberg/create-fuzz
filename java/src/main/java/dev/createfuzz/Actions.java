@@ -42,6 +42,7 @@ final class Actions {
         switch (action.get("kind").getAsString()) {
             case "game_mode" -> player.gameMode.changeGameModeForPlayer(action.get("creative").getAsBoolean()?net.minecraft.world.level.GameType.CREATIVE:net.minecraft.world.level.GameType.SURVIVAL);
             case "item" -> ItemInputs.apply(level,player,pos,origin,action.getAsJsonObject("input"));
+            case "capability" -> ItemInputs.capability(level,player,pos,origin,action);
             case "use" -> {
                 Direction face = Direction.byName(action.get("face").getAsString());
                 var local = action.getAsJsonArray("hit");
@@ -77,6 +78,39 @@ final class Actions {
                     player.setXRot(face.getStepY()*90);
                     player.gameMode.useItem(player,level,stack,InteractionHand.MAIN_HAND);
                 }
+            }
+            case "scroll_setting" -> {
+                // ValueSettingsPacket.applySettings on the block's ScrollValueBehaviour (a brass
+                // tunnel's selection mode, an ejector's stack size): setValueSettings.
+                int row=action.get("row").getAsInt(), value=action.get("value").getAsInt();
+                if (row<0 || row>1 || value<0 || value>64) throw new IllegalArgumentException("scroll board coordinates");
+                var be=level.getBlockEntity(pos);
+                var scroll=be==null?null:com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour.get(be,
+                        com.simibubi.create.foundation.blockEntity.behaviour.scrollValue.ScrollValueBehaviour.TYPE);
+                if (scroll!=null)
+                    scroll.setValueSettings(player,new com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBehaviour.ValueSettings(row,value),false);
+            }
+            case "filter_setting" -> {
+                // ValueSettingsPacket.applySettings on the block's FilteringBehaviour, sent by the
+                // client only while its amount board shows (acceptsValueSettings): a release of a
+                // short click (onShortInteract with the main hand's stack) or a board pick
+                // (setValueSettings).
+                int row=action.get("row").getAsInt(), value=action.get("value").getAsInt();
+                if (row<0 || row>1 || value<0 || value>64) throw new IllegalArgumentException("filter board coordinates");
+                var be=level.getBlockEntity(pos);
+                var filtering=be==null?null:com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour.get(be,
+                        com.simibubi.create.foundation.blockEntity.behaviour.filtering.FilteringBehaviour.TYPE);
+                if (filtering==null || !filtering.acceptsValueSettings()) return;
+                var interact=action.get("interact");
+                if (interact!=null && !interact.isJsonNull()) {
+                    var i=interact.getAsJsonObject();
+                    var item=BuiltInRegistries.ITEM.get(ResourceLocation.parse(i.get("item").getAsString()));
+                    player.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(item,item instanceof net.minecraft.world.item.BucketItem?1:64));
+                    Direction face=Direction.byName(i.get("face").getAsString());
+                    filtering.onShortInteract(player,InteractionHand.MAIN_HAND,face,
+                        new BlockHitResult(Vec3.atCenterOf(pos),face,pos,false));
+                } else
+                    filtering.setValueSettings(player,new com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBehaviour.ValueSettings(row,value),false);
             }
             case "valve_setting" -> {
                 int row=action.get("row").getAsInt(), value=action.get("value").getAsInt();

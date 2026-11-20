@@ -12,6 +12,15 @@ pub enum Action {
     Item {
         input: crate::transport::Input,
     },
+    /// Another block's item access through the block's item handler on `side` (None: the
+    /// unsided one): one insert of `insert`, or one extract of up to `extract` from `slot`.
+    Capability {
+        side: Option<Face>,
+        slot: u8,
+        insert: Option<crate::transport::Stack>,
+        extract: Option<u8>,
+        simulate: bool,
+    },
     Use {
         item: String,
         face: Face,
@@ -30,6 +39,21 @@ pub enum Action {
         row: i32,
         value: i32,
     },
+    /// A value board pick on the block's `ScrollValueBehaviour` (`ValueSettingsPacket`): a
+    /// brass tunnel's selection mode (row 0, the option's ordinal), an ejector's stack size.
+    ScrollSetting {
+        row: i32,
+        value: i32,
+    },
+    /// The client's `ValueSettingsPacket` for the block's `FilteringBehaviour` while its amount
+    /// board shows: the release of a short click on the filter slot holding `interact`'s item
+    /// (`onShortInteract`), or a board pick (row 0 "up to", row 1 exactly; the count).
+    FilterSetting {
+        row: i32,
+        value: i32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        interact: Option<FilterInteract>,
+    },
     Program {
         instructions: Vec<crate::program::Instruction>,
     },
@@ -41,6 +65,14 @@ pub enum Action {
     Signal {
         strength: u8,
     },
+}
+
+/// The held item and clicked face of a short click's release on a filter slot.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FilterInteract {
+    pub item: String,
+    pub face: Face,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
@@ -129,6 +161,12 @@ pub const ITEMS: &[&str] = &[
     "minecraft:stone",
     "create:blaze_cake",
     "create:creative_blaze_cake",
+    "create:andesite_tunnel",
+    "create:brass_tunnel",
+    // Held on a filter slot.
+    "minecraft:iron_ingot",
+    "minecraft:gold_ingot",
+    "minecraft:diamond",
     "create:extendo_grip",
     "minecraft:stick",
     "create:metal_girder",
@@ -137,8 +175,40 @@ impl Action {
     pub fn validate(&self) {
         match self {
             Self::Item { input } => input.validate(),
+            Self::Capability {
+                slot,
+                insert,
+                extract,
+                ..
+            } => {
+                assert!(*slot < 9, "capability slot outside a depot's");
+                assert!(
+                    insert.is_some() != extract.is_some_and(|n| n > 0),
+                    "a capability access inserts or extracts"
+                );
+                if let Some(s) = insert {
+                    s.validate();
+                }
+            }
             Self::ValveSetting { row, value } => {
                 assert!((0..=1).contains(row) && (0..=180).contains(value));
+            }
+            Self::ScrollSetting { row, value } => {
+                assert!((0..=1).contains(row) && (0..=64).contains(value));
+            }
+            Self::FilterSetting {
+                row,
+                value,
+                interact,
+            } => {
+                assert!((0..=1).contains(row) && (0..=64).contains(value));
+                if let Some(i) = interact {
+                    assert!(
+                        ITEMS.contains(&i.item.as_str()) || i.item == "minecraft:air",
+                        "unsupported filter item {}",
+                        i.item
+                    );
+                }
             }
             Self::SpeedSetting { row, value } => {
                 assert!((0..=1).contains(row) && (0..=256).contains(value));

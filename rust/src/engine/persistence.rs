@@ -221,9 +221,14 @@ impl Run {
             .into_iter()
             .filter(|(p, _)| outside(*p))
             .collect::<Vec<_>>();
+        let mut brass = codec::brass_from_nbt(&self.persisted.columns)
+            .into_iter()
+            .filter(|(p, _)| outside(*p))
+            .collect::<Vec<_>>();
         for (cx, cz) in columns {
             motors.extend(self.w.column_settings(0, cx, cz));
             belts.extend(self.w.column_belts(0, cx, cz));
+            brass.extend(self.w.column_brass(0, cx, cz));
             let data = crate::persistence::fluids::save_column(&self.w, (cx, cz));
             if data.is_empty() {
                 self.persisted.fluid_columns.remove(&(cx, cz));
@@ -248,6 +253,11 @@ impl Run {
                 .columns
                 .insert("belts".into(), codec::belts_to_nbt(&belts));
         }
+        if !brass.is_empty() {
+            self.persisted
+                .columns
+                .insert("brass".into(), codec::brass_to_nbt(&brass));
+        }
     }
     /// A save and reload of the running world: the Java side saves live block entities
     /// (`saveWithoutMetadata`), so the records are brought up to date first, or a change in
@@ -262,7 +272,7 @@ impl Run {
     pub(super) fn load_saved(&mut self) {
         let outputs = serde_json::to_vec(&self.depot_outputs.iter().collect::<Vec<_>>()).unwrap();
         self.depot_outputs =
-            serde_json::from_slice::<Vec<(Pos, Vec<crate::transport::Stack>)>>(&outputs)
+            serde_json::from_slice::<Vec<(Pos, super::outputs::Outputs)>>(&outputs)
                 .unwrap()
                 .into_iter()
                 .collect();
@@ -395,9 +405,18 @@ impl Run {
         ): ReloadData = serde_json::from_slice(&bytes).unwrap();
         self.depot_stacks = slots.into_iter().collect();
         self.handles = handles.into_iter().collect();
+        // The glue's `arms_to_nbt`: each ejector goes into its column's save
+        // (`EjectorBlockEntity.write`: distances, state, lid, power, stack size, flying stacks);
+        // `arms_from_nbt` stages it in `ejector_saved` for its block's load.
+        let ejectors: Vec<_> = self.w.dims[0]
+            .ejectors
+            .iter()
+            .map(|(p, e)| (*p, reloaded_ejector(e)))
+            .collect();
         for &(cx, cz) in &columns {
             self.w.column_unloaded(0, cx, cz);
         }
+        self.w.dims[0].ejector_saved.extend(ejectors);
         // The Java adapter recreates the isolated case's network namespace too.
         self.w.dims[0].kinetics = create_engine::kinetics::Kinetics::new();
         let motors = match data.get("motors") {
@@ -412,6 +431,8 @@ impl Run {
         self.w.load_settings(0, motors.into_iter());
         self.w
             .load_belt_items(0, codec::belts_from_nbt(&data).into_iter());
+        self.w
+            .load_brass(0, codec::brass_from_nbt(&data).into_iter());
         // ensure_column runs every subsystem's chunk_load before the first entity callback.
         for (_, data) in &fluids.columns {
             crate::persistence::fluids::load_column(&mut self.w, data);
@@ -635,6 +656,35 @@ impl Run {
             _ => return None,
         })
     }
+}
+
+/// An ejector as the glue's column save writes it and `arms_from_nbt` reads it back: what
+/// `EjectorBlockEntity.write` keeps, the rest as a new block entity's.
+fn reloaded_ejector(e: &create_engine::ejector::Ejector) -> create_engine::ejector::Ejector {
+    use create_engine::ejector;
+    let mut r = ejector::Ejector {
+        launcher: ejector::Launcher::new(e.launcher.h, e.launcher.v),
+        ..Default::default()
+    };
+    r.launcher.clamp(ejector::MAX_DISTANCE);
+    r.state = ejector::State::from_index(e.state.index().min(2));
+    let lid = e.lid.value.clamp(0.0, 1.0);
+    r.lid.value = lid;
+    r.lid.previous = lid;
+    r.lid.target = lid;
+    r.powered = e.powered;
+    r.max_stack = e.max_stack.min(64);
+    for f in &e.flying {
+        let id = r.next_id;
+        r.next_id += 1;
+        r.flying.push(ejector::Flying {
+            id,
+            time: f.time,
+            item: f.item.clone(),
+            count: f.count.clamp(1, 64),
+        });
+    }
+    r
 }
 
 #[cfg(test)]

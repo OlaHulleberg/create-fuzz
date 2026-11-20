@@ -28,6 +28,13 @@ impl Run {
             Action::GameMode { creative } => self.creative = *creative,
             Action::Reload => self.reload(),
             Action::Item { input } => self.item_input(p, input),
+            Action::Capability {
+                slot,
+                insert,
+                extract,
+                simulate,
+                ..
+            } => self.capability(p, *slot, insert.as_ref(), *extract, *simulate),
             Action::SpeedSetting { row, value } => {
                 self.w.board_motor(
                     0,
@@ -37,6 +44,18 @@ impl Run {
                         value: *value,
                     },
                 );
+                self.publish_interaction();
+            }
+            Action::ScrollSetting { row, value } => {
+                let pick = create_engine::board::Settings {
+                    row: *row,
+                    value: *value,
+                };
+                match self.w.block_at(0, p) {
+                    Some(create_engine::Block::BrassTunnel) => self.brass_option(p, pick),
+                    Some(create_engine::Block::WeightedEjector) => self.ejector_stack_size(p, pick),
+                    _ => {}
+                }
                 self.publish_interaction();
             }
             Action::ValveSetting { row, value } => {
@@ -71,6 +90,16 @@ impl Run {
                     self.mark_column(p);
                 }
             }
+            Action::FilterSetting {
+                row,
+                value,
+                interact,
+            } => self.funnel_value_settings(
+                p,
+                *row,
+                *value,
+                interact.as_ref().map(|i| i.item.as_str()),
+            ),
             Action::ChainLink { target, connect } => self.chain_link(p, *target, *connect),
             Action::Remove => self.set(p, AIR),
             Action::Signal { strength } => self.set(p, 3 + u32::from(*strength)),
@@ -110,6 +139,14 @@ impl Run {
             return;
         }
         if self.belt_use(p, item, face, hit, sneaking) {
+            return;
+        }
+        if self.tunnel_use(p, item, face, hit, sneaking) {
+            return;
+        }
+        if self.funnel_filter_use(p, item, face, hit, sneaking)
+            || self.smart_chute_filter_use(p, item, face, hit, sneaking)
+        {
             return;
         }
         if self.fluid_use(p, item, face, hit, sneaking) {
@@ -193,6 +230,12 @@ impl Run {
                         "create:wrench",
                     ]
                     .contains(&item))
+                // `use_belt_with` passed: a dye it did not change, or a shaft on a segment that
+                // is no middle one, goes on to the item (`DyeItem` does nothing to a block, the
+                // shaft is placed against the clicked face).
+                && !(name == "create:belt"
+                    && (item == "create:shaft"
+                        || create_engine::dye::DyeColor::of_item(item).is_some()))
             {
                 self.notes.push(format!("adapter gap: RightClickBlock/value-box and block-use handlers for {name} at {p:?} are outside the supported subset; input retained"));
                 return;

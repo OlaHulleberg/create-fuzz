@@ -61,6 +61,9 @@ pub struct Contents {
     pub outputs: Vec<Stack>,
     pub kind: String,
     pub items: Vec<Item>,
+    /// A depot's or ejector's comparator output (`getComparatorInputOverride`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comparator: Option<i32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Outcome {
@@ -68,6 +71,9 @@ pub struct Outcome {
     pub offered: Option<Stack>,
     pub remainder: Option<Stack>,
     pub taken: Vec<Stack>,
+    /// A capability access: whether the block gave an item handler on that side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub handler: Option<bool>,
 }
 
 /// Controlled item histories on player-connected belts.
@@ -412,7 +418,18 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                 "create:clutch",
                 "create:gearshift",
                 "create:belt",
-                "create:depot"
+                "create:depot",
+                "create:weighted_ejector",
+                "create:andesite_belt_funnel",
+                "create:brass_belt_funnel",
+                "create:andesite_funnel",
+                "create:brass_funnel",
+                "create:chute",
+                "create:smart_chute",
+                // Only blowing into chutes: its current meets no item outside them.
+                "create:encased_fan",
+                // Pressing the contract's ingots (`press_processing`).
+                "create:mechanical_press"
             ]
             .contains(&id.as_str())
                 || crate::fluids::contract()
@@ -432,13 +449,19 @@ pub fn validate_scenario(sc: &crate::scenario::Scenario) {
                     "create:brass_casing",
                     "create:shaft",
                     "create:wrench",
+                    "create:andesite_tunnel",
+                    "create:brass_tunnel",
                 ]
                 .contains(&item.as_str())
+                    || create_engine::dye::DyeColor::of_item(item).is_some()
                     || crate::fluids::contract()
                         .blocks
                         .iter()
                         .any(|block| block.id == *item)
                     || item == "create:depot"
+                    // A plain transport item held on a filter slot.
+                    || ["minecraft:iron_ingot", "minecraft:gold_ingot", "minecraft:diamond"]
+                        .contains(&item.as_str())
                     || crate::fluid_recipes::contents(item).is_some()
                     || item == "minecraft:bucket",
                 "item override requires a separate transport adapter"
