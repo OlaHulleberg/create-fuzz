@@ -46,20 +46,6 @@ impl Run {
         }
         brass_info
     }
-    /// `determineIfConnected` on one side: both tunnels have flaps.
-    fn brass_connected_on(&self, p: Pos, left: bool) -> bool {
-        let Some(axis) = self.brass_axis(p) else {
-            return false;
-        };
-        self.has_flaps(p)
-            && self
-                .brass_adjacent(p, axis, left)
-                .is_some_and(|a| self.has_flaps(a))
-    }
-    /// `brass_connected`: connected on either side.
-    fn brass_connected(&self, p: Pos) -> bool {
-        self.brass_connected_on(p, true) || self.brass_connected_on(p, false)
-    }
     /// `has_distribution` (`hasDistributionBehaviour`): flaps, and connected or a flap across
     /// its axis.
     pub(super) fn has_distribution(&self, p: Pos) -> bool {
@@ -73,8 +59,7 @@ impl Run {
         let connected = self.w.dims[0]
             .brass
             .get(&p)
-            .is_some_and(|b| b.connected_left || b.connected_right)
-            || self.brass_connected(p);
+            .is_some_and(|b| b.connected_left || b.connected_right);
         !f.is_empty() && (connected || f.iter().any(|d| d.axis() != axis))
     }
     /// `BrassTunnelBlockEntity.canInsert`: whether an item entering from `side` is accepted by
@@ -105,9 +90,6 @@ impl Run {
         b.entered_from = from;
         b.progress = -1;
         b.new_item = item.count > 0;
-        if !d.brass_running.contains(&p) {
-            d.brass_running.push(p);
-        }
         self.w.mark_unsaved(0, p);
     }
     /// `flap_filter_passes` (`testFlapFilter`): its own filter on `side`, else anything (the
@@ -209,145 +191,139 @@ impl Run {
         }
         Some(0)
     }
-    /// `tick_brass`: brass tunnels holding a stack, two ticks after it arrives (then every
-    /// `brassTunnelTimer` while some is left), share it out among their group's outputs.
-    pub(super) fn tick_brass(&mut self) {
-        let list = self.w.dims[0].brass_running.clone();
-        for t in list {
-            let Some(mut b) = self.w.dims[0].brass.get(&t).cloned() else {
-                self.w.dims[0].brass_running.retain(|p| *p != t);
-                continue;
-            };
-            let below = [t[0], t[1] - 1, t[2]];
-            let rpm = self
-                .belt_location(below)
-                .and_then(|(c, ..)| self.w.speed(0, c))
-                .unwrap_or(0.);
-            let phase = b.begin_tick(rpm != 0.);
-            if matches!(phase, tunnel::BrassPhase::Idle | tunnel::BrassPhase::Wait) {
-                self.brass_save(t, &b);
-                continue;
+    /// `tick_brass`: a brass tunnel's turn in the transport walk; two ticks after a stack
+    /// arrives (then every `brassTunnelTimer` while some is left), it shares it out among its
+    /// group's outputs.
+    pub(super) fn tick_brass(&mut self, t: Pos) {
+        let Some(mut b) = self.w.dims[0].brass.get(&t).cloned() else {
+            return;
+        };
+        let below = [t[0], t[1] - 1, t[2]];
+        let rpm = self
+            .belt_location(below)
+            .and_then(|(c, ..)| self.w.speed(0, c))
+            .unwrap_or(0.);
+        let phase = b.begin_tick(rpm != 0.);
+        if matches!(phase, tunnel::BrassPhase::Idle | tunnel::BrassPhase::Wait) {
+            self.brass_save(t, &b);
+            return;
+        }
+        let Some((axis, _)) = self.tunnel_state(t) else {
+            return;
+        };
+        if phase == tunnel::BrassPhase::Gather {
+            let group = self.brass_group(t, axis);
+            let held: Vec<bool> = group
+                .iter()
+                .map(|p| {
+                    self.w.dims[0]
+                        .brass
+                        .get(p)
+                        .is_some_and(|x| x.stack.is_some())
+                })
+                .collect();
+            let (sync_update, can_gather) = b.gather_sync(&held);
+            if let Some(synced) = sync_update {
+                let mut changed = Vec::new();
+                let d = &mut self.w.dims[0];
+                for p in &group {
+                    if let Some(x) = d.brass.get_mut(p)
+                        && x.synced != synced
+                    {
+                        x.synced = synced;
+                        changed.push(*p);
+                    }
+                }
+                for p in changed {
+                    self.w.mark_unsaved(0, p);
+                }
             }
-            let Some((axis, _)) = self.tunnel_state(t) else {
-                continue;
-            };
-            if phase == tunnel::BrassPhase::Gather {
-                let group = self.brass_group(t, axis);
-                let held: Vec<bool> = group
-                    .iter()
-                    .map(|p| {
-                        self.w.dims[0]
-                            .brass
-                            .get(p)
-                            .is_some_and(|x| x.stack.is_some())
-                    })
-                    .collect();
-                let (sync_update, can_gather) = b.gather_sync(&held);
-                if let Some(synced) = sync_update {
-                    let mut changed = Vec::new();
-                    let d = &mut self.w.dims[0];
-                    for p in &group {
-                        if let Some(x) = d.brass.get_mut(p)
-                            && x.synced != synced
-                        {
-                            x.synced = synced;
-                            if synced && !d.brass_running.contains(p) {
-                                d.brass_running.push(*p);
-                            }
-                            changed.push(*p);
-                        }
-                    }
-                    for p in changed {
-                        self.w.mark_unsaved(0, p);
-                    }
-                }
-                if !can_gather {
-                    self.brass_save(t, &b);
-                    continue;
-                }
-                let Some((item, count)) = b.stack.clone() else {
-                    self.brass_save(t, &b);
-                    continue;
-                };
-                let mut one = belt::Item::new(&item, count, 180, false);
-                one.progress = b.stack_progress.clone();
-                let outputs: Vec<(Pos, Dir)> = group
-                    .iter()
-                    .enumerate()
-                    .flat_map(|(i, g)| self.brass_outputs_of(*g, i == 0))
-                    .collect();
-                let any = outputs
-                    .into_iter()
-                    .any(|(g, d)| self.brass_insert(g, d, &one, true).is_some());
-                if !any {
-                    self.brass_save(t, &b);
-                    continue;
-                }
-                b.schedule_distribution();
+            if !can_gather {
                 self.brass_save(t, &b);
-                continue;
+                return;
             }
             let Some((item, count)) = b.stack.clone() else {
-                b.progress = -1;
                 self.brass_save(t, &b);
-                continue;
+                return;
             };
-            let group = self.brass_group(t, axis);
             let mut one = belt::Item::new(&item, count, 180, false);
             one.progress = b.stack_progress.clone();
-            let mut filtered = Vec::new();
-            let mut plain = Vec::new();
-            for (i, g) in group.iter().enumerate() {
-                for (g2, d) in self.brass_outputs_of(*g, i == 0) {
-                    if g2 == t && Some(d) == b.entered_from {
-                        continue;
-                    }
-                    if self.brass_insert(g2, d, &one, true).is_none() {
-                        continue;
-                    }
-                    if self.brass_filter_empty(g2, d) {
-                        plain.push((g2, d));
-                    } else {
-                        filtered.push((g2, d));
-                    }
-                }
+            let outputs: Vec<(Pos, Dir)> = group
+                .iter()
+                .enumerate()
+                .flat_map(|(i, g)| self.brass_outputs_of(*g, i == 0))
+                .collect();
+            let any = outputs
+                .into_iter()
+                .any(|(g, d)| self.brass_insert(g, d, &one, true).is_some());
+            if !any {
+                self.brass_save(t, &b);
+                return;
             }
-            let mut left = count;
-            for outputs in [filtered, plain] {
-                if left == 0 || outputs.is_empty() {
-                    continue;
-                }
-                let random = self.brass_random(t);
-                let dealt = tunnel::distribute(
-                    left,
-                    outputs.len(),
-                    b.previous_output,
-                    b.mode,
-                    random,
-                    |i, n, simulate| {
-                        let (g, d) = outputs[i];
-                        let mut part = one.clone();
-                        part.count = n;
-                        self.brass_insert(g, d, &part, simulate)
-                    },
-                );
-                if let Some(l) = dealt {
-                    left = l;
-                    b.previous_output = (b.previous_output + 1) % outputs.len().max(1);
-                }
-            }
-            b.stack = (left > 0).then(|| (item.clone(), left));
-            if b.stack.is_none() {
-                b.entered_from = None;
-                b.stack_progress = None;
-            }
+            b.schedule_distribution();
+            self.brass_save(t, &b);
+            return;
+        }
+        let Some((item, count)) = b.stack.clone() else {
             b.progress = -1;
             self.brass_save(t, &b);
-            // `set_slot`: the block entity's slot changes with what is left (the host saves
-            // its column again).
-            if left != count {
-                self.w.mark_unsaved(0, t);
+            return;
+        };
+        let group = self.brass_group(t, axis);
+        let mut one = belt::Item::new(&item, count, 180, false);
+        one.progress = b.stack_progress.clone();
+        let mut filtered = Vec::new();
+        let mut plain = Vec::new();
+        for (i, g) in group.iter().enumerate() {
+            for (g2, d) in self.brass_outputs_of(*g, i == 0) {
+                if g2 == t && Some(d) == b.entered_from {
+                    continue;
+                }
+                if self.brass_insert(g2, d, &one, true).is_none() {
+                    continue;
+                }
+                if self.brass_filter_empty(g2, d) {
+                    plain.push((g2, d));
+                } else {
+                    filtered.push((g2, d));
+                }
             }
+        }
+        let mut left = count;
+        for outputs in [filtered, plain] {
+            if left == 0 || outputs.is_empty() {
+                continue;
+            }
+            let random = self.brass_random(t);
+            let dealt = tunnel::distribute(
+                left,
+                outputs.len(),
+                b.previous_output,
+                b.mode,
+                random,
+                |i, n, simulate| {
+                    let (g, d) = outputs[i];
+                    let mut part = one.clone();
+                    part.count = n;
+                    self.brass_insert(g, d, &part, simulate)
+                },
+            );
+            if let Some(l) = dealt {
+                left = l;
+                b.previous_output = (b.previous_output + 1) % outputs.len().max(1);
+            }
+        }
+        b.stack = (left > 0).then(|| (item.clone(), left));
+        if b.stack.is_none() {
+            b.entered_from = None;
+            b.stack_progress = None;
+        }
+        b.progress = -1;
+        self.brass_save(t, &b);
+        // `set_slot`: the block entity's slot changes with what is left (the host saves
+        // its column again).
+        if left != count {
+            self.w.mark_unsaved(0, t);
         }
     }
     /// The glue's `save` closure in `tick_brass`.
@@ -356,9 +332,6 @@ impl Run {
         let changed = d.brass.get(&t).is_some_and(|x| x != b);
         if let Some(x) = d.brass.get_mut(&t) {
             *x = b.clone();
-        }
-        if b.stack.is_none() && !b.synced {
-            d.brass_running.retain(|p| *p != t);
         }
         if changed {
             self.w.mark_unsaved(0, t);

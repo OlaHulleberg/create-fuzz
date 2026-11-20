@@ -1094,7 +1094,7 @@ mod tests {
             r.w.block_loaded(0, [x, 8, 0], state);
         }
         assert!(!r.w.dims[0].kinetics.has_part(c, 0));
-        let mut phase = r.w.transport_ticks(0);
+        let mut phase = r.w.transport_ticks(0, 0);
         assert_eq!(
             phase.next(&mut r.w),
             Some(create_engine::world::TransportTick::Belt(c))

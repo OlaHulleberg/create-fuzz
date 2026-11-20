@@ -110,67 +110,55 @@ impl Run {
             None => None,
         }
     }
-    /// `tick_funnels`: the funnels due now act as their mode says; each is due again the next
-    /// tick, after the cooldown once a stack left (`startCooldown`), or never while dormant.
-    pub(super) fn tick_funnels(&mut self) {
+    /// `tick_funnel`: a due funnel's turn in the transport walk; it acts as its mode says and
+    /// is due again the next tick, after the cooldown once a stack left (`startCooldown`), or
+    /// never while dormant.
+    pub(super) fn tick_funnel(&mut self, pos: Pos) {
         let now = u64::from(self.now);
-        let d = &mut self.w.dims[0];
-        if d.funnel_timers.is_empty() {
+        let Some((block, info, mode)) = self.funnel_mode(pos) else {
+            self.funnel_schedule(pos, u64::MAX);
             return;
-        }
-        let funnels = &d.funnels;
-        let due = d
-            .funnel_timers
-            .due(now, |p, t| funnels.get(&p).is_some_and(|due| *due == t));
-        for pos in due {
-            let Some((block, info, mode)) = self.funnel_mode(pos) else {
-                self.funnel_schedule(pos, u64::MAX);
-                continue;
-            };
-            let facing = info.facing.unwrap_or(Dir::Up);
-            let belt_funnel = matches!(block, Block::AndesiteBeltFunnel | Block::BrassBeltFunnel);
-            let below = [pos[0], pos[1] - 1, pos[2]];
-            let depot_below = matches!(
-                self.w.table.get(self.at(below)).map(|(b, _)| b),
-                Some(Block::Depot | Block::WeightedEjector)
-            );
-            let next = match mode {
-                Mode::Extract => {
-                    self.note_once(format!(
-                        "adapter gap: extracting funnel at {pos:?} (native item flight)"
-                    ));
-                    None
-                }
-                Mode::PushingToBelt if depot_below => {
-                    let max = self.funnel_extraction(pos);
-                    self.push_onto_depot(pos, facing, max)
-                }
-                Mode::PushingToBelt => {
-                    let max = self.funnel_extraction(pos);
-                    self.push_onto_belt(pos, facing, max)
-                }
-                Mode::TakingFromBelt if depot_below => {
-                    self.pull_from_depot(pos, facing);
-                    Some(Turn::Blocked)
-                }
-                _ => None,
-            };
-            let at = match next {
-                Some(Turn::Moved) => now + u64::from(EXTRACTION_COOLDOWN) + 1,
-                Some(_) => now + 1,
-                None if belt_funnel => now + 1,
-                None => u64::MAX,
-            };
-            self.funnel_schedule(pos, at);
-        }
+        };
+        let facing = info.facing.unwrap_or(Dir::Up);
+        let belt_funnel = matches!(block, Block::AndesiteBeltFunnel | Block::BrassBeltFunnel);
+        let below = [pos[0], pos[1] - 1, pos[2]];
+        let depot_below = matches!(
+            self.w.table.get(self.at(below)).map(|(b, _)| b),
+            Some(Block::Depot | Block::WeightedEjector)
+        );
+        let next = match mode {
+            Mode::Extract => {
+                self.note_once(format!(
+                    "adapter gap: extracting funnel at {pos:?} (native item flight)"
+                ));
+                None
+            }
+            Mode::PushingToBelt if depot_below => {
+                let max = self.funnel_extraction(pos);
+                self.push_onto_depot(pos, facing, max)
+            }
+            Mode::PushingToBelt => {
+                let max = self.funnel_extraction(pos);
+                self.push_onto_belt(pos, facing, max)
+            }
+            Mode::TakingFromBelt if depot_below => {
+                self.pull_from_depot(pos, facing);
+                Some(Turn::Blocked)
+            }
+            _ => None,
+        };
+        let at = match next {
+            Some(Turn::Moved) => now + u64::from(EXTRACTION_COOLDOWN) + 1,
+            Some(_) => now + 1,
+            None if belt_funnel => now + 1,
+            None => u64::MAX,
+        };
+        self.funnel_schedule(pos, at);
     }
     fn funnel_schedule(&mut self, pos: Pos, at: u64) {
         let d = &mut self.w.dims[0];
         if let Some(due) = d.funnels.get_mut(&pos) {
             *due = at;
-            if at != u64::MAX {
-                d.funnel_timers.at(at, pos);
-            }
         }
     }
     /// `push_onto_belt` (`activateExtractingBeltFunnel`): one item of the inventory behind onto

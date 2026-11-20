@@ -102,7 +102,6 @@ impl Run {
         let d = &mut self.w.dims[0];
         if let Some(due) = d.funnels.get_mut(&p) {
             *due = 0;
-            d.funnel_timers.at(0, p);
         }
     }
     /// `use_funnel_filter`: a click on a brass funnel's filter slot, not sneaking, with neither

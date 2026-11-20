@@ -65,6 +65,7 @@ impl Run {
         let new = std::mem::take(&mut d.tunnels_new);
         let kept = std::mem::take(&mut d.tunnel_checks);
         let fresh = std::mem::take(&mut d.tunnel_fresh);
+        let initialized = std::mem::take(&mut d.brass_initialize);
         for &pos in &new {
             if self.tunnel_state(pos).is_none() {
                 continue;
@@ -145,9 +146,10 @@ impl Run {
         }
         // `BrassTunnelBlockEntity.updateTunnelConnections`: newly placed tunnels run before
         // neighbour shape updates (matching `onPlace` before `updateShape`), so a joining
-        // tunnel takes the group's mode.
+        // tunnel takes the group's mode; a loaded one looks at its connections again
+        // (`initialize`).
         let mut conn_checks = new;
-        for p in check_positions {
+        for p in initialized.into_iter().chain(check_positions) {
             if !conn_checks.contains(&p) {
                 conn_checks.push(p);
             }
