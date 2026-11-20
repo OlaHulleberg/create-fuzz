@@ -28,7 +28,7 @@ impl Run {
                 .map_or(0, |o| o.iter().map(|x| u32::from(x.count)).sum());
         // `getRemainingSpace`: the held stack's own max caps the limit, and an empty
         // depot holds but one (`ItemStack.EMPTY.getMaxStackSize()`).
-        let held_max = held.is_some().then_some(s.limit()).unwrap_or(1);
+        let held_max = held.as_ref().map(|_| s.limit());
         let n = depot::merge_take(e.max_stack, held_max, present, s.count);
         if n == 0 {
             return s.count;
@@ -71,7 +71,7 @@ impl Run {
                 .map_or(0, |o| o.iter().map(|x| u32::from(x.count)).sum());
         // `getRemainingSpace` (mirrors `ejector_insert`): the held stack's own max caps the
         // limit, and an empty depot holds but one (`ItemStack.EMPTY.getMaxStackSize()`).
-        let held_max = held.is_some().then_some(s.limit()).unwrap_or(1);
+        let held_max = held.as_ref().map(|_| s.limit());
         let n = depot::merge_take(e.max_stack, held_max, present, s.count);
         if n == 0 {
             return s.count;
@@ -348,10 +348,20 @@ impl ejector::World for EjectorSide<'_> {
         self.run.ejector_land(target, &s, false)
     }
     fn drop_item(&mut self, at: [f64; 3], _motion: [f64; 3], item: &str, count: u8) {
-        self.run.notes.push(format!(
-            "adapter gap: ejector at {:?} drops {count} {item} at {at:?} (native item flight)",
-            self.pos
-        ));
+        // `placeItemAtTarget` adds a vanilla `ItemEntity` where the arc ends. The harness
+        // observes no entities, so an item dropped into empty air changes nothing it
+        // compares; one dropped into or on top of a block has a life (it can rest there or be
+        // picked up below) the driver cannot follow, so that stays an adapter gap.
+        let cell = at.map(|v| v.floor() as i32);
+        let blocked = [cell, [cell[0], cell[1] - 1, cell[2]]]
+            .into_iter()
+            .any(|p| self.run.at(p) != AIR && !self.run.replaceable(p));
+        if blocked {
+            self.run.notes.push(format!(
+                "adapter gap: ejector at {:?} drops {count} {item} at {at:?} (native item flight)",
+                self.pos
+            ));
+        }
     }
     fn clip(&mut self, from: [f64; 3], to: [f64; 3]) -> Option<([f64; 3], [i32; 3], Dir)> {
         let run = &*self.run;
