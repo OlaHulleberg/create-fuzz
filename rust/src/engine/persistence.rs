@@ -674,6 +674,8 @@ fn reloaded_ejector(e: &create_engine::ejector::Ejector) -> create_engine::eject
     r.lid.target = lid;
     r.powered = e.powered;
     r.max_stack = e.max_stack.min(64);
+    // `EarlyTarget`, `EarlyTargetPos`, `EarlyTargetTime`.
+    r.early = e.early;
     for f in &e.flying {
         let id = r.next_id;
         r.next_id += 1;

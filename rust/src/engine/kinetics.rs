@@ -69,11 +69,13 @@ impl Run {
         self.tick_fluids();
         self.tick_boilers();
         self.tick_burners();
+        // Ejector redstone before the walk ticks them (Java's `neighborChanged` runs at the
+        // block change).
+        self.ejector_signals();
         self.tick_transport();
         // `processing::Tools`: presses on what the depots and belts did this tick.
         self.tick_presses();
-        // The arms subsystem after logistics: weighted ejectors.
-        self.tick_ejectors();
+        self.ejectors_ticked();
         self.save_fluid_entities();
         self.w.settle_belts(0);
         // CreateWorld::tick: the solve, then sequencer instructions (committed after it).
