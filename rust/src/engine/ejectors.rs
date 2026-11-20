@@ -1,5 +1,6 @@
-//! Weighted ejectors, mirroring glue/logistics/arms.rs: their redstone (`tick_arm_signals`),
-//! their tick (`tick_ejectors` with `EjectorWorld`: `EjectorBlockEntity.tick`), what lands on
+//! Weighted ejectors, mirroring glue/logistics/arms.rs: their redstone (`ejector_signals`,
+//! before the walk), their tick at their turn in the shared transport walk (`tick_ejector`
+//! with `EjectorSide`: `EjectorBlockEntity.tick`, its depot behaviour first), what lands on
 //! their target (`land`), their depot merging onto what they hold (`depot_insert`), and their
 //! stack size on a value board (interaction/values.rs).
 use super::*;
@@ -20,14 +21,15 @@ impl Run {
         if e.state != ejector::State::Charged || held.as_ref().is_some_and(|h| h.item != s.item) {
             return s.count;
         }
-        let limit = if e.max_stack == 0 { 64 } else { e.max_stack }.min(s.limit());
         let present: u32 = held.as_ref().map_or(0, |h| u32::from(h.count))
             + self
                 .depot_outputs
                 .get(&p)
                 .map_or(0, |o| o.iter().map(|x| u32::from(x.count)).sum());
-        let room = u32::from(limit).saturating_sub(present).min(255) as u8;
-        let n = s.count.min(room);
+        // `getRemainingSpace`: the held stack's own max caps the limit, and an empty
+        // depot holds but one (`ItemStack.EMPTY.getMaxStackSize()`).
+        let held_max = held.is_some().then_some(s.limit()).unwrap_or(1);
+        let n = depot::merge_take(e.max_stack, held_max, present, s.count);
         if n == 0 {
             return s.count;
         }
@@ -58,27 +60,29 @@ impl Run {
         if e.state != ejector::State::Charged {
             return s.count;
         }
-        let limit = u32::from(if e.max_stack == 0 { 64 } else { e.max_stack }.min(s.limit()));
-        let others: u32 = self
-            .depot_outputs
-            .get(&p)
-            .map_or(0, |o| o.iter().map(|x| u32::from(x.count)).sum());
-        let room = limit.saturating_sub(others);
         let held = self.depot_stacks.get(&p).cloned();
         if held.as_ref().is_some_and(|h| h.item != s.item) {
             return s.count;
         }
-        let now = held.as_ref().map_or(0, |h| u32::from(h.count));
-        let n = u32::from(s.count).min(room.saturating_sub(now)) as u8;
+        let present: u32 = held.as_ref().map_or(0, |h| u32::from(h.count))
+            + self
+                .depot_outputs
+                .get(&p)
+                .map_or(0, |o| o.iter().map(|x| u32::from(x.count)).sum());
+        // `getRemainingSpace` (mirrors `ejector_insert`): the held stack's own max caps the
+        // limit, and an empty depot holds but one (`ItemStack.EMPTY.getMaxStackSize()`).
+        let held_max = held.is_some().then_some(s.limit()).unwrap_or(1);
+        let n = depot::merge_take(e.max_stack, held_max, present, s.count);
         if n == 0 {
             return s.count;
         }
         if !simulate {
+            let had = held.as_ref().map_or(0, |h| h.count);
             self.depot_stacks.insert(
                 p,
                 Stack {
                     item: s.item.clone(),
-                    count: now as u8 + n,
+                    count: had + n,
                 },
             );
             if held.is_none() {
@@ -147,56 +151,80 @@ impl Run {
         );
         Some(if room { 0 } else { s.count })
     }
-    /// `has_collision` for the ejector's obstacle scan: any block but air.
-    fn collides(&self, p: Pos) -> bool {
-        self.at(p) != AIR && !self.replaceable(p)
+    /// The collider boxes of the block at `p` (`Level.clip(Block.COLLIDER)`): the engine's
+    /// shapes for the Create blocks it knows (block units, moved to the cell), a full cube for
+    /// any other block but air and the replaceable ones.
+    fn collider_boxes(&self, p: Pos) -> Vec<[f64; 6]> {
+        if self.at(p) == AIR || self.replaceable(p) {
+            return Vec::new();
+        }
+        let known = self
+            .w
+            .table
+            .get(self.at(p))
+            .and_then(|(b, i)| create_engine::shapes::colliders(b, i));
+        match known {
+            Some(boxes) => boxes
+                .into_iter()
+                .map(|mut b| {
+                    for a in 0..3 {
+                        b[a] += f64::from(p[a]);
+                        b[a + 3] += f64::from(p[a]);
+                    }
+                    b
+                })
+                .collect(),
+            None => vec![full_cube(p)],
+        }
     }
-    /// `tick_arm_signals` for ejectors: those whose redstone may have changed read it.
-    fn ejector_signals(&mut self) {
+    /// `tick_arm_signals` for ejectors, before the walk ticks them (`updateSignal` runs at
+    /// the block change in Java). Arms keep their own phase.
+    pub(super) fn ejector_signals(&mut self) {
         let checks = std::mem::take(&mut self.w.dims[0].arm_signals);
         for p in checks {
             let powered = self.signal(p) > 0;
+            if self.w.dims[0].arms.arms.contains_key(&p) {
+                self.w.dims[0].arm_signals.push(p);
+                continue;
+            }
             let d = &mut self.w.dims[0];
             if let Some(e) = d.ejectors.get_mut(&p)
                 && e.powered != powered
             {
                 e.powered = powered;
-                if !d.ejecting.contains(&p) {
-                    d.ejecting.push(p);
-                }
             }
         }
     }
-    /// `tick_ejectors` (the arms subsystem's level tick, after logistics).
-    pub(super) fn tick_ejectors(&mut self) {
-        self.ejector_signals();
-        let list = self.w.dims[0].ejecting.clone();
-        for pos in list {
-            let Some(facing) = self.w.table.get(self.at(pos)).and_then(|(_, i)| i.facing) else {
-                continue;
-            };
-            let Some(mut e) = self.w.dims[0].ejectors.remove(&pos) else {
-                continue;
-            };
-            let speed = self.w.speed(0, pos).unwrap_or(0.);
-            let flying = e.flying.len();
-            let before = e.state;
-            let changed = e.tick(pos, facing, speed, &mut EjectorSide { run: self, pos });
-            if before == ejector::State::Charged && e.state == ejector::State::Launching {
-                // `launch_entities`: the driver's worlds hold no entities on a plate.
-            }
-            let has_items = self.depot_stacks.contains_key(&pos)
-                || self.depot_outputs.get(&pos).is_some_and(|o| !o.is_empty());
-            let busy = e.busy(speed, has_items);
-            let d = &mut self.w.dims[0];
-            d.ejectors.insert(pos, e);
-            if changed || flying > 0 {
-                d.unsaved.push((pos[0] >> 4, pos[2] >> 4));
-            }
-            if !busy {
-                d.ejecting.retain(|p| *p != pos);
-            }
+    /// One weighted ejector's turn in the shared walk (`EjectorBlockEntity.tick`, the
+    /// `DepotBehaviour` it extends ticked first through `super.tick()`).
+    pub(super) fn tick_ejector(&mut self, pos: Pos) {
+        let Some(facing) = self.w.table.get(self.at(pos)).and_then(|(_, i)| i.facing) else {
+            return;
+        };
+        let Some(mut e) = self.w.dims[0].ejectors.remove(&pos) else {
+            return;
+        };
+        // `KineticBlockEntity.tick` first (`attachKinetics`), then `DepotBehaviour.tick`
+        // inside `super.tick()`: the slide, then what its arrival asks.
+        self.w.ejector_base_tick(0, pos);
+        if self.w.tick_depot(0, pos, false) {
+            self.spout_on_depot(pos);
         }
+        let speed = self.w.speed(0, pos).unwrap_or(0.);
+        let before = e.state;
+        let changed = e.tick(pos, facing, speed, &mut EjectorSide { run: self, pos });
+        if before == ejector::State::Charged && e.state == ejector::State::Launching {
+            // `launch_entities`: the driver's worlds hold no entities on a plate.
+        }
+        let flying = e.flying.len();
+        let d = &mut self.w.dims[0];
+        d.ejectors.insert(pos, e);
+        if changed || flying > 0 {
+            d.unsaved.push((pos[0] >> 4, pos[2] >> 4));
+        }
+    }
+    /// Ejectors after the walk: the change journal settles.
+    pub(super) fn ejectors_ticked(&mut self) {
         self.w.dims[0].ejector_changes.clear();
     }
     /// interaction/values.rs `B::WeightedEjector`: row 0's value is `maxStackSize`.
@@ -207,9 +235,6 @@ impl Run {
         };
         e.max_stack = pick.value.clamp(0, 64) as u8;
         self.w.mark_unsaved(0, p);
-        let d = &mut self.w.dims[0];
-        d.ejecting.retain(|q| *q != p);
-        d.ejecting.push(p);
     }
     pub(super) fn ejector_observation(&self, p: Pos) -> Option<crate::logistics::Ejector> {
         if self.w.block_at(0, p) != Some(Block::WeightedEjector) {
@@ -248,6 +273,12 @@ impl Run {
 struct EjectorSide<'a> {
     run: &'a mut Run,
     pos: Pos,
+}
+
+/// A full-cube collider box for the cell `p`, in world units.
+fn full_cube(p: Pos) -> [f64; 6] {
+    let [x, y, z] = p.map(f64::from);
+    [x, y, z, x + 1.0, y + 1.0, z + 1.0]
 }
 
 impl ejector::World for EjectorSide<'_> {
@@ -323,9 +354,8 @@ impl ejector::World for EjectorSide<'_> {
         ));
     }
     fn clip(&mut self, from: [f64; 3], to: [f64; 3]) -> Option<([f64; 3], [i32; 3], Dir)> {
-        let own = self.pos;
         let run = &*self.run;
-        ejector::clip_blocks(from, to, |p| p != own && run.collides(p))
+        ejector::clip(from, to, |p| run.collider_boxes(p))
     }
     fn extracting_funnel(&mut self, pos: [i32; 3]) -> bool {
         self.run.funnel_at(pos).is_some_and(|(b, i)| {

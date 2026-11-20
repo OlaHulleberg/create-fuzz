@@ -366,14 +366,6 @@ impl Run {
             self.update_cover(p);
         }
         let changed = self.w.take_depot_changes(0);
-        // `send_changed_depots`/`contents_changed`: ejectors holding a new stack look again
-        // (`wake_ejectors`).
-        for p in &changed {
-            let d = &mut self.w.dims[0];
-            if d.ejectors.contains_key(p) && !d.ejecting.contains(p) {
-                d.ejecting.push(*p);
-            }
-        }
         for p in changed {
             if self.w.dims[0].depots.get(&p) == Some(&None) && self.depot_stacks.contains_key(&p) {
                 if let Some(h) = self.w.dims[0].depots.get_mut(&p) {
@@ -422,6 +414,12 @@ impl Run {
                 }
                 create_engine::world::TransportTick::Funnel(p) => {
                     self.tick_funnel(p);
+                    continue;
+                }
+                // A weighted ejector is the depot behaviour it extends, ticked with its
+                // block entity by this walk.
+                create_engine::world::TransportTick::Ejector(p) => {
+                    self.tick_ejector(p);
                     continue;
                 }
                 create_engine::world::TransportTick::Belt(c) => c,
