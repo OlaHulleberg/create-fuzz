@@ -299,7 +299,9 @@ impl Run {
             .position(|q| *q == p)
             .unwrap() as i32;
         if seg.hovering_end(hit) {
-            let (_, taken) = self.w.take_belt(0, p).unwrap();
+            // `BeltSlicer.java:86-93`: `detachKinetics`, `invalidateItemHandler` and
+            // `beltLength = 0` on every segment (`take_belt`), as the glue's `use_wrench`.
+            let (_, mut taken) = self.w.take_belt(0, p).unwrap();
             let next = add(
                 p,
                 if seg.part == belt::Part::End {
@@ -310,24 +312,28 @@ impl Run {
             );
             self.set_segment(next, seg, self.belt_casing.contains_key(&next));
             self.w.remove_belt_quietly(0, p);
-            self.set(p, AIR);
-            let mut items = taken.items.to_save();
-            let chain: Vec<_> = taken.chain.iter().copied().filter(|q| *q != p).collect();
-            // Items past the new end are thrown off (END) or dropped where the start was
-            // (START); native item flight is outside the comparison.
-            if seg.part == belt::Part::End {
-                items.items.retain(|i| i.position <= (length - 1) as f32);
-            } else {
-                items.items = std::mem::take(&mut items.items)
-                    .into_iter()
-                    .map(|mut i| {
-                        i.position -= 1.;
-                        i
-                    })
-                    .filter(|i| i.position > 0.)
-                    .collect();
+            // `BeltSlicer.java:97`'s air write (`UPDATE_MOVE_BY_PISTON`) still runs
+            // `BeltBlockEntity.destroy` (`:194-198`): the clicked START is the controller, so
+            // `getInventory().ejectAll()` empties it before the transfer.
+            if seg.part == belt::Part::Start {
+                self.w.destroy_belt(0, &mut taken);
             }
-            self.w.reform_belt(0, chain[0], &chain, items);
+            self.set(p, AIR);
+            let chain: Vec<_> = taken.chain.iter().copied().filter(|q| *q != p).collect();
+            if seg.part == belt::Part::End {
+                // `BeltSlicer.java:106-113`: items past the new end are ejected (native item
+                // flight is outside the comparison); the controller keeps its inventory.
+                taken
+                    .items
+                    .items
+                    .retain(|i| i.position <= (length - 1) as f32);
+                self.w.reform_belt(0, chain[0], &chain, taken.items);
+            } else {
+                // `BeltSlicer.java:116-132`: the next segment is the controller now, with a
+                // fresh `BeltInventory` (`beltMovementPositive` false).
+                self.w
+                    .reform_belt(0, chain[0], &chain, belt::Inventory::fresh(Vec::new()));
+            }
             return;
         }
         let toward_positive = (0..3).map(|i| hit[i] * f64::from(v[i])).sum::<f64>() > 0.;
@@ -346,7 +352,7 @@ impl Run {
         if !self.creative {
             return;
         }
-        let (controller, taken) = self.w.take_belt(0, p).unwrap();
+        let (controller, mut taken) = self.w.take_belt(0, p).unwrap();
         let (here, there) = if toward_positive {
             (belt::Part::End, belt::Part::Start)
         } else {
@@ -369,34 +375,26 @@ impl Run {
         let shift = index as f32 + if toward_positive { 1. } else { 0. };
         let cut = ((index + i32::from(toward_positive)).max(0) as usize).min(taken.chain.len());
         let (first, second) = taken.chain.split_at(cut);
-        let items = taken.items.to_save();
-        let (moved, kept): (Vec<_>, Vec<_>) = items
-            .items
+        // `BeltSlicer.java:222-236`: the first half keeps the old inventory and its flag; the
+        // new controller gets a fresh `BeltInventory` (`beltMovementPositive` false) that the
+        // items past the cut are added to.
+        let (moved, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut taken.items.items)
             .into_iter()
             .partition(|i| i.position - shift > 0.);
-        let moved = moved
-            .into_iter()
-            .map(|mut i| {
-                i.position -= shift;
-                i
-            })
-            .collect();
-        self.w.reform_belt(
-            0,
-            controller,
-            first,
-            belt::Inventory::from_saved(kept, items.positive),
-        );
-        self.w.reform_belt(
-            0,
-            new_controller,
-            second,
-            belt::Inventory::from_saved(moved, items.positive),
-        );
+        taken.items.items = rest;
+        let moved = moved.into_iter().map(|mut i| {
+            i.position -= shift;
+            i
+        });
+        let mut fresh = belt::Inventory::fresh(Vec::new());
+        fresh.add_all(moved);
+        self.w.reform_belt(0, controller, first, taken.items);
+        self.w.reform_belt(0, new_controller, second, fresh);
     }
     /// `use_connector` at a hovered end: join the belt there, or lengthen this one. False when
     /// the glue passes the click on to the connector item (a block there that is no belt).
     fn slice_connector(&mut self, p: Pos, seg: belt::Segment, length: i32) -> bool {
+        let clicked_controller = self.w.dims[0].belt_of[&p];
         let v = seg.vector();
         let color = self.belt_color.get(&p).cloned();
         let next = add(
@@ -421,20 +419,24 @@ impl Run {
             if other_length + length > bc::MAX_LENGTH {
                 return true;
             }
-            let (_, mine) = self.w.take_belt(0, p).unwrap();
-            let (_, theirs) = self.w.take_belt(0, next).unwrap();
+            // `BeltSlicer.java:290-306`: per segment of the other belt in chain order,
+            // `detachKinetics`, `beltLength = 0`, then the flip. The clicked belt's segments
+            // keep their length (`:308` reads the merged chain before the zeroing loop).
+            let mut their_chain = self.w.belt_chain(0, next).unwrap();
+            let their_controller = self.w.dims[0].belt_of[&next];
             let flip = seg.facing != other.facing;
-            let mut their_items = theirs.items.to_save();
-            let mut their_chain = theirs.chain;
-            if flip {
-                for q in &their_chain {
-                    if let Some(s) = self.segment(*q) {
-                        self.set_segment_direct(*q, s.flipped(), self.belt_casing.contains_key(q));
-                    }
-                }
-                for i in &mut their_items.items {
+            if flip && let Some(items) = self.w.belt_items_mut(0, their_controller) {
+                for i in items {
                     i.position = other_length as f32 - i.position;
                 }
+            }
+            for q in &their_chain {
+                self.w.detach_belt_segment(0, *q);
+                if flip && let Some(s) = self.segment(*q) {
+                    self.set_segment_direct(*q, s.flipped(), self.belt_casing.contains_key(q));
+                }
+            }
+            if flip {
                 their_chain.reverse();
             }
             for q in [p, next] {
@@ -447,35 +449,34 @@ impl Run {
                     self.belt_casing.contains_key(&q),
                 );
             }
-            let my_items = mine.items.to_save();
-            let (chain, mut all) = if seg.part == belt::Part::End {
-                let mut chain = mine.chain;
-                chain.extend(their_chain);
-                let mut all = my_items.items;
-                all.extend(their_items.items.into_iter().map(|mut i| {
-                    i.position += length as f32;
-                    i
-                }));
-                (chain, all)
-            } else {
-                let mut chain = their_chain;
-                chain.extend(mine.chain);
-                let mut all = their_items.items;
-                all.extend(my_items.items.into_iter().map(|mut i| {
-                    i.position += other_length as f32;
-                    i
-                }));
-                (chain, all)
-            };
-            all.sort_by(|a, b| b.position.total_cmp(&a.position));
-            for q in &chain {
+            for q in &their_chain {
                 self.set_segment_color(*q, color.as_deref());
             }
-            self.w
-                .reform_belt(0, chain[0], &chain, belt::Inventory::from_saved(all, true));
+            if seg.part == belt::Part::End {
+                // `BeltSlicer.java:322-333`: the clicked belt starts the merged belt: its
+                // inventory stays the merged one, and the other belt's items move on by its
+                // length into it (`mergedController.inventory = null`).
+                let their_items = self
+                    .w
+                    .replace_belt_inventory(0, their_controller)
+                    .into_iter()
+                    .map(|mut i| {
+                        i.position += length as f32;
+                        i
+                    });
+                self.w.belt_add_items(0, clicked_controller, their_items);
+            } else {
+                // The other belt starts the merged belt: its controller keeps its inventory
+                // and flag; the clicked controller's inventory is emptied (`= null`).
+                let mut mine = self.w.replace_belt_inventory(0, clicked_controller);
+                for i in &mut mine {
+                    i.position += other_length as f32;
+                }
+                self.w.belt_add_items(0, their_controller, mine);
+            }
             return true;
         }
-        let (_, taken) = self.w.take_belt(0, p).unwrap();
+        let (_, mut taken) = self.w.take_belt(0, p).unwrap();
         self.set_segment(
             p,
             belt::Segment {
@@ -486,17 +487,25 @@ impl Run {
         );
         self.set_segment_direct(next, seg, false);
         self.set_segment_color(next, color.as_deref());
-        let mut items = taken.items.to_save();
         let mut chain = taken.chain;
         if seg.part == belt::Part::Start {
+            // `BeltSlicer.java:352-361`: the placed segment is the controller now, with a
+            // fresh `BeltInventory`; the items move on by one segment.
             chain.insert(0, next);
-            for i in &mut items.items {
-                i.position += 1.;
-            }
+            let mut fresh = belt::Inventory::fresh(Vec::new());
+            fresh.add_all(
+                std::mem::take(&mut taken.items.items)
+                    .into_iter()
+                    .map(|mut i| {
+                        i.position += 1.;
+                        i
+                    }),
+            );
+            self.w.reform_belt(0, next, &chain, fresh);
         } else {
             chain.push(next);
+            self.w.reform_belt(0, chain[0], &chain, taken.items);
         }
-        self.w.reform_belt(0, chain[0], &chain, items);
         true
     }
 }

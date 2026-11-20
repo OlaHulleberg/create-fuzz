@@ -435,8 +435,9 @@ impl Run {
     /// (`DirectBeltInputBehaviour`): a depot, a belt or an item drain.
     pub(super) fn direct_input_at(&self, p: Pos) -> bool {
         let d = &self.w.dims[0];
+        // A belt segment is a `DirectBeltInputBehaviour` before its chain forms, too.
         d.depots.contains_key(&p)
-            || d.belt_of.contains_key(&p)
+            || self.w.block_at(0, p) == Some(Block::Belt)
             || d.drains.contains_key(&p)
             || self.funnel_at(p).is_some()
             || self.chute_at(p).is_some()
@@ -469,6 +470,11 @@ impl Run {
             return rpm != 0.
                 && !matches!(seg.slope, belt::Slope::Sideways | belt::Slope::Vertical)
                 && belt::movement_facing(rpm, seg.facing) != side.opposite();
+        }
+        if self.w.block_at(0, p) == Some(Block::Belt) {
+            // A segment whose chain has not formed: `getControllerBE` finds nothing and
+            // `tryInsertingFromSide` refuses.
+            return false;
         }
         true
     }
@@ -567,7 +573,14 @@ impl Run {
             );
             return Some(rest);
         }
-        let (c, index, seg) = self.belt_location(p)?;
+        let Some((c, index, seg)) = self.belt_location(p) else {
+            // `BeltBlockEntity.tryInsertingFromSide`: a segment whose chain has not formed
+            // (a slicer's segment before its tick) has no controller; the stack comes back.
+            if self.w.block_at(0, p) == Some(Block::Belt) {
+                return Some(item.count);
+            }
+            return None;
+        };
         if !seg.transports() {
             return Some(item.count);
         }
