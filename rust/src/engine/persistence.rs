@@ -395,9 +395,18 @@ impl Run {
         ): ReloadData = serde_json::from_slice(&bytes).unwrap();
         self.depot_stacks = slots.into_iter().collect();
         self.handles = handles.into_iter().collect();
+        // The glue's `arms_to_nbt`: each ejector goes into its column's save
+        // (`EjectorBlockEntity.write`: distances, state, lid, power, stack size, flying stacks);
+        // `arms_from_nbt` stages it in `ejector_saved` for its block's load.
+        let ejectors: Vec<_> = self.w.dims[0]
+            .ejectors
+            .iter()
+            .map(|(p, e)| (*p, reloaded_ejector(e)))
+            .collect();
         for &(cx, cz) in &columns {
             self.w.column_unloaded(0, cx, cz);
         }
+        self.w.dims[0].ejector_saved.extend(ejectors);
         // The Java adapter recreates the isolated case's network namespace too.
         self.w.dims[0].kinetics = create_engine::kinetics::Kinetics::new();
         let motors = match data.get("motors") {
@@ -637,6 +646,35 @@ impl Run {
             _ => return None,
         })
     }
+}
+
+/// An ejector as the glue's column save writes it and `arms_from_nbt` reads it back: what
+/// `EjectorBlockEntity.write` keeps, the rest as a new block entity's.
+fn reloaded_ejector(e: &create_engine::ejector::Ejector) -> create_engine::ejector::Ejector {
+    use create_engine::ejector;
+    let mut r = ejector::Ejector {
+        launcher: ejector::Launcher::new(e.launcher.h, e.launcher.v),
+        ..Default::default()
+    };
+    r.launcher.clamp(ejector::MAX_DISTANCE);
+    r.state = ejector::State::from_index(e.state.index().min(2));
+    let lid = e.lid.value.clamp(0.0, 1.0);
+    r.lid.value = lid;
+    r.lid.previous = lid;
+    r.lid.target = lid;
+    r.powered = e.powered;
+    r.max_stack = e.max_stack.min(64);
+    for f in &e.flying {
+        let id = r.next_id;
+        r.next_id += 1;
+        r.flying.push(ejector::Flying {
+            id,
+            time: f.time,
+            item: f.item.clone(),
+            count: f.count.clamp(1, 64),
+        });
+    }
+    r
 }
 
 #[cfg(test)]
