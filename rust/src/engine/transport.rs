@@ -280,7 +280,7 @@ impl Run {
                 }
             }
             Some(Block::BrassTunnel) => {
-                self.brass_capability(p, slot, insert, simulate, &mut outcome)
+                self.brass_capability(p, slot, insert, extract, simulate, &mut outcome)
             }
             Some(Block::Belt) => {
                 self.belt_capability(p, slot, insert, extract, simulate, &mut outcome)
@@ -298,7 +298,7 @@ impl Run {
     /// the segment. In: onto the segment while `canInsertAt` allows, from the next tick
     /// (`addItem`); out: `getStackAtOffset`, split in place, a stack it empties only marked
     /// `toRemove`.
-    fn belt_capability(
+    pub(super) fn belt_capability(
         &mut self,
         p: Pos,
         slot: u8,
@@ -361,9 +361,7 @@ impl Run {
         // segment breaks in the same tick (`BeltTunnelBlock.neighborChanged`).
         self.belt_breaks();
         self.tick_chutes();
-        self.tick_funnels();
         self.tick_tunnels();
-        self.tick_brass();
         for p in std::mem::take(&mut self.cover_checks) {
             self.update_cover(p);
         }
@@ -387,7 +385,7 @@ impl Run {
         // The glue's shared level registration walk (BeltBlockEntity.tick and
         // DepotBehaviour.tick): apply transfers before the next entity's turn.
         self.tick_pumps();
-        let mut phase = self.w.transport_ticks(0);
+        let mut phase = self.w.transport_ticks(0, u64::from(self.now));
         while let Some(turn) = phase.next(&mut self.w) {
             let c = match turn {
                 create_engine::world::TransportTick::Fluid(p) => {
@@ -409,9 +407,21 @@ impl Run {
                     continue;
                 }
                 create_engine::world::TransportTick::Depot(p) => {
-                    if self.w.tick_depot(0, p, false) {
+                    let arrived = self.w.tick_depot(0, p, false);
+                    // The glue's `tick_depot`: `handleBeltFunnelOutput` before the processing.
+                    if !self.depot_output(p) && arrived {
                         self.spout_on_depot(p);
                     }
+                    continue;
+                }
+                // The glue's `tick_brass` and `tick_funnel` turns (`BrassTunnelBlockEntity.tick`,
+                // `FunnelBlockEntity.tick` in the level's block-entity order).
+                create_engine::world::TransportTick::Brass(p) => {
+                    self.tick_brass(p);
+                    continue;
+                }
+                create_engine::world::TransportTick::Funnel(p) => {
+                    self.tick_funnel(p);
                     continue;
                 }
                 create_engine::world::TransportTick::Belt(c) => c,
@@ -964,7 +974,7 @@ impl belt::Surroundings for Side<'_> {
     }
     /// The glue's `BeltSide::tunnel`: the tunnel over `segment` may take some of `item`; the
     /// flaps it sets are client animation and are not observed.
-    fn tunnel(&mut self, segment: i32, item: &mut belt::Item) -> bool {
+    fn tunnel(&mut self, segment: i32, item: &mut belt::Item) -> belt::TunnelStep {
         self.run.tunnel_takes(
             self.controller,
             self.segment,
