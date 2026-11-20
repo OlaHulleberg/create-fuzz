@@ -181,10 +181,10 @@ impl Run {
                 _ => return true,
             };
             let s = with_prop(&self.name(self.at(p)), "shape", next);
-            // `BeltTunnelBlock.onWrenched`. Main's glue sets the window with `update_all`, so
-            // the neighbours are told; fix/belt-io's with `UPDATE_CLIENTS` alone, as Java does.
+            // `BeltTunnelBlock.onWrenched`: the window is set with `UPDATE_CLIENTS` alone, so
+            // no neighbour is told.
             let id = self.id(&s);
-            self.commit(p, id, !cfg!(feature = "belt-io"));
+            self.commit(p, id, false);
             return true;
         }
         if item != "create:andesite_tunnel" && item != "create:brass_tunnel" {

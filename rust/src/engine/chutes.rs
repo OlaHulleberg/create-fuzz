@@ -162,30 +162,13 @@ impl Run {
             self.set(pos, self.id(&next));
         }
     }
-    /// Main's `tick_chutes` walks a snapshot of the moving chutes taken before any moved.
-    #[cfg(not(feature = "belt-io"))]
-    fn chute_turns(&self) -> std::vec::IntoIter<(Pos, f32)> {
-        let mut moving: Vec<(Pos, f32)> = self.w.dims[0]
-            .chutes
-            .iter()
-            .map(|(p, v)| (*p, *v))
-            .collect();
-        moving.sort_by_key(|m| m.0);
-        moving.into_iter()
-    }
-    #[cfg(not(feature = "belt-io"))]
-    fn next_chute_turn(&self, turns: &mut std::vec::IntoIter<(Pos, f32)>) -> Option<(Pos, f32)> {
-        turns.next()
-    }
-    /// fix/belt-io's: `Level.blockEntityTickers`, each chute at its own turn
+    /// `Level.blockEntityTickers`, each chute at its own turn
     /// (`ChuteBlockEntity.tick`): a stack a chute hands down during its turn moves on in the
     /// same level tick when the chute below is registered after it.
-    #[cfg(feature = "belt-io")]
     fn chute_turns(&self) -> create_engine::world::ChuteTicks {
         self.w.chute_ticks(0)
     }
     /// The next chute in that order that holds a moving stack, with its position.
-    #[cfg(feature = "belt-io")]
     fn next_chute_turn(&self, turns: &mut create_engine::world::ChuteTicks) -> Option<(Pos, f32)> {
         loop {
             let pos = turns.next(&self.w)?;
@@ -226,19 +209,16 @@ impl Run {
                 }
             }
         }
-        // fix/belt-io: entries whose chute block is gone (removed while it held a stack) leave
-        // with their pass.
-        #[cfg(feature = "belt-io")]
-        {
-            let stale: Vec<Pos> = self.w.dims[0]
-                .chutes
-                .keys()
-                .copied()
-                .filter(|p| self.chute_at(*p).is_none())
-                .collect();
-            for p in stale {
-                self.w.dims[0].chutes.remove(&p);
-            }
+        // Entries whose chute block is gone (removed while it held a stack) leave with their
+        // pass.
+        let stale: Vec<Pos> = self.w.dims[0]
+            .chutes
+            .keys()
+            .copied()
+            .filter(|p| self.chute_at(*p).is_none())
+            .collect();
+        for p in stale {
+            self.w.dims[0].chutes.remove(&p);
         }
     }
     /// `handleDownwardOutput`: the inventory below first; then the chute it leads into (a
@@ -282,24 +262,10 @@ impl Run {
             // `falls_through`: unless the block below can hold a rigid block up.
             !funnel_down && !run.sturdy(below, Dir::Up)
         };
-        // Main's glue takes any container below as able to take the stack.
-        #[cfg(not(feature = "belt-io"))]
-        let can = if !active {
-            false
-        } else if container {
-            true
-        } else if target_chute.is_some() {
-            target_takes(self)
-        } else if diagonal {
-            false
-        } else {
-            drops(self)
-        };
-        // fix/belt-io's: `handleDownwardOutput(true)` past the middle asks, by a simulated
+        // `handleDownwardOutput(true)` past the middle asks, by a simulated
         // `insertItemStacked` into the inventory below, whether it takes any of the stack; a
         // straight chute over one that refuses waits at 0.5, a diagonal one asks its target
         // (`chute::can_output_down`).
-        #[cfg(feature = "belt-io")]
         let can = active && {
             let inventory = container.then(|| {
                 if belt_below {

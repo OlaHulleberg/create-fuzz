@@ -384,13 +384,10 @@ impl Run {
         taken.items.items = rest;
         let moved = moved.into_iter().map(|mut i| {
             i.position -= shift;
-            // fix/belt-io: `toRemove` belongs to the inventory that marked it; the new
-            // controller's `addItem` takes the stack unmarked (BeltSlicer.java:222-238 walks
+            // `toRemove` belongs to the inventory that marked it; the new controller's
+            // `addItem` takes the stack unmarked (BeltSlicer.java:222-238 walks
             // `getTransportedItems()`), so it survives there while the belt is stopped.
-            #[cfg(feature = "belt-io")]
-            {
-                i.removing = false;
-            }
+            i.removing = false;
             i
         });
         let mut fresh = belt::Inventory::fresh(Vec::new());

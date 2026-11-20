@@ -5,11 +5,6 @@ edition = "2024"
 license = "MIT"
 publish = false
 
-[features]
-# Mirror the glue of create-horizon's `fix/belt-io` branch (#134-#140), whose engine API main
-# lacks; run.sh turns it on with `FUZZ_FEATURES=belt-io`. See README.md, "Engines".
-belt-io = []
-
 [dependencies]
 # The port's engine, from a create-horizon checkout next to this repository.
 create-engine = { path = "../../create-horizon/create/src/engine" }

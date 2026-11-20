@@ -37,23 +37,9 @@ server. `FUZZ_FOUND` sets where `fuzz` saves differences.
 
 ### Engines
 
-The driver re-implements the port's glue (`rust/src/engine*`), so it mirrors one glue at a
-time: create-horizon `main` by default. `FUZZ_FEATURES=belt-io` (with `CREATE_HORIZON` at a
-checkout of create-horizon's `fix/belt-io`, #134-#140) mirrors that branch's glue instead, which
-needs its engine API (`Item::removing`, `Inventory::extract_at`, `CreateWorld::chute_ticks`,
-`chute::can_output_down`); the build fails against `main`'s engine. Where they diverge, all
-under `#[cfg(feature = "belt-io")]`:
-
-- the belt segment's item handler (`ItemHandlerBeltSegment`; main has none:
-  `engine/transport.rs`, `belt_capability`);
-- the belt break cascade leading the logistics tick (main: just before the transport walk;
-  `tick_transport`);
-- chutes ticking in block-entity order, asking the inventory below before passing the
-  middle, and dropping entries of removed chutes (`engine/chutes.rs`);
-- the slicer's split unmarking `toRemove` stacks it moves (`engine/belts.rs`);
-- the belt codec reading an empty saved stack back as empty (`persistence/codec.rs`).
-- the tunnel wrench's window write telling no neighbour (`UPDATE_CLIENTS`; main's glue uses
-  `update_all`: `engine/tunnels.rs`).
+The driver re-implements the port's glue (`rust/src/engine*`) and mirrors create-horizon `main`:
+its engine API and its glue's order and rules. A driver built against an older checkout may not
+compile; one built against a branch that changes the glue differs where the branch does.
 
 The server queues requests by arrival (file modification time, filename only to break ties).
 After each case is disposed and its cleanup has settled, an unfinished batch goes to the back

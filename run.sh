@@ -118,8 +118,7 @@ fuzz)
     if [ "${1:-}" = cover ]; then
         python3 "$here/tools/coverage/campaign.py" begin "$here" "$CREATE_HORIZON_DIR" "${CREATE_DIR:-$here/../Create}" "$2"
     fi
-    # FUZZ_FEATURES=belt-io: mirror the glue of create-horizon's fix/belt-io branch (README, "Engines").
-    cargo +1.99.1 run -q --release --manifest-path "$manifest" ${FUZZ_FEATURES:+--features "$FUZZ_FEATURES"} -- "$@"
+    cargo +1.99.1 run -q --release --manifest-path "$manifest" -- "$@"
     if [ "${1:-}" = cover ]; then
         python3 "$here/tools/coverage/campaign.py" complete
     fi ;;

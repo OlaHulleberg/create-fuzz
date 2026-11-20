@@ -282,13 +282,9 @@ impl Run {
             Some(Block::BrassTunnel) => {
                 self.brass_capability(p, slot, insert, simulate, &mut outcome)
             }
-            #[cfg(feature = "belt-io")]
             Some(Block::Belt) => {
                 self.belt_capability(p, slot, insert, extract, simulate, &mut outcome)
             }
-            // create-horizon main's `handlers::provide` has no belt arm: no handler.
-            #[cfg(not(feature = "belt-io"))]
-            Some(Block::Belt) => {}
             Some(Block::AndesiteTunnel) | None => {}
             Some(b) => self.notes.push(format!(
                 "adapter gap: item handler of create:{} at {p:?}",
@@ -297,12 +293,11 @@ impl Run {
         }
         self.item_outcomes.push(outcome);
     }
-    /// fix/belt-io's `handlers::BeltItems`, `ItemHandlerBeltSegment` (registered by
+    /// The glue's `handlers::BeltItems`, `ItemHandlerBeltSegment` (registered by
     /// `BeltBlockEntity.registerCapabilities`, none where the belt cannot transport): one slot at
     /// the segment. In: onto the segment while `canInsertAt` allows, from the next tick
     /// (`addItem`); out: `getStackAtOffset`, split in place, a stack it empties only marked
     /// `toRemove`.
-    #[cfg(feature = "belt-io")]
     fn belt_capability(
         &mut self,
         p: Pos,
@@ -361,10 +356,9 @@ impl Run {
     }
     pub(super) fn tick_transport(&mut self) {
         // The glue's logistics phase: chutes, funnels, tunnels, then covers, then transport.
-        // fix/belt-io's `break_pass` leads it: `BeltBlock.onRemove`'s break cascade runs at
+        // The glue's `break_pass` leads it: `BeltBlock.onRemove`'s break cascade runs at
         // block-change time in Java, before every block entity tick, so a tunnel over a removed
         // segment breaks in the same tick (`BeltTunnelBlock.neighborChanged`).
-        #[cfg(feature = "belt-io")]
         self.belt_breaks();
         self.tick_chutes();
         self.tick_funnels();
@@ -390,9 +384,6 @@ impl Run {
                 self.w.wake_depot(0, p);
             }
         }
-        // Main's `tick_transport` runs the break cascade just before its walk.
-        #[cfg(not(feature = "belt-io"))]
-        self.belt_breaks();
         // The glue's shared level registration walk (BeltBlockEntity.tick and
         // DepotBehaviour.tick): apply transfers before the next entity's turn.
         self.tick_pumps();
